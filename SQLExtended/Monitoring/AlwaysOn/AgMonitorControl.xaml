@@ -1,0 +1,845 @@
+<UserControl x:Class="SQLExtended.Monitoring.AlwaysOn.AgMonitorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SQLExtended.Monitoring.AlwaysOn"
+             xmlns:mon="clr-namespace:SQLExtended.Monitoring"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <!-- Shared monitoring chrome: buttons, tabs, grid styling and converters. -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SQLExtended;component/Monitoring/MonitoringTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+        <!-- Severity colouring and the bytes/sec rate format are specific to this window. -->
+        <local:AgSeverityBrushConverter x:Key="Severity"/>
+        <local:AgBytesPerSecondConverter x:Key="ByteSec"/>
+
+        <!-- Overview card for a single availability group -->
+        <DataTemplate x:Key="GroupCard">
+            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                    Padding="12,9" Margin="0,0,8,8" MinWidth="310">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#FFFFFF" FontSize="14"
+                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        <Border Grid.Column="1" CornerRadius="2" Padding="5,1" Margin="6,0,0,0" Background="#33000000">
+                            <TextBlock Text="{Binding SynchronizationHealth, Converter={StaticResource Dash}}"
+                                       Foreground="{Binding SynchronizationHealth, Converter={StaticResource Health}}"
+                                       FontSize="10" FontWeight="SemiBold"/>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Text="PRIMARY REPLICA" Style="{StaticResource CardLabel}"/>
+                    <TextBlock Text="{Binding PrimaryReplica, Converter={StaticResource Dash}}" Style="{StaticResource CardValue}"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="REPLICAS" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding ReplicaCount}" Style="{StaticResource CardValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="DATABASES" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding DatabaseCount}" Style="{StaticResource CardValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="WARNING" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding WarningCount}" FontSize="12" Margin="0,0,0,6">
+                                <TextBlock.Style>
+                                    <!-- Amber and bold while anything is degraded; a quiet grey zero otherwise. -->
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#D7BA7D"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WarningCount}" Value="0">
+                                                <Setter Property="Foreground" Value="#6E6E6E"/>
+                                                <Setter Property="FontWeight" Value="Normal"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3">
+                            <TextBlock Text="UNHEALTHY" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding UnhealthyCount}" FontSize="12" Margin="0,0,0,6">
+                                <TextBlock.Style>
+                                    <!-- Red and bold whenever anything is unhealthy; a plain green zero otherwise. -->
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#F48771"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding UnhealthyCount}" Value="0">
+                                                <Setter Property="Foreground" Value="#4EC9B0"/>
+                                                <Setter Property="FontWeight" Value="Normal"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Background="#2A2A2C" Height="1" Margin="0,2,0,7"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="CLUSTER TYPE" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding ClusterType, Converter={StaticResource Dash}}" Style="{StaticResource CardValue}"/>
+                            <TextBlock Text="BACKUP PREFERENCE" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding AutomatedBackupPreference, Converter={StaticResource Dash}}" Style="{StaticResource CardValue}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="RECOVERY HEALTH" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding PrimaryRecoveryHealth, Converter={StaticResource Dash}}"
+                                       Foreground="{Binding PrimaryRecoveryHealth, Converter={StaticResource Health}}"
+                                       FontSize="12" Margin="0,0,0,6"/>
+                            <TextBlock Text="REQUIRED SYNC SECONDARIES" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding RequiredSynchronizedSecondaries, Converter={StaticResource Dash}}" Style="{StaticResource CardValue}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!--
+                        How long the cluster waits for sp_server_diagnostics before deciding this instance is down.
+                        It belongs on the card because it is one of the two numbers that decide whether a failover
+                        happens at all, and it is invisible everywhere else in SSMS.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="HEALTH CHECK TIMEOUT" Style="{StaticResource CardLabel}"/>
+                            <TextBlock Text="{Binding HealthCheckTimeoutText, Converter={StaticResource Dash}}" Style="{StaticResource CardValue}"
+                                       ToolTip="sys.availability_groups.health_check_timeout — how long the cluster waits for sp_server_diagnostics to respond before declaring this instance down. With a failure-condition level of 3 or above, exceeding it is what triggers an automatic failover. The default is 30000 ms."/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: toolbar -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ToolButton}" Click="Refresh_Click"
+                        Padding="14,4" ToolTip="Collect a fresh snapshot from the current server now"/>
+                <CheckBox x:Name="AutoRefreshCheck" Content="Auto" Style="{StaticResource ToolCheck}" Margin="8,0,0,0"
+                          Checked="AutoRefresh_Changed" Unchecked="AutoRefresh_Changed"
+                          ToolTip="Poll the HADR DMVs on a timer"/>
+                <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
+                          SelectionChanged="Interval_Changed"
+                          ToolTip="How often to poll while Auto is on"/>
+                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
+                        ToolTip="Copy the active tab's grid as tab-separated text"/>
+                <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
+                        Click="OpenAsQuery_Click"
+                        ToolTip="Open the T-SQL behind the active tab in a new query window"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
+                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Row 1: banner for HADR-unavailable and per-section collection warnings -->
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+                CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
+            <TextBlock x:Name="NoticeText" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Row 2: tabs -->
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+                    Padding="0,6,0,0">
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
+            </TabControl.ItemContainerStyle>
+
+            <!-- ============================ Overview ============================ -->
+            <TabItem Header="Overview">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="2,4,2,2">
+                    <StackPanel>
+                        <!--
+                            Verdict strip. The cards below describe each group; this line answers the question the
+                            window was opened to answer — is anything wrong — and names the cluster whose quorum
+                            every group on this instance depends on.
+                        -->
+                        <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                                Padding="12,8" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="STATUS" Style="{StaticResource CardLabel}"/>
+                                    <TextBlock x:Name="VerdictText" FontSize="15" FontWeight="SemiBold" Foreground="#4EC9B0"
+                                               Text="Not collected yet"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="VerdictDetailText" Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ClusterSummaryText" Foreground="#808080" FontSize="11" Margin="0,3,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="2" Content="See diagnostics" Style="{StaticResource ToolButton}"
+                                        VerticalAlignment="Center" Click="GoToDiagnostics_Click"
+                                        ToolTip="Open the Diagnostics tab, which explains each finding and what to do about it"/>
+                            </Grid>
+                        </Border>
+
+                        <ItemsControl x:Name="GroupCards" ItemTemplate="{StaticResource GroupCard}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <TextBlock Text="Databases needing attention" Style="{StaticResource SectionHeading}"/>
+                        <TextBlock x:Name="AttentionEmpty" Text="All synchronised databases are healthy."
+                                   Foreground="#4EC9B0" FontSize="11" Margin="0,0,0,6"/>
+                        <DataGrid x:Name="AttentionGrid" Style="{StaticResource MonitorGrid}" MaxHeight="240"
+                                  Visibility="Collapsed">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Availability group" Binding="{Binding AgName}" Width="140"/>
+                                <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="150"/>
+                                <DataGridTextColumn Header="Replica" Binding="{Binding ReplicaServerName}" Width="150"/>
+                                <DataGridTemplateColumn Header="Sync state" Width="130" SortMemberPath="SynchronizationState">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding SynchronizationState, Converter={StaticResource Dash}}"
+                                                       Foreground="{Binding SynchronizationState, Converter={StaticResource Health}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Database state" Binding="{Binding DatabaseState, Converter={StaticResource Dash}}" Width="120"/>
+                                <DataGridTextColumn Header="Suspend reason" Binding="{Binding SuspendReason, Converter={StaticResource Dash}}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ Diagnostics ============================ -->
+            <!--
+                Derived client-side from the snapshot the other tabs are built from — no extra query. It reads
+                worst-first, and the Action column is the point: a state on its own is not actionable.
+            -->
+            <TabItem Header="Diagnostics">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
+                        <CheckBox x:Name="IssuesOnlyCheck" Content="Problems only" Style="{StaticResource ToolCheck}"
+                                  Checked="IssuesOnly_Changed" Unchecked="IssuesOnly_Changed"
+                                  ToolTip="Hide the informational rows and show only warnings and critical findings"/>
+                        <TextBlock x:Name="IssuesHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="Evaluated from the current snapshot — nothing here costs an extra round trip."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="IssueGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}" RowHeight="26">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Severity" Width="80" SortMemberPath="SeverityText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SeverityText}" FontWeight="SemiBold" FontSize="11"
+                                                   Foreground="{Binding Severity, Converter={StaticResource Severity}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Area" Binding="{Binding Area}" Width="110"/>
+                            <DataGridTextColumn Header="Subject" Binding="{Binding Subject}" Width="260"/>
+                            <DataGridTextColumn Header="Finding" Binding="{Binding Detail}" Width="440"/>
+                            <DataGridTextColumn Header="What it means / what to do" Binding="{Binding Recommendation}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <!-- The full text is often two sentences; the row stays one line and hover gives the rest. -->
+                                        <Setter Property="ToolTip" Value="{Binding Recommendation}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Replicas ============================ -->
+            <TabItem Header="Replicas">
+                <DataGrid x:Name="ReplicaGrid" Style="{StaticResource MonitorGrid}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Availability group" Binding="{Binding AgName}" Width="130"/>
+                        <DataGridTextColumn Header="Replica" Binding="{Binding ReplicaServerName}" Width="150"/>
+                        <DataGridTemplateColumn Header="Role" Width="90" SortMemberPath="Role">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Role}" FontWeight="SemiBold"
+                                               Foreground="{Binding Role, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Availability mode" Binding="{Binding AvailabilityMode, Converter={StaticResource Dash}}" Width="145"/>
+                        <DataGridTextColumn Header="Failover mode" Binding="{Binding FailoverMode, Converter={StaticResource Dash}}" Width="105"/>
+                        <DataGridTemplateColumn Header="Connected" Width="105" SortMemberPath="ConnectedState">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ConnectedState, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding ConnectedState, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Operational" Width="115" SortMemberPath="OperationalState">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding OperationalState, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding OperationalState, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Sync health" Width="120" SortMemberPath="SynchronizationHealth">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding SynchronizationHealth, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding SynchronizationHealth, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Recovery health" Width="125" SortMemberPath="RecoveryHealth">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding RecoveryHealth, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding RecoveryHealth, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Seeding" Binding="{Binding SeedingMode, Converter={StaticResource Dash}}" Width="95"/>
+                        <DataGridTextColumn Header="Readable" Binding="{Binding ReadableSecondary, Converter={StaticResource Dash}}" Width="100"/>
+                        <DataGridTextColumn Header="Backup pri." Binding="{Binding BackupPriority, Converter={StaticResource Dash}}" Width="80"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTextColumn Header="Local" Binding="{Binding IsLocal, Converter={StaticResource Glyph}}" Width="50"/>
+                        <DataGridTextColumn Header="Last connect error"
+                                            Binding="{Binding LastConnectErrorDescription, Converter={StaticResource Dash}}" Width="240"/>
+                        <DataGridTextColumn Header="Error at" Binding="{Binding LastConnectErrorTimestamp, Converter={StaticResource Ts}}" Width="140"/>
+                        <DataGridTextColumn Header="Session timeout" Binding="{Binding SessionTimeoutSeconds, Converter={StaticResource Dash}}" Width="105"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <!-- A readable secondary with no routing URL is in the routing list and unreachable by it. -->
+                        <DataGridTextColumn Header="Read-only routing URL" Binding="{Binding ReadOnlyRoutingUrl, Converter={StaticResource Dash}}" Width="220"/>
+                        <DataGridTextColumn Header="Read-write routing URL" Binding="{Binding ReadWriteRoutingUrl, Converter={StaticResource Dash}}" Width="220"/>
+                        <DataGridTextColumn Header="Endpoint" Binding="{Binding EndpointUrl, Converter={StaticResource Dash}}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- ============================ Databases ============================ -->
+            <TabItem Header="Databases">
+                <DataGrid x:Name="DatabaseGrid" Style="{StaticResource MonitorGrid}" RowHeight="26">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Availability group" Binding="{Binding AgName}" Width="125"/>
+                        <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="145"/>
+                        <DataGridTextColumn Header="Replica" Binding="{Binding ReplicaServerName}" Width="145"/>
+                        <DataGridTextColumn Header="Primary" Binding="{Binding IsPrimaryReplica, Converter={StaticResource Glyph}}" Width="60"/>
+                        <!-- Availability mode is what decides whether SYNCHRONIZING is a warning or the norm. -->
+                        <DataGridTextColumn Header="Mode" Binding="{Binding AvailabilityMode, Converter={StaticResource Dash}}" Width="140"/>
+                        <DataGridTemplateColumn Header="Sync state" Width="125" SortMemberPath="SynchronizationState">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding SynchronizationState, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding SynchronizationState, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Sync health" Width="115" SortMemberPath="SynchronizationHealth">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding SynchronizationHealth, Converter={StaticResource Dash}}"
+                                               Foreground="{Binding SynchronizationHealth, Converter={StaticResource Health}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="Send queue" Binding="{Binding LogSendQueueKb, Converter={StaticResource Kb}}" Width="95"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTemplateColumn Header="Send trend" Width="110" CanUserSort="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <mon:Sparkline Samples="{Binding SendQueueHistory}" LineBrush="#569CD6" Height="16"
+                                                     HorizontalAlignment="Stretch"
+                                                     ToolTip="Log send queue over the polling window; the label is the window peak"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Send rate" Binding="{Binding LogSendRateKbSec, Converter={StaticResource Rate}}" Width="95"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTextColumn Header="Est. data loss" Binding="{Binding EstimatedDataLossSeconds, Converter={StaticResource Secs}}"
+                                            Width="100" ElementStyle="{StaticResource NumCell}"/>
+
+                        <DataGridTextColumn Header="Redo queue" Binding="{Binding RedoQueueKb, Converter={StaticResource Kb}}" Width="95"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTemplateColumn Header="Redo trend" Width="110" CanUserSort="False">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <mon:Sparkline Samples="{Binding RedoQueueHistory}" LineBrush="#C586C0" Height="16"
+                                                     HorizontalAlignment="Stretch"
+                                                     ToolTip="Redo queue over the polling window; the label is the window peak"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Redo rate" Binding="{Binding RedoRateKbSec, Converter={StaticResource Rate}}" Width="95"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTextColumn Header="Est. recovery" Binding="{Binding EstimatedRecoverySeconds, Converter={StaticResource Secs}}"
+                                            Width="100" ElementStyle="{StaticResource NumCell}"/>
+
+                        <DataGridTextColumn Header="Lag" Binding="{Binding SecondaryLagSeconds, Converter={StaticResource Secs}}" Width="75"
+                                            ElementStyle="{StaticResource NumCell}"/>
+                        <DataGridTextColumn Header="Last commit" Binding="{Binding LastCommitTime, Converter={StaticResource Ts}}" Width="135"/>
+                        <DataGridTextColumn Header="DB state" Binding="{Binding DatabaseState, Converter={StaticResource Dash}}" Width="105"/>
+                        <DataGridTextColumn Header="Suspended" Binding="{Binding IsSuspended, Converter={StaticResource Glyph}}" Width="80"/>
+                        <DataGridTextColumn Header="Suspend reason" Binding="{Binding SuspendReason, Converter={StaticResource Dash}}" Width="170"/>
+                        <DataGridTextColumn Header="Failover ready" Binding="{Binding IsFailoverReady, Converter={StaticResource Glyph}}" Width="95"/>
+                        <!-- Joined is not the same as synchronized: an unjoined database is not protected at all. -->
+                        <DataGridTextColumn Header="Joined" Binding="{Binding IsDatabaseJoined, Converter={StaticResource Glyph}}" Width="65"/>
+                        <DataGridTextColumn Header="End of log LSN" Binding="{Binding EndOfLogLsn, Converter={StaticResource Dash}}" Width="150"/>
+                        <DataGridTextColumn Header="Last hardened LSN" Binding="{Binding LastHardenedLsn, Converter={StaticResource Dash}}" Width="150"/>
+                        <DataGridTextColumn Header="Last redone LSN" Binding="{Binding LastRedoneLsn, Converter={StaticResource Dash}}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- ============================ Throughput ============================ -->
+            <!--
+                From sys.dm_os_performance_counters, not the HADR DMVs. The queue columns on the Databases tab say
+                how far behind a secondary is; these say what synchronous commit is costing the primary and whether
+                the transport is the constraint. Cumulative counters are shown as deltas over the poll interval.
+            -->
+            <TabItem Header="Throughput">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,2,0,4">
+                        <TextBlock Text="Per database — local replica" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
+                        <TextBlock x:Name="ThroughputHint" Foreground="#808080" FontSize="11"
+                                   Text="The Database Replica counter object only reports databases on this instance, so this describes the replica you are connected to."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="ThroughputGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="170"/>
+                            <DataGridTextColumn Header="Commit delay / txn" Binding="{Binding AvgCommitDelayMs, Converter={StaticResource Ms}}" Width="125"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Mirrored commits" Binding="{Binding MirroredWriteTransactionsPerSec, Converter={StaticResource PerSec}}" Width="120"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Commit wait" Binding="{Binding TransactionDelayMsPerSec, Converter={StaticResource MsSec}}" Width="120"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Log received" Binding="{Binding LogBytesReceivedPerSec, Converter={StaticResource ByteSec}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Redone" Binding="{Binding RedoneBytesPerSec, Converter={StaticResource ByteSec}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="File bytes received" Binding="{Binding FileBytesReceivedPerSec, Converter={StaticResource ByteSec}}" Width="130"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Send queue" Binding="{Binding LogSendQueueKb, Converter={StaticResource Kb}}" Width="100"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Recovery queue" Binding="{Binding RecoveryQueueKb, Converter={StaticResource Kb}}" Width="115"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Redo remaining" Binding="{Binding RedoBytesRemainingKb, Converter={StaticResource Kb}}" Width="115"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Log for undo" Binding="{Binding LogRemainingForUndoKb, Converter={StaticResource Kb}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Total log requiring undo" Binding="{Binding TotalLogRequiringUndoKb, Converter={StaticResource Kb}}" Width="*"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Grid.Row="2" Margin="0,8,0,4">
+                        <TextBlock Text="Transport — per replica" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
+                        <TextBlock Foreground="#808080" FontSize="11"
+                                   Text="Flow control is the metric that matters here: time spent throttled, and messages resent, both mean the link rather than the workload is setting the pace."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="TransportGrid" Grid.Row="3" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <!-- Shown verbatim: the counter object's instance naming has varied across releases. -->
+                            <DataGridTextColumn Header="Counter instance" Binding="{Binding Instance}" Width="220"/>
+                            <DataGridTextColumn Header="Flow control time" Binding="{Binding FlowControlTimeMsPerSec, Converter={StaticResource Num}}" Width="130"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Flow control" Binding="{Binding FlowControlPerSec, Converter={StaticResource PerSec}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Resent messages" Binding="{Binding ResentMessagesPerSec, Converter={StaticResource PerSec}}" Width="130"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Sent to replica" Binding="{Binding BytesSentToReplicaPerSec, Converter={StaticResource ByteSec}}" Width="120"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Sent to transport" Binding="{Binding BytesSentToTransportPerSec, Converter={StaticResource ByteSec}}" Width="125"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Received" Binding="{Binding BytesReceivedFromReplicaPerSec, Converter={StaticResource ByteSec}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Sends" Binding="{Binding SendsToReplicaPerSec, Converter={StaticResource PerSec}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Receives" Binding="{Binding ReceivesFromReplicaPerSec, Converter={StaticResource PerSec}}" Width="*"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Cluster ============================ -->
+            <!--
+                Quorum is the one condition that takes every group offline at once, and no replica-state column
+                mentions it. Empty here is normal for a CLUSTER_TYPE = NONE read-scale group.
+            -->
+            <TabItem Header="Cluster">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                            Padding="12,9" Margin="0,4,0,8">
+                        <UniformGrid Rows="1" Columns="3">
+                            <StackPanel>
+                                <TextBlock Text="CLUSTER" Style="{StaticResource CardLabel}"/>
+                                <TextBlock x:Name="ClusterNameText" Style="{StaticResource CardValue}" Text="—"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="QUORUM TYPE" Style="{StaticResource CardLabel}"/>
+                                <TextBlock x:Name="QuorumTypeText" Style="{StaticResource CardValue}" Text="—"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="QUORUM STATE" Style="{StaticResource CardLabel}"/>
+                                <TextBlock x:Name="QuorumStateText" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" Text="—"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </Border>
+
+                    <TextBlock Grid.Row="1" Text="Quorum members" Style="{StaticResource SectionHeading}" Margin="0,0,0,4"/>
+                    <DataGrid x:Name="ClusterMemberGrid" Grid.Row="2" Style="{StaticResource MonitorGrid}" MinHeight="90">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Member" Binding="{Binding MemberName}" Width="240"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding MemberType, Converter={StaticResource Dash}}" Width="180"/>
+                            <DataGridTemplateColumn Header="State" Width="120" SortMemberPath="MemberState">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding MemberState, Converter={StaticResource Dash}}" FontWeight="SemiBold"
+                                                   Foreground="{Binding MemberState, Converter={StaticResource Health}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <!-- The vote count is why a down member matters or does not. -->
+                            <DataGridTextColumn Header="Quorum votes" Binding="{Binding QuorumVotes, Converter={StaticResource Dash}}" Width="*"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="3" Text="Replica join state" Style="{StaticResource SectionHeading}"/>
+                    <DataGrid x:Name="ClusterNodeGrid" Grid.Row="4" Style="{StaticResource MonitorGrid}" MinHeight="90">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Availability group" Binding="{Binding AgName, Converter={StaticResource Dash}}" Width="180"/>
+                            <DataGridTextColumn Header="Replica" Binding="{Binding ReplicaServerName}" Width="200"/>
+                            <DataGridTextColumn Header="Cluster node" Binding="{Binding NodeName, Converter={StaticResource Dash}}" Width="200"/>
+                            <DataGridTextColumn Header="Join state" Binding="{Binding JoinState, Converter={StaticResource Dash}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="5" Text="Cluster networks" Style="{StaticResource SectionHeading}"/>
+                    <DataGrid x:Name="ClusterNetworkGrid" Grid.Row="6" Style="{StaticResource MonitorGrid}" MaxHeight="150">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Member" Binding="{Binding MemberName}" Width="240"/>
+                            <DataGridTextColumn Header="Subnet" Binding="{Binding NetworkSubnetIp, Converter={StaticResource Dash}}" Width="180"/>
+                            <DataGridTextColumn Header="Prefix" Binding="{Binding PrefixLength, Converter={StaticResource Dash}}" Width="70"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Mask" Binding="{Binding NetworkSubnetMask, Converter={StaticResource Dash}}" Width="150"/>
+                            <DataGridTextColumn Header="Public" Binding="{Binding IsPublic, Converter={StaticResource Glyph}}" Width="70"/>
+                            <DataGridTextColumn Header="IPv4" Binding="{Binding IsIpv4, Converter={StaticResource Glyph}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Listeners ============================ -->
+            <!--
+                A listener IP that is offline is a client-facing outage with every replica reporting HEALTHY, and a
+                routing target with no URL is a read-intent configuration that silently does nothing. Neither is
+                visible anywhere else in this window.
+            -->
+            <TabItem Header="Listeners">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,2,0,4">
+                        <TextBlock Text="Listeners" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
+                        <TextBlock x:Name="ListenerHint" Foreground="#808080" FontSize="11"
+                                   Text="One row per listener IP. In a multi-subnet listener only the IP in the current primary's subnet is expected to be online."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="ListenerGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Availability group" Binding="{Binding AgName}" Width="160"/>
+                            <DataGridTextColumn Header="DNS name" Binding="{Binding DnsName}" Width="200"/>
+                            <DataGridTextColumn Header="Port" Binding="{Binding Port, Converter={StaticResource Dash}}" Width="70"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="IP address" Binding="{Binding IpAddress, Converter={StaticResource Dash}}" Width="150"/>
+                            <DataGridTemplateColumn Header="State" Width="130" SortMemberPath="StateDescription">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding StateDescription, Converter={StaticResource Dash}}" FontWeight="SemiBold"
+                                                   Foreground="{Binding StateDescription, Converter={StaticResource Health}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Subnet mask" Binding="{Binding IpSubnetMask, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Subnet" Binding="{Binding NetworkSubnetIp, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="DHCP" Binding="{Binding IsDhcp, Converter={StaticResource Glyph}}" Width="65"/>
+                            <DataGridTextColumn Header="Conformant" Binding="{Binding IsConformant, Converter={StaticResource Glyph}}" Width="95"/>
+                            <DataGridTextColumn Header="Cluster IP configuration" Binding="{Binding IpConfigurationFromCluster, Converter={StaticResource Dash}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="2" Text="Read-only routing" Style="{StaticResource SectionHeading}"/>
+                    <DataGrid x:Name="RoutingGrid" Grid.Row="3" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Availability group" Binding="{Binding AgName}" Width="160"/>
+                            <DataGridTextColumn Header="When primary is" Binding="{Binding SourceReplica}" Width="200"/>
+                            <!-- Priority is the routing order, so it sorts ahead of the target for a reason. -->
+                            <DataGridTextColumn Header="Priority" Binding="{Binding RoutingPriority}" Width="75"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Route read-intent to" Binding="{Binding TargetReplica}" Width="200"/>
+                            <DataGridTextColumn Header="Target role" Binding="{Binding TargetRole, Converter={StaticResource Dash}}" Width="110"/>
+                            <DataGridTextColumn Header="Target allows" Binding="{Binding TargetReadableSecondary, Converter={StaticResource Dash}}" Width="120"/>
+                            <DataGridTextColumn Header="Read-only routing URL" Binding="{Binding ReadOnlyRoutingUrl, Converter={StaticResource Dash}}" Width="240"/>
+                            <DataGridTextColumn Header="Read-write routing URL" Binding="{Binding ReadWriteRoutingUrl, Converter={StaticResource Dash}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Seeding ============================ -->
+            <TabItem Header="Seeding">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="In-flight physical seeding" Style="{StaticResource SectionHeading}" Margin="0,2,0,4"/>
+
+                    <TextBlock x:Name="SeedingEmpty" Grid.Row="1" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                               Text="No seeding is currently in progress. sys.dm_hadr_physical_seeding_stats only reports active transfers."/>
+
+                    <ItemsControl x:Name="SeedingCards" Grid.Row="2" Margin="0,0,0,4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                                        Padding="12,9" Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Heading: database → remote machine, with role and state -->
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,7">
+                                            <TextBlock Text="{Binding LocalDatabaseName}" Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold"/>
+                                            <TextBlock Text="→" Foreground="#808080" FontSize="13" Margin="7,0"/>
+                                            <TextBlock Text="{Binding RemoteMachineName, Converter={StaticResource Dash}}" Foreground="#9CDCFE" FontSize="13"/>
+                                            <Border Background="#33000000" CornerRadius="2" Padding="5,1" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding Role, Converter={StaticResource Dash}}" Foreground="#D7BA7D" FontSize="10"/>
+                                            </Border>
+                                            <Border Background="#33000000" CornerRadius="2" Padding="5,1" Margin="4,0,0,0">
+                                                <TextBlock Text="{Binding InternalState, Converter={StaticResource Dash}}" Foreground="#CCCCCC" FontSize="10"/>
+                                            </Border>
+                                            <TextBlock Text="compressed" Foreground="#4EC9B0" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                       Visibility="{Binding IsCompressionEnabled, Converter={StaticResource BoolVis}}"/>
+                                        </StackPanel>
+
+                                        <!-- Progress bar with the percentage overlaid -->
+                                        <Grid Grid.Row="1" Height="20" Margin="0,0,0,7">
+                                            <Border Background="#1A1A1A" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="2"/>
+                                            <ProgressBar Value="{Binding PercentComplete, Mode=OneWay}" Maximum="100" Background="Transparent"
+                                                         Foreground="#0E639C" BorderThickness="0" Margin="1"/>
+                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FFFFFF"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Text="{Binding PercentComplete, StringFormat={}{0:N1}%}"/>
+                                        </Grid>
+
+                                        <!-- Metrics strip -->
+                                        <UniformGrid Grid.Row="2" Rows="1" Columns="5">
+                                            <StackPanel>
+                                                <TextBlock Text="TRANSFERRED" Style="{StaticResource CardLabel}"/>
+                                                <TextBlock Text="{Binding TransferredBytes, Converter={StaticResource Bytes}}" Style="{StaticResource CardValue}"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="TOTAL SIZE" Style="{StaticResource CardLabel}"/>
+                                                <TextBlock Text="{Binding DatabaseSizeBytes, Converter={StaticResource Bytes}}" Style="{StaticResource CardValue}"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="TRANSFER RATE" Style="{StaticResource CardLabel}"/>
+                                                <TextBlock Text="{Binding TransferRateBytesPerSecond, Converter={StaticResource ByteRate}}"
+                                                           Foreground="#4EC9B0" FontSize="12" Margin="0,0,0,6"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="REMAINING" Style="{StaticResource CardLabel}"/>
+                                                <TextBlock Text="{Binding EstimatedSecondsRemaining, Converter={StaticResource Secs}}"
+                                                           Foreground="#DCDCAA" FontSize="12" Margin="0,0,0,6"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="STARTED (UTC)" Style="{StaticResource CardLabel}"/>
+                                                <TextBlock Text="{Binding StartTimeUtc, Converter={StaticResource Ts}}" Style="{StaticResource CardValue}"/>
+                                            </StackPanel>
+                                        </UniformGrid>
+
+                                        <!-- Waits and failure: where seeding actually goes wrong -->
+                                        <StackPanel Grid.Row="3" Orientation="Horizontal">
+                                            <TextBlock Foreground="#808080" FontSize="10" VerticalAlignment="Center"
+                                                       Text="{Binding TotalNetworkWaitMs, StringFormat=network wait {0:N0} ms}"/>
+                                            <TextBlock Foreground="#808080" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                       Text="{Binding TotalDiskIoWaitMs, StringFormat=disk I/O wait {0:N0} ms}"/>
+                                            <TextBlock Foreground="#F48771" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
+                                                       TextWrapping="Wrap" Text="{Binding FailureMessage}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Grid.Row="3">
+                        <TextBlock Text="Seeding attempts" Style="{StaticResource SectionHeading}"/>
+                        <DataGrid x:Name="AutoSeedGrid" Style="{StaticResource MonitorGrid}" MaxHeight="320">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Availability group" Binding="{Binding AgName, Converter={StaticResource Dash}}" Width="140"/>
+                                <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="160"/>
+                                <DataGridTextColumn Header="Source" Binding="{Binding IsSource, Converter={StaticResource Glyph}}" Width="60"/>
+                                <DataGridTemplateColumn Header="State" Width="150" SortMemberPath="CurrentState">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding CurrentState, Converter={StaticResource Dash}}"
+                                                       Foreground="{Binding CurrentState, Converter={StaticResource Health}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Seeded" Binding="{Binding PerformedSeeding, Converter={StaticResource Glyph}}" Width="65"/>
+                                <DataGridTextColumn Header="Started" Binding="{Binding StartTime, Converter={StaticResource Ts}}" Width="140"/>
+                                <DataGridTextColumn Header="Completed" Binding="{Binding CompletionTime, Converter={StaticResource Ts}}" Width="140"/>
+                                <DataGridTextColumn Header="Attempts" Binding="{Binding NumberOfAttempts}" Width="75" ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Error" Binding="{Binding ErrorCode, Converter={StaticResource Dash}}" Width="70"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Failure state" Binding="{Binding FailureState, Converter={StaticResource Dash}}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Errors ============================ -->
+            <TabItem Header="Errors">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button x:Name="LoadEventsButton" Content="Load recent events" Style="{StaticResource ToolButton}"
+                                Click="LoadEvents_Click" Padding="14,4"
+                                ToolTip="Read the AlwaysOn_health extended-event session's current file"/>
+                        <ComboBox x:Name="EventCountCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="90"
+                                  ToolTip="How many of the most recent events to return"/>
+                        <CheckBox x:Name="ErrorsOnlyCheck" Content="Errors only" Style="{StaticResource ToolCheck}" Margin="10,0,0,0"
+                                  Checked="ErrorsOnly_Changed" Unchecked="ErrorsOnly_Changed"
+                                  ToolTip="Hide informational state-change events and show only severity 16+ and lease/error events"/>
+                        <TextBlock x:Name="EventsHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="Loads on demand — parsing the event file is too expensive to sit on the refresh timer."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="EventGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="When" Binding="{Binding EventTimeLocal, Converter={StaticResource Ts}}" Width="145"/>
+                            <DataGridTextColumn Header="Event" Binding="{Binding EventName}" Width="230"/>
+                            <DataGridTextColumn Header="Error" Binding="{Binding ErrorNumber, Converter={StaticResource Dash}}" Width="70"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Sev" Binding="{Binding Severity, Converter={StaticResource Dash}}" Width="55"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Availability group" Binding="{Binding AgName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Replica" Binding="{Binding ReplicaServerName, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message, Converter={StaticResource Dash}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Row 3: status bar -->
+        <Grid Grid.Row="3" Margin="0,5,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       Text="Open a query window connected to a replica, then press Refresh."/>
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    # The unit test project targets net48 and links its sources directly, so it builds
+    # without SSMS installed. The extension project itself cannot be built here: it
+    # references SSMS 22 assemblies by path from the install folder.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore SQLExtended.Tests/SQLExtended.Tests.csproj
+
+      - name: Build
+        run: dotnet build SQLExtended.Tests/SQLExtended.Tests.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test SQLExtended.Tests/SQLExtended.Tests.csproj --configuration Release --no-build --logger "console;verbosity=normal"

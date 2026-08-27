@@ -1,0 +1,504 @@
+﻿<Window x:Class="SQLExtended.FormatterOptionsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SQLExtended for SSMS Format Options"
+        Width="1100" Height="700"
+        MinWidth="900" MinHeight="550"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E1E"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        KeyDown="Window_KeyDown">
+
+    <Window.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="/SQLExtended;component/Theme/DarkCombo.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+
+        <!-- Reusable dark theme button style -->
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Small toolbar button style -->
+        <Style x:Key="ToolbarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Toggle button style for preview source selector -->
+        <Style x:Key="SourceToggle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,2,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Border" Background="{TemplateBinding Background}"
+                                BorderBrush="#444444" BorderThickness="1" CornerRadius="2"
+                                Padding="8,3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsChecked" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Border" Property="Background" Value="#3F3F46"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Template from Theme/DarkCombo.xaml, merged above; this adds only the sizing the
+             option rows need so every usage keeps its existing key. -->
+        <Style x:Key="DarkComboBox" TargetType="ComboBox" BasedOn="{StaticResource DarkCombo}">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="MinWidth" Value="160"/>
+        </Style>
+
+        <!-- Label style -->
+        <Style x:Key="OptionLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+
+        <!-- Section header style -->
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#569CD6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,12,0,8"/>
+        </Style>
+
+        <!-- CheckBox style -->
+        <Style x:Key="DarkCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+
+        <!-- TextBox style for numeric inputs -->
+        <Style x:Key="NumericInput" TargetType="TextBox">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+
+        <!-- TabControl style -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="#1E1E1E"/>
+            <Setter Property="BorderBrush" Value="#333337"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" Background="#2D2D30" BorderBrush="#333337" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="12,6">
+                            <ContentPresenter ContentSource="Header"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Foreground" Value="#569CD6"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#3F3F46"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Profile selector bar -->
+        <Border Grid.Row="0" Background="#252526" BorderBrush="#333337" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,8">
+            <DockPanel>
+                <TextBlock Text="Profile:" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,8,0"/>
+                <ComboBox x:Name="CboProfile" Style="{StaticResource DarkComboBox}" MinWidth="200"
+                          SelectionChanged="Profile_Changed" DockPanel.Dock="Left" Margin="0,0,8,0"/>
+                <Button Content="Save As..." Style="{StaticResource ToolbarButton}" Click="SaveProfileAs_Click"
+                        DockPanel.Dock="Left" Margin="0,0,4,0"/>
+                <Button x:Name="BtnRenameProfile" Content="Rename" Style="{StaticResource ToolbarButton}" Click="RenameProfile_Click"
+                        DockPanel.Dock="Left" Margin="0,0,4,0"/>
+                <Button x:Name="BtnDeleteProfile" Content="Delete" Style="{StaticResource ToolbarButton}" Click="DeleteProfile_Click"
+                        DockPanel.Dock="Left" Margin="0,0,0,0"/>
+                <TextBlock x:Name="TxtProfileStatus" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                           VerticalAlignment="Center" FontSize="11" Foreground="#4EC9B0" Margin="8,0,0,0"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Main area: Options on left, Preview on right -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="380" MinWidth="300"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="350"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Option tabs -->
+            <TabControl Grid.Column="0" x:Name="OptionTabs">
+
+                <!-- Tab 1: General -->
+                <TabItem Header="General">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Keyword Casing"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Keyword case:" Width="160"/>
+                                <ComboBox x:Name="CboKeywordCase" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Built-in function case:" Width="160"/>
+                                <ComboBox x:Name="CboBuiltInFunctionCase" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Identifier Casing"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Identifier case:" Width="160"/>
+                                <ComboBox x:Name="CboIdentifierCase" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Indentation"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Indent style:" Width="160"/>
+                                <ComboBox x:Name="CboIndentStyle" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Indent size:" Width="160"/>
+                                <TextBox x:Name="TxtIndentSize" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+                            <CheckBox x:Name="ChkIndentConditions" Style="{StaticResource DarkCheckBox}" Content="Indent AND/OR under WHERE" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Line Width"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Max line width:" Width="160"/>
+                                <TextBox x:Name="TxtMaxLineWidth" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Semicolons"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Trailing semicolons:" Width="160"/>
+                                <ComboBox x:Name="CboSemicolon" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Tab 2: Layout -->
+                <TabItem Header="Layout">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="SELECT Columns"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Column layout:" Width="160"/>
+                                <ComboBox x:Name="CboSelectLayout" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Comma Placement"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Comma position:" Width="160"/>
+                                <ComboBox x:Name="CboCommaPosition" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+                            <CheckBox x:Name="ChkLeadingCommaKeepIndent" Style="{StaticResource DarkCheckBox}" Content="Leading comma at column indent (, [Name])" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="JOIN Layout"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="JOIN layout:" Width="160"/>
+                                <ComboBox x:Name="CboJoinLayout" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+                            <CheckBox x:Name="ChkJoinOnSameLine" Style="{StaticResource DarkCheckBox}" Content="ON on same line as JOIN" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkAlignFromAndJoins" Style="{StaticResource DarkCheckBox}" Content="Align FROM and JOINs at same level" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkNormalizeJoins" Style="{StaticResource DarkCheckBox}" Content="Normalize JOIN types (LEFT/RIGHT OUTER JOIN &#8594; LEFT/RIGHT JOIN)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="CTEs"/>
+                            <CheckBox x:Name="ChkCteStacked" Style="{StaticResource DarkCheckBox}" Content="Stacked CTE layout (AS ( on WITH line, ) at margin)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Derived Tables"/>
+                            <CheckBox x:Name="ChkDerivedTableStacked" Style="{StaticResource DarkCheckBox}" Content="Stacked derived table layout (( on JOIN line, ) with the alias)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="WHERE Clause"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Condition layout:" Width="160"/>
+                                <ComboBox x:Name="CboWhereLayout" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="UPDATE / SET"/>
+                            <CheckBox x:Name="ChkMultilineSet" Style="{StaticResource DarkCheckBox}" Content="Each SET clause on its own line" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkAlignSet" Style="{StaticResource DarkCheckBox}" Content="Align SET clause values" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkAlignSetWithUpdate" Style="{StaticResource DarkCheckBox}" Content="SET left-aligned with UPDATE" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Parentheses"/>
+                            <CheckBox x:Name="ChkNewLineOpenParen" Style="{StaticResource DarkCheckBox}" Content="New line before open parenthesis" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkNewLineCloseParen" Style="{StaticResource DarkCheckBox}" Content="New line before close parenthesis" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Other Clauses"/>
+                            <CheckBox x:Name="ChkNewLineOffset" Style="{StaticResource DarkCheckBox}" Content="OFFSET/FETCH on new line" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkNewLineWindow" Style="{StaticResource DarkCheckBox}" Content="WINDOW clause on new line" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkAsKeywordOwnLine" Style="{StaticResource DarkCheckBox}" Content="AS keyword on own line (CTEs)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Blank Lines"/>
+                            <CheckBox x:Name="ChkBlankLineBeforeStatement" Style="{StaticResource DarkCheckBox}" Content="Blank line before statements (SELECT, INSERT, ALTER, CREATE, ...)" Click="Option_Changed"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Between statements:" Width="160"/>
+                                <TextBox x:Name="TxtBlankLinesBetween" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="After GO:" Width="160"/>
+                                <TextBox x:Name="TxtBlankLinesAfterGo" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Tab 3: Style -->
+                <TabItem Header="Style">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Aliases"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Alias style:" Width="160"/>
+                                <ComboBox x:Name="CboAliasStyle" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="CASE Expressions"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="CASE layout:" Width="160"/>
+                                <ComboBox x:Name="CboCaseWhenLayout" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"
+                                          ToolTip="Puts every WHEN and ELSE of a CASE expression on its own line, with END back at the CASE keyword's column."/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Bracket Quoting"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Bracket quoting:" Width="160"/>
+                                <ComboBox x:Name="CboBracketQuoting" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="INSERT Statements"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Columns per line:" Width="160"/>
+                                <TextBox x:Name="TxtInsertColumnsPerLine" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Values per line:" Width="160"/>
+                                <TextBox x:Name="TxtInsertValuesPerLine" Style="{StaticResource NumericInput}" TextChanged="Option_Changed"/>
+                            </StackPanel>
+                            <CheckBox x:Name="ChkInsertOpenParenSameLine" Style="{StaticResource DarkCheckBox}" Content="Opening ( on the table line (INSERT INTO #tt ()" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkInsertParensSameLine" Style="{StaticResource DarkCheckBox}" Content="Keep ( ) on same line as content" Click="Option_Changed"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Style="{StaticResource OptionLabel}" Text="Template default:" Width="160"/>
+                                <ComboBox x:Name="CboInsertTemplateStyle" Style="{StaticResource DarkComboBox}" SelectionChanged="Option_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Data Types"/>
+                            <CheckBox x:Name="ChkSpaceBeforeTypeParams" Style="{StaticResource DarkCheckBox}" Content="Space before type params: VARCHAR (50)" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkSpaceBetweenTypeParams" Style="{StaticResource DarkCheckBox}" Content="Space between type params: DECIMAL(10, 2)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="Procedures / Functions"/>
+                            <CheckBox x:Name="ChkProcParamsSameLine" Style="{StaticResource DarkCheckBox}" Content="Parameters on same line (wrap at max width)" Click="Option_Changed"/>
+
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="DDL Formatting"/>
+                            <CheckBox x:Name="ChkAlignColumnDefs" Style="{StaticResource DarkCheckBox}" Content="Align column definition fields" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkNewLineCheckConstraint" Style="{StaticResource DarkCheckBox}" Content="CHECK constraints on new line" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkNewLineIndexDef" Style="{StaticResource DarkCheckBox}" Content="Format index definitions" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkMultilineViewCols" Style="{StaticResource DarkCheckBox}" Content="View columns on separate lines" Click="Option_Changed"/>
+                            <CheckBox x:Name="ChkIndentViewBody" Style="{StaticResource DarkCheckBox}" Content="Indent view body" Click="Option_Changed"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                          Background="#333337" Cursor="SizeWE" Margin="2,0"/>
+
+            <!-- Right: Always-visible preview panel -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*" MinHeight="60"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="2*" MinHeight="60"/>
+                </Grid.RowDefinitions>
+
+                <!-- Preview source toolbar -->
+                <Border Grid.Row="0" Background="#252526" BorderBrush="#333337" BorderThickness="1,1,1,0" Padding="6,4">
+                    <DockPanel>
+                        <TextBlock Text="Preview" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,12,0"/>
+
+                        <!-- Source toggle buttons -->
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                            <RadioButton x:Name="RbSampleSql" Style="{StaticResource SourceToggle}"
+                                         Content="Sample SQL" IsChecked="True" GroupName="PreviewSource"
+                                         Checked="PreviewSource_Changed"/>
+                            <RadioButton x:Name="RbCurrentDocument" Style="{StaticResource SourceToggle}"
+                                         Content="Current Document" GroupName="PreviewSource"
+                                         Checked="PreviewSource_Changed"/>
+                        </StackPanel>
+
+                        <!-- Error indicator (right-aligned) -->
+                        <TextBlock x:Name="TxtPreviewStatus" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" FontSize="11" Foreground="#666666"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- Input SQL -->
+                <TextBox Grid.Row="1"
+                         x:Name="PreviewInput"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         FontFamily="Cascadia Code, Consolas, Courier New"
+                         FontSize="11.5"
+                         Background="#252526"
+                         Foreground="#D4D4D4"
+                         BorderBrush="#333337"
+                         BorderThickness="1,0,1,1"
+                         Padding="8,4"
+                         TextChanged="PreviewInput_TextChanged"/>
+
+                <!-- Horizontal splitter between input and output -->
+                <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                              Background="#333337" Cursor="SizeNS" ResizeDirection="Rows"/>
+
+                <!-- Formatted output: header + textbox in a single star-sized row -->
+                <DockPanel Grid.Row="3">
+                    <Border DockPanel.Dock="Top" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="1,1,1,0" Padding="6,3">
+                        <TextBlock Text="Formatted Output" Foreground="#4EC9B0" FontSize="11" FontWeight="SemiBold"/>
+                    </Border>
+                    <TextBox x:Name="PreviewOutput"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Cascadia Code, Consolas, Courier New"
+                             FontSize="11.5"
+                             Background="#1E1E1E"
+                             Foreground="#D4D4D4"
+                             BorderBrush="#333337"
+                             BorderThickness="1,0,1,1"
+                             Padding="8,4"/>
+                </DockPanel>
+            </Grid>
+        </Grid>
+
+        <!-- Bottom button bar -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="4,8,4,4">
+            <Button Content="Reset to Defaults"
+                    Style="{StaticResource ActionButton}"
+                    Click="ResetDefaults_Click"
+                    Margin="0,0,8,0"/>
+            <Button Content="Import..."
+                    Style="{StaticResource ActionButton}"
+                    Click="Import_Click"
+                    Margin="0,0,8,0"/>
+            <Button Content="Export..."
+                    Style="{StaticResource ActionButton}"
+                    Click="Export_Click"
+                    Margin="0,0,8,0"/>
+            <Button Content="OK"
+                    Style="{StaticResource ActionButton}"
+                    Click="OK_Click"
+                    IsDefault="True"
+                    Margin="0,0,8,0"
+                    MinWidth="80"/>
+            <Button Content="Cancel"
+                    Style="{StaticResource ActionButton}"
+                    Click="Cancel_Click"
+                    IsCancel="True"
+                    MinWidth="80"/>
+        </StackPanel>
+    </Grid>
+</Window>

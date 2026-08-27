@@ -1,0 +1,465 @@
+﻿<UserControl x:Class="SQLExtended.Search.SqlSearchControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="/SQLExtended;component/Theme/DarkCombo.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+
+        <!-- Dark theme button style matching SSMS -->
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DarkCombo comes from Theme/DarkCombo.xaml, merged above. -->
+
+        <!-- Dark theme CheckBox style -->
+        <Style x:Key="DarkCheck" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Dark theme TabItem style -->
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,1,1,0"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,2,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#333337"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListBox item style for search results -->
+        <Style x:Key="ResultItem" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderBrush" Value="#2D2D30"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2A2D2E"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Search bar -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="SearchTextBox"
+                     Grid.Column="0"
+                     Background="#333337"
+                     Foreground="#D4D4D4"
+                     CaretBrush="#D4D4D4"
+                     BorderBrush="#555555"
+                     BorderThickness="1"
+                     Padding="6,4"
+                     FontSize="13"
+                     FontFamily="Cascadia Code, Consolas, Courier New"
+                     VerticalContentAlignment="Center"
+                     KeyDown="SearchTextBox_KeyDown"
+                     TextChanged="SearchTextBox_TextChanged"/>
+
+            <Button Grid.Column="1"
+                    Content="Search"
+                    Style="{StaticResource ToolButton}"
+                    Click="Search_Click"
+                    Margin="4,0,0,0"
+                    Padding="10,4"/>
+
+            <Button Grid.Column="2"
+                    Content="Clear"
+                    Style="{StaticResource ToolButton}"
+                    Click="Clear_Click"
+                    Margin="4,0,0,0"/>
+        </Grid>
+
+        <!-- Row 1: Server + Databases + Types + Search-in -->
+        <Grid Grid.Row="1" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Server:" Foreground="#999999" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="ServerCombo" Grid.Column="1" Style="{StaticResource DarkCombo}"
+                      SelectionChanged="ServerCombo_SelectionChanged"/>
+            <Button Grid.Column="2" Content="&#x21BB;" Style="{StaticResource ToolButton}"
+                    Click="RefreshServers_Click" Margin="4,0,0,0" ToolTip="Refresh server list"
+                    FontSize="14" Padding="6,2"/>
+        </Grid>
+
+        <!-- Row 2: Databases, Types, Search-in (compact horizontal layout) -->
+        <Grid Grid.Row="2" Margin="0,2,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Databases multi-select (scrollable, max height) -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Databases:" Foreground="#999999" FontSize="11"
+                               VerticalAlignment="Center" Margin="0,0,6,2"/>
+                    <Button Grid.Column="1" Content="All" Style="{StaticResource ToolButton}"
+                            Click="SelectAllDatabases_Click" FontSize="10" Padding="4,1" Margin="0,0,2,2"/>
+                    <Button Grid.Column="2" Content="None" Style="{StaticResource ToolButton}"
+                            Click="SelectNoDatabases_Click" FontSize="10" Padding="4,1" Margin="0,0,0,2"/>
+                </Grid>
+                <ListBox x:Name="DatabaseList" Grid.Row="1"
+                         Background="#252526" BorderBrush="#333337" BorderThickness="1"
+                         MaxHeight="80" MinHeight="20"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         SelectionMode="Multiple">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#CCCCCC"/>
+                            <Setter Property="Padding" Value="4,2"/>
+                            <Setter Property="FontSize" Value="11"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border Background="{TemplateBinding Background}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox IsChecked="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                          Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                <ContentPresenter VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#2A2D2E"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </Grid>
+
+            <!-- Type multi-select checkboxes -->
+            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Text="Types:" Foreground="#999999" FontSize="11" Margin="0,0,0,2"/>
+                <CheckBox x:Name="ChkTypeTables" Content="Tables" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="ChkTypeViews" Content="Views" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="ChkTypeProcs" Content="Procedures" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="ChkTypeFunctions" Content="Functions" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+            </StackPanel>
+
+            <!-- Search-in checkboxes -->
+            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                <TextBlock Text="Search in:" Foreground="#999999" FontSize="11" Margin="0,0,0,2"/>
+                <CheckBox x:Name="SearchObjectNamesCheck" Content="Names" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="SearchColumnNamesCheck" Content="Columns" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="SearchDefinitionsCheck" Content="Definitions" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"/>
+                <CheckBox x:Name="SearchJobStepsCheck" Content="Agent jobs" Style="{StaticResource DarkCheck}"
+                          IsChecked="True" FontSize="11" Margin="0,1"
+                          ToolTip="Search SQL Server Agent job step commands, step names and job names in msdb on the selected server. Jobs belong to the server, so the database selection does not apply to them."/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Row 3: Split panel — results list (top) and schema preview (bottom) -->
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="3*" MinHeight="80"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="2*" MinHeight="60"/>
+            </Grid.RowDefinitions>
+
+            <!-- Results list -->
+            <ListBox x:Name="ResultsList"
+                     Grid.Row="0"
+                     Background="#1E1E1E"
+                     BorderBrush="#333337"
+                     BorderThickness="1"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ItemContainerStyle="{StaticResource ResultItem}"
+                     SelectionChanged="ResultsList_SelectionChanged"
+                     MouseDoubleClick="ResultsList_MouseDoubleClick">
+                <ListBox.ContextMenu>
+                    <ContextMenu Background="#2D2D30" Foreground="#D4D4D4" BorderBrush="#555555">
+                        <MenuItem Header="Open in Schema Viewer" Click="ViewSchemaDialog_Click"/>
+                        <MenuItem Header="Open Job Properties…" Click="OpenJobProperties_Click"/>
+                        <MenuItem Header="Copy Name" Click="CopyName_Click"/>
+                        <MenuItem Header="Copy Qualified Name" Click="CopyQualifiedName_Click"/>
+                        <MenuItem Header="Copy Schema Script" Click="CopySchemaScript_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Find References" Click="FindReferences_Click"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Type icon -->
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="{Binding TypeIcon}"
+                                       FontSize="12" Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+
+                            <!-- Object name -->
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Visibility="{Binding ObjectNameVisibility, Mode=OneTime}"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       FontSize="13">
+                                <Run Text="{Binding DatabaseName, Mode=OneTime}" Foreground="#569CD6"/>
+                                <Run Text="." Foreground="#999999"/>
+                                <Run Text="{Binding SchemaName, Mode=OneTime}" Foreground="#999999"/>
+                                <Run Text="." Foreground="#999999"/>
+                                <Run Text="{Binding DisplayName, Mode=OneTime}" Foreground="#D4D4D4" FontWeight="SemiBold"/>
+                                <Run Text="{Binding ColumnSuffix, Mode=OneTime}" Foreground="#569CD6"/>
+                            </TextBlock>
+
+                            <!-- Agent job step name: a job has no database or schema to qualify it with, so
+                                 the line is job name / step instead of the db.schema.object above. -->
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Visibility="{Binding JobNameVisibility, Mode=OneTime}"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       FontSize="13"
+                                       TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding JobName, Mode=OneTime}" Foreground="#569CD6" FontWeight="SemiBold"/>
+                                <Run Text=" / " Foreground="#999999"/>
+                                <Run Text="{Binding StepDisplay, Mode=OneTime}" Foreground="#D4D4D4"/>
+                                <Run Text="{Binding JobContext, Mode=OneTime}" Foreground="#808080"/>
+                            </TextBlock>
+
+                            <!-- Object type label -->
+                            <TextBlock Grid.Row="0" Grid.Column="2"
+                                       Text="{Binding TypeLabel}"
+                                       Foreground="#6A9955"
+                                       FontSize="11"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0,0,0"/>
+
+                            <!-- Match detail line -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                       Text="{Binding MatchDescription}"
+                                       Foreground="#808080"
+                                       FontSize="11"
+                                       Margin="0,2,0,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Adjustable splitter -->
+            <GridSplitter Grid.Row="1"
+                          Height="5"
+                          HorizontalAlignment="Stretch"
+                          Background="#2D2D30"
+                          Cursor="SizeNS"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True"/>
+
+            <!-- Schema preview pane -->
+            <Grid Grid.Row="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Preview header with object name and copy button -->
+                <Grid Grid.Row="0" Background="#252526">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="PreviewHeader"
+                               Grid.Column="0"
+                               Text="Select a result to view schema"
+                               Foreground="#808080"
+                               FontSize="11"
+                               Padding="6,4"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="Copy"
+                            Style="{StaticResource ToolButton}"
+                            Click="CopySchemaScript_Click"
+                            Padding="8,2"
+                            Margin="0,2,4,2"
+                            FontSize="11"/>
+                </Grid>
+
+                <!-- Tabbed schema view: Schema and Temp Table (tables only) -->
+                <TabControl Grid.Row="1" x:Name="PreviewTabs"
+                            Background="#1E1E1E"
+                            BorderBrush="#333337"
+                            BorderThickness="0,1,0,0">
+                    <TabItem Header="Schema" x:Name="SchemaTab">
+                        <avalonedit:TextEditor x:Name="PreviewEditor"
+                                 IsReadOnly="True"
+                                 ShowLineNumbers="True"
+                                 WordWrap="False"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="12"
+                                 Background="#1E1E1E"
+                                 Foreground="#D4D4D4"
+                                 LineNumbersForeground="#555555"
+                                 BorderThickness="0"
+                                 Padding="4"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </TabItem>
+                    <TabItem Header="Temp Table" x:Name="TempTableTab" Visibility="Collapsed">
+                        <avalonedit:TextEditor x:Name="TempTableEditor"
+                                 IsReadOnly="True"
+                                 ShowLineNumbers="True"
+                                 WordWrap="False"
+                                 FontFamily="Cascadia Code, Consolas, Courier New"
+                                 FontSize="12"
+                                 Background="#1E1E1E"
+                                 Foreground="#D4D4D4"
+                                 LineNumbersForeground="#555555"
+                                 BorderThickness="0"
+                                 Padding="4"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <!-- Row 4: Status bar -->
+        <Grid Grid.Row="4" Margin="0,4,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="StatusText"
+                       Grid.Column="0"
+                       Text="Ready — type to search"
+                       Foreground="#808080"
+                       FontSize="11"
+                       VerticalAlignment="Center"/>
+
+            <TextBlock x:Name="ConnectionText"
+                       Grid.Column="1"
+                       Foreground="#569CD6"
+                       FontSize="11"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</UserControl>

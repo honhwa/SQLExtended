@@ -1,0 +1,217 @@
+<UserControl x:Class="SQLExtended.ResultsGrid.Aggregates.AggregatesControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <!-- Dark theme button style matching the other SQLExtended tool windows -->
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#666666"/>
+                                <Setter Property="BorderBrush" Value="#3F3F46"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ToggleCheck" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,2,12,2"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="DarkGridHeader" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Right"/>
+        </Style>
+
+        <!-- The combined "All selected" row is tinted and bold so it is never read as another column. -->
+        <Style x:Key="DarkGridRow" TargetType="DataGridRow">
+            <Setter Property="Background" Value="#1E1E1E"/>
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Style.Triggers>
+                <Trigger Property="AlternationIndex" Value="1">
+                    <Setter Property="Background" Value="#242425"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding IsTotal}" Value="True">
+                    <Setter Property="Background" Value="#2D2D30"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#094771"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2A2D2E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DarkGridCell" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NumericCellText" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="NameCellText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Actions -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+            <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ToolButton}"
+                    Click="Refresh_Click" Padding="12,4"
+                    ToolTip="Re-read the current selection now"/>
+            <Button x:Name="CopyButton" Content="Copy" Style="{StaticResource ToolButton}"
+                    Click="Copy_Click" Margin="4,0,0,0"
+                    ToolTip="Copy the table as tab-separated text (paste into Excel)"/>
+        </StackPanel>
+
+        <!-- Row 1: A warning that must not be mistaken for a result — an over-cap selection computes
+             nothing at all, rather than totalling part of it. -->
+        <Border x:Name="NoticeBorder" Grid.Row="1" Visibility="Collapsed"
+                Background="#3A2D00" BorderBrush="#7A6000" BorderThickness="1"
+                CornerRadius="2" Padding="8,5" Margin="0,0,0,4">
+            <TextBlock x:Name="NoticeText" Foreground="#F0C674" FontSize="11" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Row 2: One row per selected column, plus a combined row when several are selected -->
+        <DataGrid x:Name="AggregatesGrid"
+                  Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#2D2D30"
+                  Background="#1E1E1E"
+                  BorderBrush="#333337"
+                  BorderThickness="1"
+                  RowBackground="Transparent"
+                  AlternationCount="2"
+                  CanUserSortColumns="True"
+                  CanUserResizeRows="False"
+                  SelectionMode="Extended"
+                  ClipboardCopyMode="IncludeHeader"
+                  HorizontalScrollBarVisibility="Auto"
+                  VerticalScrollBarVisibility="Auto"
+                  ColumnHeaderStyle="{StaticResource DarkGridHeader}"
+                  RowStyle="{StaticResource DarkGridRow}"
+                  CellStyle="{StaticResource DarkGridCell}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Column" Binding="{Binding ColumnName}" Width="160"
+                                    ElementStyle="{StaticResource NameCellText}"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding TypeText}" Width="80"
+                                    ElementStyle="{StaticResource NameCellText}"/>
+                <DataGridTextColumn x:Name="CellsColumn" Header="Cells" Binding="{Binding Cells}" Width="80"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="NonNullColumn" Header="Non-null" Binding="{Binding NonNull}" Width="80"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="NullsColumn" Header="Nulls" Binding="{Binding Nulls}" Width="70"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="BlanksColumn" Header="Blank" Binding="{Binding Blanks}" Width="70"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="DistinctColumn" Header="Distinct" Binding="{Binding Distinct}" Width="80"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="SumColumn" Header="Sum" Binding="{Binding Sum}" Width="130"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="AverageColumn" Header="Average" Binding="{Binding Average}" Width="120"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="MinColumn" Header="Min" Binding="{Binding Min}" Width="130"
+                                    ElementStyle="{StaticResource NameCellText}"/>
+                <DataGridTextColumn x:Name="MaxColumn" Header="Max" Binding="{Binding Max}" Width="130"
+                                    ElementStyle="{StaticResource NameCellText}"/>
+                <DataGridTextColumn x:Name="CharsColumn" Header="Chars" Binding="{Binding TotalChars}" Width="90"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+                <DataGridTextColumn x:Name="MaxCharsColumn" Header="Longest" Binding="{Binding MaxChars}" Width="90"
+                                    ElementStyle="{StaticResource NumericCellText}"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Row 3: Which aggregates to show. Below the results, as in the tool this mirrors. -->
+        <WrapPanel Grid.Row="3" Margin="0,5,0,0">
+            <CheckBox x:Name="ShowNonNull" Content="Non-null" Style="{StaticResource ToggleCheck}"
+                      ToolTip="Cells that are not NULL — the SQL COUNT(column) answer"/>
+            <CheckBox x:Name="ShowNulls" Content="Nulls" Style="{StaticResource ToggleCheck}"/>
+            <CheckBox x:Name="ShowBlanks" Content="Blank" Style="{StaticResource ToggleCheck}"
+                      ToolTip="Non-NULL cells whose text is empty or whitespace"/>
+            <CheckBox x:Name="ShowDistinct" Content="Distinct" Style="{StaticResource ToggleCheck}"
+                      ToolTip="Distinct non-NULL values, compared as displayed text"/>
+            <CheckBox x:Name="ShowSum" Content="Sum" Style="{StaticResource ToggleCheck}"/>
+            <CheckBox x:Name="ShowAverage" Content="Average" Style="{StaticResource ToggleCheck}"/>
+            <CheckBox x:Name="ShowMin" Content="Min" Style="{StaticResource ToggleCheck}"/>
+            <CheckBox x:Name="ShowMax" Content="Max" Style="{StaticResource ToggleCheck}"/>
+            <CheckBox x:Name="ShowChars" Content="Text length" Style="{StaticResource ToggleCheck}"
+                      ToolTip="Characters in the displayed text — not DATALENGTH, which counts bytes of the stored value"/>
+        </WrapPanel>
+
+        <!-- Row 4: Status bar -->
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="4"
+                   Margin="0,5,0,0"
+                   Text="Select cells in a results grid."
+                   Foreground="#808080"
+                   FontSize="11"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center"/>
+    </Grid>
+</UserControl>

@@ -1,0 +1,603 @@
+<UserControl x:Class="SQLExtended.Monitoring.Performance.PerfMonitorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mon="clr-namespace:SQLExtended.Monitoring"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SQLExtended;component/Monitoring/MonitoringTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                A vitals tile: big number, unit, and a sparkline of the rolling window underneath. The tiles are
+                laid out by hand rather than templated because each one binds a different set of properties and
+                a couple carry a second value (CPU's "other", memory's target).
+            -->
+            <Style x:Key="TileBorder" TargetType="Border">
+                <Setter Property="Background" Value="#252526"/>
+                <Setter Property="BorderBrush" Value="#3F3F46"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="3"/>
+                <Setter Property="Padding" Value="12,9"/>
+                <Setter Property="Margin" Value="0,0,8,8"/>
+                <Setter Property="MinWidth" Value="176"/>
+            </Style>
+
+            <Style x:Key="TileCaption" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#808080"/>
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="Margin" Value="0,0,0,3"/>
+            </Style>
+
+            <Style x:Key="TileValue" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#FFFFFF"/>
+                <Setter Property="FontSize" Value="21"/>
+                <Setter Property="FontWeight" Value="Light"/>
+            </Style>
+
+            <Style x:Key="TileUnit" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#808080"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Margin" Value="4,0,0,3"/>
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+            </Style>
+
+            <Style x:Key="TileSub" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="#9CDCFE"/>
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="Margin" Value="0,3,0,0"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: toolbar -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ToolButton}" Click="Refresh_Click"
+                        Padding="14,4" ToolTip="Collect a fresh snapshot from the current server now"/>
+                <CheckBox x:Name="AutoRefreshCheck" Content="Auto" Style="{StaticResource ToolCheck}" Margin="8,0,0,0"
+                          Checked="AutoRefresh_Changed" Unchecked="AutoRefresh_Changed"
+                          ToolTip="Poll on a timer. Rate columns cover the interval between polls."/>
+                <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
+                          SelectionChanged="Interval_Changed" ToolTip="How often to poll while Auto is on"/>
+                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
+                        ToolTip="Copy the active tab's grid as tab-separated text"/>
+                <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
+                        Click="OpenAsQuery_Click" ToolTip="Open the T-SQL behind the active tab in a new query window"/>
+                <Button x:Name="ShowSqlButton" Content="Show SQL" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
+                        Click="ShowSql_Click" ToolTip="Open the selected row's full statement text in a new query window"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
+                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Row 1: collection warnings -->
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+                CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
+            <TextBlock x:Name="NoticeText" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"/>
+        </Border>
+
+        <!-- Row 2: tabs -->
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+                    Padding="0,6,0,0">
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
+            </TabControl.ItemContainerStyle>
+
+            <!-- ============================ Live ============================ -->
+            <TabItem Header="Live">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="2,4,2,2">
+                    <StackPanel x:Name="VitalsPanel">
+                        <WrapPanel Orientation="Horizontal">
+
+                            <!-- CPU -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="CPU — SQL SERVER" Style="{StaticResource TileCaption}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding CpuSqlPercent, Converter={StaticResource Pct}}" Style="{StaticResource TileValue}"/>
+                                    </StackPanel>
+                                    <mon:Sparkline Samples="{Binding CpuHistory}" LineBrush="#569CD6" Height="26" Margin="0,5,0,0"
+                                                   ToolTip="Per-minute CPU from the scheduler-monitor ring buffer, oldest to newest"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="other processes"/>
+                                        <Run Text="{Binding CpuOtherPercent, Converter={StaticResource Pct}, Mode=OneWay}"/>
+                                        <Run Text="·"/>
+                                        <Run Text="{Binding CpuCount, Mode=OneWay}"/>
+                                        <Run Text="cores"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Batch requests -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="BATCH REQUESTS" Style="{StaticResource TileCaption}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding BatchRequestsPerSec, Converter={StaticResource Num}}" Style="{StaticResource TileValue}"/>
+                                        <TextBlock Text="/sec" Style="{StaticResource TileUnit}"/>
+                                    </StackPanel>
+                                    <mon:Sparkline Samples="{Binding BatchHistory}" LineBrush="#4EC9B0" Height="26" Margin="0,5,0,0"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="compiles"/>
+                                        <Run Text="{Binding CompilationsPerSec, Converter={StaticResource PerSec}, Mode=OneWay}"/>
+                                        <Run Text="· recompiles"/>
+                                        <Run Text="{Binding RecompilesPerSec, Converter={StaticResource PerSec}, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Active / blocked -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="ACTIVE REQUESTS" Style="{StaticResource TileCaption}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ActiveRequests}" Style="{StaticResource TileValue}"/>
+                                        <TextBlock Style="{StaticResource TileUnit}">
+                                            <Run Text="of"/>
+                                            <Run Text="{Binding UserSessions, Mode=OneWay}"/>
+                                            <Run Text="sessions"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <mon:Sparkline Samples="{Binding ActiveHistory}" LineBrush="#DCDCAA" Height="26" Margin="0,5,0,0"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="longest running"/>
+                                        <Run Text="{Binding LongestRunningSeconds, Converter={StaticResource Secs}, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Blocking -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="BLOCKED REQUESTS" Style="{StaticResource TileCaption}"/>
+                                    <TextBlock Text="{Binding BlockedRequests}" FontSize="21" FontWeight="Light">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#F48771"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BlockedRequests}" Value="0">
+                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <mon:Sparkline Samples="{Binding BlockedHistory}" LineBrush="#F48771" Height="26" Margin="0,5,0,0"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="{Binding ActiveTransactions, Mode=OneWay}"/>
+                                        <Run Text="open transactions · lock waits"/>
+                                        <Run Text="{Binding LockWaitsPerSec, Converter={StaticResource PerSec}, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Page life expectancy -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="PAGE LIFE EXPECTANCY" Style="{StaticResource TileCaption}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding PageLifeExpectancy, Converter={StaticResource Secs}}" Style="{StaticResource TileValue}"/>
+                                    </StackPanel>
+                                    <mon:Sparkline Samples="{Binding PleHistory}" LineBrush="#C586C0" Height="26" Margin="0,5,0,0"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="buffer pool"/>
+                                        <Run Text="{Binding TotalServerMemoryKb, Converter={StaticResource Kb}, Mode=OneWay}"/>
+                                        <Run Text="of"/>
+                                        <Run Text="{Binding TargetServerMemoryKb, Converter={StaticResource Kb}, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- tempdb -->
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="TEMPDB USED" Style="{StaticResource TileCaption}"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding TempdbUsedPercent, Converter={StaticResource Pct}}" Style="{StaticResource TileValue}"/>
+                                        <TextBlock Style="{StaticResource TileUnit}">
+                                            <Run Text="of"/>
+                                            <Run Text="{Binding TempdbTotalMb, StringFormat={}{0:N0} MB, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <mon:Sparkline Samples="{Binding TempdbHistory}" LineBrush="#D7BA7D" Height="26" Margin="0,5,0,0"/>
+                                    <TextBlock Style="{StaticResource TileSub}">
+                                        <Run Text="{Binding TempdbUserObjectMb, StringFormat={}user {0:N0} MB, Mode=OneWay}"/>
+                                        <Run Text="{Binding TempdbInternalObjectMb, StringFormat={}· internal {0:N0} MB, Mode=OneWay}"/>
+                                        <Run Text="{Binding TempdbVersionStoreMb, StringFormat={}· version store {0:N0} MB, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <TextBlock Text="Slowest files this interval" Style="{StaticResource SectionHeading}"/>
+                        <TextBlock x:Name="TopFilesEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                                   Text="No file I/O recorded in the sample window."/>
+                        <DataGrid x:Name="TopFilesGrid" Style="{StaticResource MonitorGrid}" MaxHeight="200" Visibility="Collapsed">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="160"/>
+                                <DataGridTextColumn Header="File" Binding="{Binding LogicalName, Converter={StaticResource Dash}}" Width="130"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding FileType, Converter={StaticResource Dash}}" Width="80"/>
+                                <DataGridTextColumn Header="Read latency" Binding="{Binding ReadLatencyMs, Converter={StaticResource Ms}}" Width="110"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Write latency" Binding="{Binding WriteLatencyMs, Converter={StaticResource Ms}}" Width="110"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Reads" Binding="{Binding ReadsDelta, Converter={StaticResource Num}}" Width="90"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Writes" Binding="{Binding WritesDelta, Converter={StaticResource Num}}" Width="90"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Path" Binding="{Binding PhysicalName, Converter={StaticResource Dash}}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Text="Top waits this interval" Style="{StaticResource SectionHeading}"/>
+                        <TextBlock x:Name="TopWaitsEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                                   Text="No waits recorded in the sample window."/>
+                        <DataGrid x:Name="TopWaitsGrid" Style="{StaticResource MonitorGrid}" MaxHeight="200" Visibility="Collapsed">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Wait type" Binding="{Binding WaitType}" Width="260"/>
+                                <DataGridTextColumn Header="Wait time" Binding="{Binding WaitTimeMsDelta, Converter={StaticResource Ms}}" Width="110"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Share" Binding="{Binding PercentOfTotal, Converter={StaticResource Pct}}" Width="80"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Waits" Binding="{Binding WaitingTasksDelta, Converter={StaticResource Num}}" Width="90"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Avg per wait" Binding="{Binding AvgMsPerWait, Converter={StaticResource Ms}}" Width="110"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                                <DataGridTextColumn Header="Signal share" Binding="{Binding SignalWaitPercent, Converter={StaticResource Pct}}" Width="*"
+                                                    ElementStyle="{StaticResource NumCell}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ Activity ============================ -->
+            <TabItem Header="Activity">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
+                        <CheckBox x:Name="ActiveOnlyCheck" Content="Running only" Style="{StaticResource ToolCheck}"
+                                  Checked="ActivityFilter_Changed" Unchecked="ActivityFilter_Changed"
+                                  ToolTip="Hide idle sessions that are only listed because they hold an open transaction"/>
+                        <TextBlock x:Name="ActivityHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="Idle sessions holding an open transaction are included — they never appear in sys.dm_exec_requests but are a common head blocker."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="ActivityGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="SPID" Binding="{Binding SessionId}" Width="60" ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Blocked by" Binding="{Binding BlockingSessionId, Converter={StaticResource Num}}" Width="85"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Blocking" Binding="{Binding BlockedCount, Converter={StaticResource Num}}" Width="75"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status, Converter={StaticResource Dash}}" Width="90"/>
+                            <DataGridTextColumn Header="Elapsed" Binding="{Binding ElapsedMs, Converter={StaticResource Ms}}" Width="90"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="CPU" Binding="{Binding CpuTimeMs, Converter={StaticResource Ms}}" Width="85"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Wait type" Binding="{Binding WaitType, Converter={StaticResource Dash}}" Width="155"/>
+                            <DataGridTextColumn Header="Wait time" Binding="{Binding WaitTimeMs, Converter={StaticResource Ms}}" Width="90"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Statement" Binding="{Binding StatementText, Converter={StaticResource OneLine}}" Width="380"
+                                                ElementStyle="{StaticResource SqlCell}"/>
+                            <DataGridTextColumn Header="Command" Binding="{Binding Command, Converter={StaticResource Dash}}" Width="150"/>
+                            <DataGridTextColumn Header="Logical reads" Binding="{Binding LogicalReads, Converter={StaticResource Num}}" Width="105"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Writes" Binding="{Binding Writes, Converter={StaticResource Num}}" Width="85"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Grant" Binding="{Binding GrantedMemoryKb, Converter={StaticResource Kb}}" Width="90"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Open tran" Binding="{Binding OpenTransactionCount}" Width="80"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Login" Binding="{Binding LoginName, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Host" Binding="{Binding HostName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Program" Binding="{Binding ProgramName, Converter={StaticResource Dash}}" Width="200"/>
+                            <DataGridTextColumn Header="Wait resource" Binding="{Binding WaitResource, Converter={StaticResource Dash}}" Width="200"/>
+                            <DataGridTextColumn Header="Started" Binding="{Binding StartTime, Converter={StaticResource Ts}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Blocking ============================ -->
+            <TabItem Header="Blocking">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="BlockingEmpty" Grid.Row="0" Foreground="#4EC9B0" FontSize="11" Margin="0,6,0,6"
+                               Text="Nothing is blocked."/>
+
+                    <DataGrid x:Name="BlockingGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}" Visibility="Collapsed">
+                        <DataGrid.Columns>
+                            <!-- The indent is part of the cell text so the chain shape survives however it is sorted or copied. -->
+                            <DataGridTemplateColumn Header="Chain" Width="150" SortMemberPath="SessionId">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock FontFamily="Consolas" FontSize="12">
+                                            <Run Text="{Binding Indent, Mode=OneWay}"/><Run Text="{Binding SessionId, Mode=OneWay}"
+                                                 FontWeight="SemiBold"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Head blocker" Binding="{Binding HeadBlockerSessionId}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Blocking" Binding="{Binding BlockedCount, Converter={StaticResource Num}}" Width="75"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status, Converter={StaticResource Dash}}" Width="100"/>
+                            <DataGridTextColumn Header="Wait time" Binding="{Binding WaitTimeMs, Converter={StaticResource Ms}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Elapsed" Binding="{Binding ElapsedMs, Converter={StaticResource Ms}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Wait type" Binding="{Binding WaitType, Converter={StaticResource Dash}}" Width="150"/>
+                            <DataGridTextColumn Header="Wait resource" Binding="{Binding WaitResource, Converter={StaticResource Dash}}" Width="190"/>
+                            <DataGridTextColumn Header="Open tran" Binding="{Binding OpenTransactionCount}" Width="80"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Login" Binding="{Binding LoginName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Program" Binding="{Binding ProgramName, Converter={StaticResource Dash}}" Width="180"/>
+                            <DataGridTextColumn Header="Statement" Binding="{Binding StatementText, Converter={StaticResource OneLine}}" Width="*"
+                                                ElementStyle="{StaticResource SqlCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Waits ============================ -->
+            <TabItem Header="Waits">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
+                        <CheckBox x:Name="BenignWaitsCheck" Content="Include benign waits" Style="{StaticResource ToolCheck}"
+                                  Checked="BenignWaits_Changed" Unchecked="BenignWaits_Changed"
+                                  ToolTip="Show the idle and background waits that are filtered out by default"/>
+                        <TextBlock x:Name="WaitsHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="Deltas over the sample window, not totals since the instance started."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="WaitsGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Wait type" Binding="{Binding WaitType}" Width="280"/>
+                            <DataGridTextColumn Header="Wait time" Binding="{Binding WaitTimeMsDelta, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Share" Binding="{Binding PercentOfTotal, Converter={StaticResource Pct}}" Width="80"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Waits" Binding="{Binding WaitingTasksDelta, Converter={StaticResource Num}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Avg per wait" Binding="{Binding AvgMsPerWait, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Signal share" Binding="{Binding SignalWaitPercent, Converter={StaticResource Pct}}" Width="105"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Max single wait" Binding="{Binding MaxWaitTimeMs, Converter={StaticResource Ms}}" Width="120"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Total since startup" Binding="{Binding WaitTimeMsTotal, Converter={StaticResource Ms}}" Width="140"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Waits since startup" Binding="{Binding WaitingTasksTotal, Converter={StaticResource Num}}" Width="*"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Top queries ============================ -->
+            <TabItem Header="Top queries">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
+                        <TextBlock Text="Rank by" Foreground="#CCCCCC" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="MetricCombo" Style="{StaticResource ToolCombo}" Width="165"
+                                  SelectionChanged="QueryOption_Changed"/>
+                        <ComboBox x:Name="TopCountCombo" Style="{StaticResource ToolCombo}" Width="80" Margin="6,0,0,0"
+                                  SelectionChanged="QueryOption_Changed"/>
+                        <TextBlock Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="Aggregates from the plan cache since each plan was compiled — not limited to the sample window."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="QueriesGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Executions" Binding="{Binding ExecutionCount, Converter={StaticResource Num}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Avg CPU" Binding="{Binding AvgCpuMs, Converter={StaticResource Ms}}" Width="95"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Total CPU" Binding="{Binding TotalCpuMs, Converter={StaticResource Ms}}" Width="105"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Avg duration" Binding="{Binding AvgDurationMs, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Total duration" Binding="{Binding TotalDurationMs, Converter={StaticResource Ms}}" Width="115"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Max duration" Binding="{Binding MaxDurationMs, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Avg reads" Binding="{Binding AvgLogicalReads, Converter={StaticResource Num}}" Width="100"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Total reads" Binding="{Binding TotalLogicalReads, Converter={StaticResource Num}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Statement" Binding="{Binding StatementText, Converter={StaticResource OneLine}}" Width="460"
+                                                ElementStyle="{StaticResource SqlCell}"/>
+                            <DataGridTextColumn Header="Last run" Binding="{Binding LastExecutionTime, Converter={StaticResource Ts}}" Width="140"/>
+                            <DataGridTextColumn Header="Plan cached" Binding="{Binding CreationTime, Converter={StaticResource Ts}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ File I/O ============================ -->
+            <TabItem Header="File I/O">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Foreground="#808080" FontSize="11" Margin="0,6,0,6"
+                               Text="Latency over the sample window. Amber from 20 ms, red from 50 ms; files with no I/O this interval are omitted rather than shown as zero."/>
+
+                    <DataGrid x:Name="FilesGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName}" Width="170"/>
+                            <DataGridTextColumn Header="File" Binding="{Binding LogicalName, Converter={StaticResource Dash}}" Width="140"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding FileType, Converter={StaticResource Dash}}" Width="80"/>
+                            <DataGridTextColumn Header="Read latency" Binding="{Binding ReadLatencyMs, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Write latency" Binding="{Binding WriteLatencyMs, Converter={StaticResource Ms}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Reads" Binding="{Binding ReadsDelta, Converter={StaticResource Num}}" Width="90"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Writes" Binding="{Binding WritesDelta, Converter={StaticResource Num}}" Width="90"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Read" Binding="{Binding BytesReadDelta, Converter={StaticResource Bytes}}" Width="100"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Written" Binding="{Binding BytesWrittenDelta, Converter={StaticResource Bytes}}" Width="100"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Size on disk" Binding="{Binding SizeOnDiskBytes, Converter={StaticResource Bytes}}" Width="110"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Path" Binding="{Binding PhysicalName, Converter={StaticResource Dash}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Server info ============================ -->
+            <!--
+                Static facts rather than rates, so this tab is collected once per server and on an explicit
+                Refresh rather than on the timer. The tiles are assigned from code-behind instead of bound: they
+                change on a Refresh, not every poll, and the verdict wording and its colour are one decision
+                made in one place (ApplyServerInfo).
+            -->
+            <TabItem Header="Server info">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="2,4,2,2">
+                    <StackPanel>
+                        <WrapPanel Orientation="Horizontal">
+
+                            <Border Style="{StaticResource TileBorder}" MinWidth="230">
+                                <StackPanel>
+                                    <TextBlock Text="VERSION" Style="{StaticResource TileCaption}"/>
+                                    <TextBlock x:Name="InfoReleaseText" Style="{StaticResource TileValue}" Text="—" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="InfoEditionText" Style="{StaticResource TileSub}" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="InfoVersionText" Style="{StaticResource TileSub}" Foreground="#808080"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource TileBorder}" MinWidth="250">
+                                <StackPanel>
+                                    <TextBlock Text="SERVICING LEVEL" Style="{StaticResource TileCaption}"/>
+                                    <TextBlock x:Name="InfoPatchText" Style="{StaticResource TileValue}" Text="—" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="InfoPatchStatusText" Style="{StaticResource TileSub}" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="InfoLatestText" Style="{StaticResource TileSub}" Foreground="#808080" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource TileBorder}" MinWidth="230">
+                                <StackPanel>
+                                    <TextBlock Text="SUPPORT" Style="{StaticResource TileCaption}"/>
+                                    <TextBlock x:Name="InfoSupportText" Style="{StaticResource TileValue}" Text="—"/>
+                                    <TextBlock x:Name="InfoSupportSubText" Style="{StaticResource TileSub}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource TileBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="UPTIME" Style="{StaticResource TileCaption}"/>
+                                    <TextBlock x:Name="InfoUptimeText" Style="{StaticResource TileValue}" Text="—"/>
+                                    <TextBlock x:Name="InfoStartedText" Style="{StaticResource TileSub}"/>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <!-- Provenance, not decoration: the build list is a snapshot and every verdict above is
+                             only as current as it is. -->
+                        <TextBlock Foreground="#808080" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap">
+                            <Run x:Name="InfoSourceRun" Text="Build list snapshot"/>
+                            <Hyperlink RequestNavigate="InfoSource_Navigate"
+                                       NavigateUri="https://sqlserverbuilds.blogspot.com/" Foreground="#569CD6">
+                                <Run Text="sqlserverbuilds.blogspot.com"/>
+                            </Hyperlink>
+                        </TextBlock>
+
+                        <TextBlock Text="Instance properties" Style="{StaticResource SectionHeading}"/>
+                        <DataGrid x:Name="ServerInfoGrid" Style="{StaticResource MonitorGrid}" MaxHeight="460">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="120"/>
+                                <DataGridTextColumn Header="Property" Binding="{Binding Name}" Width="250"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="ToolTip" Value="{Binding Hint}"/>
+                                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Text="Updates released since this build" Style="{StaticResource SectionHeading}"/>
+                        <TextBlock x:Name="NewerBuildsEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                                   Text="Nothing to show until the server information has been collected."/>
+                        <DataGrid x:Name="NewerBuildsGrid" Style="{StaticResource MonitorGrid}" MaxHeight="300" Visibility="Collapsed">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Build" Binding="{Binding Build}" Width="120"/>
+                                <DataGridTextColumn Header="Level" Binding="{Binding LevelDisplay, Converter={StaticResource Dash}}" Width="190"/>
+                                <DataGridTextColumn Header="Released" Binding="{Binding Released, StringFormat=yyyy-MM-dd}" Width="100"/>
+                                <DataGridTextColumn Header="KB" Binding="{Binding KbNumber, Converter={StaticResource Dash}}" Width="90"/>
+                                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"
+                                                    ElementStyle="{StaticResource SqlCell}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Row 3: status bar -->
+        <Grid Grid.Row="3" Margin="0,5,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       Text="Open a query window connected to the server you want to watch, then press Refresh."/>
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</UserControl>

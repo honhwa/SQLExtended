@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "_comment": "Curated starter scripts shipped with SQLExtended for SSMS. Edit this file to add your own. Each script: Name, Category, Description, Body. Ids are generated at load time. After editing, rebuild the extension.",
+  "scripts": [
+    {
+      "Name": "Drive space (SQL volumes)",
+      "Category": "Server Health",
+      "Description": "Total / free / used space for every volume that hosts a database file.",
+      "Body": "SELECT DISTINCT\n    vs.volume_mount_point                                                       AS Drive,\n    vs.logical_volume_name                                                      AS VolumeName,\n    CAST(vs.total_bytes      / 1073741824.0 AS DECIMAL(18,2))                    AS TotalGB,\n    CAST(vs.available_bytes  / 1073741824.0 AS DECIMAL(18,2))                    AS FreeGB,\n    CAST((vs.total_bytes - vs.available_bytes) / 1073741824.0 AS DECIMAL(18,2)) AS UsedGB,\n    CAST(vs.available_bytes * 100.0 / vs.total_bytes AS DECIMAL(5,2))            AS FreePercent\nFROM sys.master_files AS mf\nCROSS APPLY sys.dm_os_volume_stats(mf.database_id, mf.file_id) AS vs\nORDER BY Drive;"
+    },
+    {
+      "Name": "SQLExtended file sizes",
+      "Category": "Server Health",
+      "Description": "Size and used space of every data/log file in the current database.",
+      "Body": "SELECT\n    df.name                                            AS LogicalName,\n    df.type_desc                                       AS FileType,\n    df.physical_name                                   AS PhysicalPath,\n    CAST(df.size / 128.0 AS DECIMAL(18,2))             AS SizeMB,\n    CAST(FILEPROPERTY(df.name, 'SpaceUsed') / 128.0 AS DECIMAL(18,2)) AS UsedMB\nFROM sys.database_files AS df\nORDER BY df.type, df.name;"
+    },
+    {
+      "Name": "Top 20 queries by avg CPU",
+      "Category": "Performance",
+      "Description": "Cached plans ranked by average worker (CPU) time. Useful for spotting expensive statements.",
+      "Body": "SELECT TOP (20)\n    qs.execution_count,\n    qs.total_worker_time / qs.execution_count       AS AvgCpuTime,\n    qs.total_elapsed_time / qs.execution_count      AS AvgElapsedTime,\n    SUBSTRING(st.text, (qs.statement_start_offset / 2) + 1,\n        ((CASE qs.statement_end_offset WHEN -1 THEN DATALENGTH(st.text)\n          ELSE qs.statement_end_offset END - qs.statement_start_offset) / 2) + 1) AS StatementText\nFROM sys.dm_exec_query_stats AS qs\nCROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS st\nORDER BY AvgCpuTime DESC;"
+    }
+  ]
+}

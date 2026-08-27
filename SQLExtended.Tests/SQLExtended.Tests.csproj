@@ -1,0 +1,206 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- "annotations" (not "disable") so the linked StatisticsParser.Core sources, written against
+         <Nullable>enable</Nullable> upstream, compile without CS8632. Warnings stay off. -->
+    <Nullable>annotations</Nullable>
+    <IsPackable>false</IsPackable>
+    <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);SQLEXTENDED_TESTS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.37.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!--
+      Needed only so the monitoring sources below compile: their capability probes and query services are typed
+      against SqlConnection. Nothing in these tests opens a connection — the logic under test (state predicates,
+      the diagnostic rule engines, counter deltas) is pure, and it is exactly the part that is easy to get
+      subtly wrong and impossible to check against a live server in CI. Version tracks the main project.
+    -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+  </ItemGroup>
+
+  <!-- Include formatting source files directly to avoid VSIX dependencies -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Formatting\*.cs" Link="Formatting\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Include IntelliSense source files for alias/context/signature tests -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\IntelliSense\AliasResolver.cs" Link="IntelliSense\AliasResolver.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\LocalTableScanner.cs" Link="IntelliSense\LocalTableScanner.cs" />
+    <Compile Include="..\SQLExtended\Cache\Models\CachedColumn.cs" Link="Cache\Models\CachedColumn.cs" />
+    <Compile Include="..\SQLExtended\Cache\SystemCatalogSql.cs" Link="Cache\SystemCatalogSql.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlContextAnalyzer.cs" Link="IntelliSense\SqlContextAnalyzer.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlCompletionContext.cs" Link="IntelliSense\SqlCompletionContext.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SignatureHelpParser.cs" Link="IntelliSense\SignatureHelpParser.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlIdentifierQuoting.cs" Link="IntelliSense\SqlIdentifierQuoting.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlKeywords.cs" Link="IntelliSense\SqlKeywords.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlBuiltInFunctions.cs" Link="IntelliSense\SqlBuiltInFunctions.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlDbccCommands.cs" Link="IntelliSense\SqlDbccCommands.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlAlterCommands.cs" Link="IntelliSense\SqlAlterCommands.cs" />
+    <Compile Include="..\SQLExtended\Snippets\SnippetManager.cs" Link="Snippets\SnippetManager.cs" />
+    <Compile Include="..\SQLExtended\Snippets\SnippetPlaceholderResolver.cs" Link="Snippets\SnippetPlaceholderResolver.cs" />
+    <Compile Include="..\SQLExtended\Snippets\SnippetXmlBuilder.cs" Link="Snippets\SnippetXmlBuilder.cs" />
+    <Compile Include="..\SQLExtended\Snippets\SqlPromptSnippetImporter.cs" Link="Snippets\SqlPromptSnippetImporter.cs" />
+  </ItemGroup>
+
+  <!-- Include the vendored StatisticsParser core so the upstream parser tests (Statistics\*.cs) run as-is -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Statistics\Core\**\*.cs" Link="Statistics\Core\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Include results-grid insert script generator for scripting tests -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\ResultsGrid\InsertScriptGenerator.cs" Link="ResultsGrid\InsertScriptGenerator.cs" />
+  </ItemGroup>
+
+  <!--
+    The grid-aggregate arithmetic and its formatting. Free of the GridControl assembly (that half lives in
+    GridSelectionReader) so it can be linked here — and worth linking, because every mistake it can make is a
+    plausible-looking number rather than an error.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\ResultsGrid\Aggregates\GridAggregateCalculator.cs" Link="ResultsGrid\Aggregates\GridAggregateCalculator.cs" />
+  </ItemGroup>
+
+  <!--
+    The find-in-results matching and scan walk. Free of the GridControl assembly (that half lives in
+    GridStorageCellSource and GridFindHighlighter) so it can be linked here — and worth linking, because every
+    mistake it can make is silent on screen: a wrong walk order puts the "next" match behind you, a wrap that
+    stops one cell early hides exactly one match, and a cap that goes unrecorded turns a partial count into a
+    total nobody would question.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\ResultsGrid\Find\GridFindOptions.cs" Link="ResultsGrid\Find\GridFindOptions.cs" />
+    <Compile Include="..\SQLExtended\ResultsGrid\Find\GridCellSource.cs" Link="ResultsGrid\Find\GridCellSource.cs" />
+    <Compile Include="..\SQLExtended\ResultsGrid\Find\GridFindMatcher.cs" Link="ResultsGrid\Find\GridFindMatcher.cs" />
+    <Compile Include="..\SQLExtended\ResultsGrid\Find\GridFindScan.cs" Link="ResultsGrid\Find\GridFindScan.cs" />
+  </ItemGroup>
+
+  <!-- Include the Agent jobs value parser (no SqlClient/WPF dependency, unlike the rest of that folder) -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Monitoring\Jobs\JobValueParser.cs" Link="Monitoring\Jobs\JobValueParser.cs" />
+  </ItemGroup>
+
+  <!--
+    SQL Search's Agent job step search. Free of WPF (the view model and the control are the halves that are
+    not), so its SQL can be parsed and its LIKE escaping and snippet building pinned — every mistake either
+    can make surfaces as an empty result list, which is exactly what "this server has no matching job steps"
+    looks like.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Search\JobStepMatch.cs" Link="Search\JobStepMatch.cs" />
+    <Compile Include="..\SQLExtended\Search\JobStepSearchService.cs" Link="Search\JobStepSearchService.cs" />
+  </ItemGroup>
+
+  <!--
+    The dashboards' shared section plan, which every query service below is built on. MonitorStatusReporter is
+    the half of that file's subject that needs the Visual Studio threading assembly, and is deliberately in a
+    separate file so this one stays linkable.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Monitoring\MonitorCollection.cs" Link="Monitoring\MonitorCollection.cs" />
+  </ItemGroup>
+
+  <!--
+    The environment-tabs core: rule matching, caption formatting and the text of the shell's
+    ColorByRegexConfig.txt. All free of VS, WPF and SqlClient so they can be linked here. These are the
+    parts of that subsystem whose failures are silent — a rule that over-matches paints production in the
+    development colour, and a config line the shell rejects simply colours nothing.
+  -->
+  <!--
+    The session log's ring. Free of VS, WPF and SqlClient (the static facade that needs them is in its own
+    file) so it can be linked here. Worth pinning because everything it holds is itself a report of
+    something that already failed quietly: a ring that evicts the wrong entry, or collapses two different
+    errors into one line, is indistinguishable from the failure never having been recorded.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Diagnostics\DiagnosticLogBuffer.cs" Link="Diagnostics\DiagnosticLogBuffer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\EnvTabs\EnvTabPalette.cs" Link="EnvTabs\EnvTabPalette.cs" />
+    <Compile Include="..\SQLExtended\EnvTabs\EnvTabRule.cs" Link="EnvTabs\EnvTabRule.cs" />
+    <Compile Include="..\SQLExtended\EnvTabs\EnvTabRuleSet.cs" Link="EnvTabs\EnvTabRuleSet.cs" />
+    <Compile Include="..\SQLExtended\EnvTabs\TabCaptionFormatter.cs" Link="EnvTabs\TabCaptionFormatter.cs" />
+    <Compile Include="..\SQLExtended\EnvTabs\ColorByRegexConfigText.cs" Link="EnvTabs\ColorByRegexConfigText.cs" />
+  </ItemGroup>
+
+  <!--
+    The SQL Server build list and the lookup over it. Both are free of SqlClient and WPF; the generated data
+    file is linked as well as the logic, so the tests check the snapshot itself (every build parses, releases
+    do not collide, 2008 R2 stays distinct from 2008) and not only the code that reads it.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Monitoring\Performance\SqlBuildCatalog.cs" Link="Monitoring\Performance\SqlBuildCatalog.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Performance\SqlBuildData.cs" Link="Monitoring\Performance\SqlBuildData.cs" />
+  </ItemGroup>
+
+  <!--
+    The Performance dashboard's non-UI sources, so the T-SQL every tab is built on can be parsed with ScriptDom
+    (PerfSqlTests). Its batches are long, assembled per capability set, and there is no other way to find a
+    syntax error in one short of opening the tab against a real instance — which is where it would show up as an
+    empty tab and a warning banner.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Monitoring\Performance\PerfModels.cs" Link="Monitoring\Performance\PerfModels.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Performance\PerfDeltaTracker.cs" Link="Monitoring\Performance\PerfDeltaTracker.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Performance\PerfQueryService.cs" Link="Monitoring\Performance\PerfQueryService.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Performance\PerfServerInfoQuery.cs" Link="Monitoring\Performance\PerfServerInfoQuery.cs" />
+  </ItemGroup>
+
+  <!--
+    The Always On and Replication monitors' non-UI sources. Everything listed here is SqlClient-only; the WPF
+    pieces (the controls, converters, tool windows, commands) are deliberately excluded, which is why the files
+    are listed one by one rather than globbed.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgModels.cs" Link="Monitoring\AlwaysOn\AgModels.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgCapabilities.cs" Link="Monitoring\AlwaysOn\AgCapabilities.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgCounterTracker.cs" Link="Monitoring\AlwaysOn\AgCounterTracker.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgQueryService.cs" Link="Monitoring\AlwaysOn\AgQueryService.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgDiagnostics.cs" Link="Monitoring\AlwaysOn\AgDiagnostics.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Replication\ReplModels.cs" Link="Monitoring\Replication\ReplModels.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Replication\ReplCapabilities.cs" Link="Monitoring\Replication\ReplCapabilities.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Replication\ReplQueryService.cs" Link="Monitoring\Replication\ReplQueryService.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Replication\ReplDiagnostics.cs" Link="Monitoring\Replication\ReplDiagnostics.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\Replication\ReplActionService.cs" Link="Monitoring\Replication\ReplActionService.cs" />
+  </ItemGroup>
+
+  <!--
+    The schema folder export's naming rules. Only this file: the exporter alongside it is typed against
+    SMO, which the test project deliberately does not reference.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Export\ExportFileNaming.cs" Link="Export\ExportFileNaming.cs" />
+  </ItemGroup>
+
+  <!--
+    The encrypted-module decryption pieces that can be checked without a server: the XOR arithmetic and
+    dummy-definition builder, and the DAC connection-string rules. ModuleDecryptionService itself is left
+    out — it is the part that must talk to an instance.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Decryption\EncryptedModuleCrypto.cs" Link="Decryption\EncryptedModuleCrypto.cs" />
+    <Compile Include="..\SQLExtended\Decryption\DacConnectionFactory.cs" Link="Decryption\DacConnectionFactory.cs" />
+  </ItemGroup>
+
+  <!-- Include schema validation source files for classifier tests -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Validation\DependencyClassifier.cs" Link="Validation\DependencyClassifier.cs" />
+    <Compile Include="..\SQLExtended\Validation\ModuleLocalNameScanner.cs" Link="Validation\ModuleLocalNameScanner.cs" />
+    <Compile Include="..\SQLExtended\Validation\Models\ValidationIssue.cs" Link="Validation\Models\ValidationIssue.cs" />
+    <Compile Include="..\SQLExtended\Validation\ValidationIgnoreList.cs" Link="Validation\ValidationIgnoreList.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,312 @@
+<UserControl x:Class="SQLExtended.Monitoring.Jobs.JobsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SQLExtended.Monitoring.Jobs"
+             xmlns:mon="clr-namespace:SQLExtended.Monitoring"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <!-- Shared monitoring chrome: buttons, tabs, grid styling and converters. -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SQLExtended;component/Monitoring/MonitoringTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Agent's outcome vocabulary is its own, so this converter lives with the dashboard. -->
+            <local:JobOutcomeBrushConverter x:Key="Outcome"/>
+
+            <!-- Flat buttons for the notice banner: they must not compete with the message for attention. -->
+            <Style x:Key="NoticeButton" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="#D7BA7D"/>
+                <Setter Property="BorderBrush" Value="#6B5836"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="7,1"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="VerticalAlignment" Value="Top"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#4A3B28"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: toolbar -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ToolButton}" Click="Refresh_Click"
+                        Padding="14,4" ToolTip="Read the current job state from msdb now"/>
+                <CheckBox x:Name="AutoRefreshCheck" Content="Auto" Style="{StaticResource ToolCheck}" Margin="8,0,0,0"
+                          Checked="AutoRefresh_Changed" Unchecked="AutoRefresh_Changed"
+                          ToolTip="Poll msdb on a timer"/>
+                <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
+                          SelectionChanged="Interval_Changed"
+                          ToolTip="How often to poll while Auto is on"/>
+                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
+                        ToolTip="Copy the active tab's grid as tab-separated text"/>
+                <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
+                        Click="OpenAsQuery_Click"
+                        ToolTip="Open the T-SQL behind the active tab in a new query window"/>
+                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <TextBlock Text="Filter" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBox x:Name="FilterBox" Width="160" Background="#333337" Foreground="#CCCCCC" BorderBrush="#555555"
+                         FontSize="12" Padding="4,2" VerticalAlignment="Center" TextChanged="Filter_Changed"
+                         ToolTip="Substring match on job name, category and owner"/>
+                <CheckBox x:Name="ShowHiddenCheck" Content="Show hidden categories" Style="{StaticResource ToolCheck}" Margin="10,0,0,0"
+                          Checked="ShowHidden_Changed" Unchecked="ShowHidden_Changed"
+                          ToolTip="Include jobs in the categories hidden by default (Report Server, configurable in Settings)"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
+                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Row 1: banner for Agent-unavailable, permission notes and per-section collection warnings -->
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+                CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="NoticeText" Grid.Column="0" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+
+                <!-- Copy takes the whole detail, stack trace included — the message alone is rarely enough to act on. -->
+                <Button x:Name="NoticeCopyButton" Grid.Column="1" Content="Copy" Style="{StaticResource NoticeButton}"
+                        Margin="8,0,0,0" Click="NoticeCopy_Click"
+                        ToolTip="Copy this message and its full detail to the clipboard"/>
+                <Button x:Name="NoticeCloseButton" Grid.Column="2" Content="✕" Style="{StaticResource NoticeButton}"
+                        Margin="4,0,0,0" Padding="6,1" Click="NoticeClose_Click" ToolTip="Dismiss this message"/>
+            </Grid>
+        </Border>
+
+        <!-- Row 2: tabs -->
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+                    Padding="0,6,0,0" SelectionChanged="Tabs_Changed">
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
+            </TabControl.ItemContainerStyle>
+
+            <!-- ============================ Jobs ============================ -->
+            <TabItem Header="Jobs">
+                <DataGrid x:Name="JobGrid" Style="{StaticResource MonitorGrid}" SelectionUnit="FullRow"
+                          SelectionMode="Single" SelectionChanged="JobGrid_SelectionChanged"
+                          MouseDoubleClick="JobGrid_MouseDoubleClick" KeyDown="JobGrid_KeyDown"
+                          PreviewMouseRightButtonDown="JobGrid_PreviewMouseRightButtonDown">
+                    <DataGrid.ContextMenu>
+                        <!--
+                            Enable and Disable are both present rather than one toggle: which one applies is only
+                            obvious once you have read the Enabled column, and a single item whose text changes
+                            under the cursor is easy to misclick. The inapplicable one is disabled, not hidden, so
+                            the menu does not reflow between right-clicks.
+                        -->
+                        <ContextMenu Background="#252526" Foreground="#CCCCCC" Opened="JobContextMenu_Opened">
+                            <MenuItem x:Name="RunNowItem" Header="Run Now" Click="RunNow_Click"
+                                      ToolTip="EXEC msdb.dbo.sp_start_job — Agent starts the job asynchronously"/>
+                            <MenuItem x:Name="StopItem" Header="Stop" Click="Stop_Click"
+                                      ToolTip="EXEC msdb.dbo.sp_stop_job — stops the job mid-step"/>
+                            <Separator/>
+                            <MenuItem x:Name="EnableItem" Header="Enable" Click="Enable_Click"
+                                      ToolTip="Allow the job to run on its schedule"/>
+                            <MenuItem x:Name="DisableItem" Header="Disable" Click="Disable_Click"
+                                      ToolTip="Stop the job running on its schedule. It can still be started by hand."/>
+                            <Separator/>
+                            <MenuItem x:Name="PropertiesItem" Header="Job Properties…" Click="JobProperties_Click"
+                                      ToolTip="Open SSMS's own Job Properties dialog for the selected job"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.RowStyle>
+                        <!-- Description is long and mostly absent, so it is a tooltip rather than a column. -->
+                        <Style TargetType="DataGridRow" BasedOn="{StaticResource DarkGridRow}">
+                            <Setter Property="ToolTip" Value="{Binding Description}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                    <Setter Property="ToolTip" Value="{x:Null}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Job" Binding="{Binding Name}" Width="240"/>
+                        <DataGridTextColumn Header="Enabled" Binding="{Binding IsEnabled, Converter={StaticResource Glyph}}" Width="65"/>
+                        <DataGridTextColumn Header="Category" Binding="{Binding Category, Converter={StaticResource Dash}}" Width="150"/>
+
+                        <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="Status">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold"
+                                               Foreground="{Binding Status, Converter={StaticResource Outcome}}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="Current step" Binding="{Binding CurrentStep, Converter={StaticResource Dash}}" Width="200"/>
+                        <DataGridTextColumn Header="Elapsed" Binding="{Binding ElapsedSeconds, Converter={StaticResource Secs}}" Width="80"
+                                            ElementStyle="{StaticResource NumCell}"/>
+
+                        <DataGridTemplateColumn Header="Last outcome" Width="110" SortMemberPath="LastRunOutcomeText">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding LastRunOutcomeText, Converter={StaticResource Dash}}" FontWeight="SemiBold"
+                                               Foreground="{Binding LastRunOutcome, Converter={StaticResource Outcome}}"
+                                               ToolTip="{Binding LastRunMessage}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="Last run" Binding="{Binding LastRunDate, Converter={StaticResource Ts}}" Width="140"/>
+                        <DataGridTextColumn Header="Last duration" Binding="{Binding LastRunDurationSeconds, Converter={StaticResource Secs}}"
+                                            Width="100" ElementStyle="{StaticResource NumCell}"/>
+                        <!-- The tooltip has to hang off a header template; DataGridColumn is not a FrameworkElement. -->
+                        <DataGridTextColumn Header="Avg duration" Binding="{Binding AverageDurationSeconds, Converter={StaticResource Secs}}"
+                                            Width="100" ElementStyle="{StaticResource NumCell}">
+                            <DataGridTextColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"
+                                               ToolTip="Mean of the recent successful runs only — a job that failed after two seconds would otherwise skew this"/>
+                                </DataTemplate>
+                            </DataGridTextColumn.HeaderTemplate>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Next run" Binding="{Binding NextRunDate, Converter={StaticResource Ts}}" Width="140"/>
+                        <DataGridTextColumn Header="Owner" Binding="{Binding Owner, Converter={StaticResource Dash}}" Width="150"/>
+                        <DataGridTextColumn Header="Notification e-mail" Binding="{Binding NotificationEmail, Converter={StaticResource Dash}}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- ============================ Steps ============================ -->
+            <TabItem Header="Steps">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="StepsHint" Grid.Row="0" Foreground="#808080" FontSize="11" Margin="2,2,2,6"
+                               TextTrimming="CharacterEllipsis"
+                               Text="Select a job on the Jobs tab — steps load on demand rather than on the refresh timer."/>
+
+                    <DataGrid x:Name="StepGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Binding="{Binding StepId}" Width="45" ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Step" Binding="{Binding StepName}" Width="240"/>
+                            <DataGridTextColumn Header="Subsystem" Binding="{Binding Subsystem, Converter={StaticResource Dash}}" Width="110"/>
+                            <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="130"/>
+                            <DataGridTextColumn Header="Run as" Binding="{Binding ProxyName, Converter={StaticResource Dash}}" Width="120"/>
+                            <DataGridTextColumn Header="On success" Binding="{Binding OnSuccessAction}" Width="130"/>
+                            <DataGridTextColumn Header="On failure" Binding="{Binding OnFailAction}" Width="130"/>
+                            <DataGridTextColumn Header="Retries" Binding="{Binding RetryAttempts}" Width="60" ElementStyle="{StaticResource NumCell}"/>
+
+                            <DataGridTemplateColumn Header="Last outcome" Width="110" SortMemberPath="LastRunOutcomeText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding LastRunOutcomeText, Converter={StaticResource Dash}}"
+                                                   Foreground="{Binding LastRunOutcome, Converter={StaticResource Outcome}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Last run" Binding="{Binding LastRunDate, Converter={StaticResource Ts}}" Width="140"/>
+                            <DataGridTextColumn Header="Duration" Binding="{Binding LastRunDurationSeconds, Converter={StaticResource Secs}}"
+                                                Width="90" ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Command" Binding="{Binding Command, Converter={StaticResource OneLine}}" Width="*"
+                                                ElementStyle="{StaticResource SqlCell}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ History ============================ -->
+            <TabItem Header="History">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <CheckBox x:Name="JobOutcomesOnlyCheck" Content="Job outcomes only" Style="{StaticResource ToolCheck}"
+                                  Checked="JobOutcomesOnly_Changed" Unchecked="JobOutcomesOnly_Changed"
+                                  ToolTip="Show only the job-level summary row Agent writes after the last step, hiding the per-step rows"/>
+                        <TextBlock x:Name="HistoryHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Text="Select a job on the Jobs tab — history loads on demand; sysjobhistory is too large to sit on the refresh timer."/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="HistoryGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="When" Binding="{Binding RunDate, Converter={StaticResource Ts}}" Width="150"/>
+                            <DataGridTextColumn Header="Step" Binding="{Binding StepLabel}" Width="240"/>
+
+                            <DataGridTemplateColumn Header="Outcome" Width="110" SortMemberPath="RunStatusText">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding RunStatusText, Converter={StaticResource Dash}}" FontWeight="SemiBold"
+                                                   Foreground="{Binding RunStatus, Converter={StaticResource Outcome}}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Duration" Binding="{Binding DurationSeconds, Converter={StaticResource Secs}}"
+                                                Width="90" ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Retries" Binding="{Binding RetriesAttempted}" Width="60"
+                                                ElementStyle="{StaticResource NumCell}"/>
+                            <DataGridTextColumn Header="Server" Binding="{Binding ServerName, Converter={StaticResource Dash}}" Width="120"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message, Converter={StaticResource OneLine}}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Row 3: status bar -->
+        <Grid Grid.Row="3" Margin="0,5,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       Text="Open a query window connected to the server whose Agent jobs you want, then press Refresh."/>
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </Grid>
+</UserControl>

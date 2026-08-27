@@ -1,0 +1,5 @@
+[*.cs]
+max_line_length = 160
+# Roslyn's wrapping preferences
+csharp_preserve_single_line_statements = true
+csharp_preserve_single_line_blocks = true

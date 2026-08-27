@@ -1,0 +1,273 @@
+﻿<UserControl x:Class="SQLExtended.History.SqlHistoryControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+             Background="#1E1E1E">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="/SQLExtended;component/Theme/DarkCombo.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DarkCombo comes from Theme/DarkCombo.xaml, merged above. -->
+
+        <Style x:Key="HistoryItem" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderBrush" Value="#2D2D30"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2A2D2E"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: search + clear -->
+        <Grid Grid.Row="0" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="SearchTextBox"
+                     Grid.Column="0"
+                     Background="#333337"
+                     Foreground="#D4D4D4"
+                     CaretBrush="#D4D4D4"
+                     BorderBrush="#555555"
+                     BorderThickness="1"
+                     Padding="6,4"
+                     FontSize="13"
+                     FontFamily="Cascadia Code, Consolas, Courier New"
+                     VerticalContentAlignment="Center"
+                     KeyDown="SearchTextBox_KeyDown"
+                     TextChanged="SearchTextBox_TextChanged"/>
+
+            <Button Grid.Column="1" Content="Refresh"
+                    Style="{StaticResource ToolButton}"
+                    Click="Refresh_Click"
+                    Margin="4,0,0,0" Padding="10,4"/>
+
+            <Button Grid.Column="2" Content="Clear"
+                    Style="{StaticResource ToolButton}"
+                    Click="Clear_Click"
+                    Margin="4,0,0,0"/>
+        </Grid>
+
+        <!-- Row 1: date filter + count -->
+        <Grid Grid.Row="1" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Show:" Foreground="#999999" FontSize="12"
+                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="DateFilterCombo" Grid.Column="1" Style="{StaticResource DarkCombo}"
+                      SelectionChanged="DateFilterCombo_SelectionChanged">
+                <ComboBoxItem Content="Today"/>
+                <ComboBoxItem Content="Last 7 days" IsSelected="True"/>
+                <ComboBoxItem Content="Last 30 days"/>
+                <ComboBoxItem Content="All"/>
+            </ComboBox>
+
+            <TextBlock x:Name="CountText" Grid.Column="2"
+                       Foreground="#999999" FontSize="11"
+                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+        </Grid>
+
+        <!-- Row 2: split list + preview -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="2*" MinHeight="80"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="3*" MinHeight="80"/>
+            </Grid.RowDefinitions>
+
+            <ListBox x:Name="ResultsList"
+                     Grid.Row="0"
+                     Background="#1E1E1E"
+                     BorderBrush="#333337"
+                     BorderThickness="1"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ItemContainerStyle="{StaticResource HistoryItem}"
+                     SelectionChanged="ResultsList_SelectionChanged"
+                     MouseDoubleClick="ResultsList_MouseDoubleClick">
+                <ListBox.ContextMenu>
+                    <ContextMenu Background="#2D2D30" Foreground="#D4D4D4" BorderBrush="#555555">
+                        <MenuItem Header="Open in new query window" Click="OpenInNewWindow_Click"/>
+                        <MenuItem Header="Copy to clipboard" Click="CopyText_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Delete" Click="Delete_Click"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="{Binding TimeDisplay}"
+                                       Foreground="#569CD6" FontSize="11"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding DocumentTitle}"
+                                       Foreground="#D4D4D4" FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+
+                            <TextBlock Grid.Row="0" Grid.Column="2"
+                                       Text="{Binding LengthDisplay}"
+                                       Foreground="#6A9955" FontSize="11"
+                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                       Text="{Binding PreviewLine}"
+                                       Foreground="#808080" FontSize="11"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       Margin="0,2,0,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <GridSplitter Grid.Row="1"
+                          Height="5"
+                          HorizontalAlignment="Stretch"
+                          Background="#2D2D30"
+                          Cursor="SizeNS"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True"/>
+
+            <Grid Grid.Row="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Background="#252526">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="PreviewHeader"
+                               Grid.Column="0"
+                               Text="Select a snapshot to view"
+                               Foreground="#808080"
+                               FontSize="11"
+                               Padding="6,4"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="1" Content="Open"
+                            Style="{StaticResource ToolButton}"
+                            Click="OpenInNewWindow_Click"
+                            Padding="8,2" Margin="0,2,4,2" FontSize="11"/>
+                    <Button Grid.Column="2" Content="Copy"
+                            Style="{StaticResource ToolButton}"
+                            Click="CopyText_Click"
+                            Padding="8,2" Margin="0,2,4,2" FontSize="11"/>
+                </Grid>
+
+                <avalonedit:TextEditor x:Name="PreviewEditor"
+                                       Grid.Row="1"
+                                       IsReadOnly="True"
+                                       ShowLineNumbers="True"
+                                       WordWrap="False"
+                                       FontFamily="Cascadia Code, Consolas, Courier New"
+                                       FontSize="12"
+                                       Background="#1E1E1E"
+                                       Foreground="#D4D4D4"
+                                       LineNumbersForeground="#555555"
+                                       BorderThickness="0,1,0,0"
+                                       BorderBrush="#333337"
+                                       Padding="4"
+                                       HorizontalScrollBarVisibility="Auto"
+                                       VerticalScrollBarVisibility="Auto"/>
+            </Grid>
+        </Grid>
+
+        <!-- Row 3: status -->
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="3"
+                   Text="Ready"
+                   Foreground="#808080"
+                   FontSize="11"
+                   VerticalAlignment="Center"
+                   Margin="0,4,0,0"/>
+    </Grid>
+</UserControl>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A container for documentation, not code. It carries no source and exists only so the .md files,
+       CLAUDE.md and the .claude folder are visible and editable in Solution Explorer.
+
+       It does not build. That is enforced in SQLExtended.slnx, which excludes it from every solution
+       configuration (<Build Solution="*|*" Project="false" />) - the .slnx spelling of unticking Build in
+       Configuration Manager. There is no MSBuild property that does this: this file used to carry
+       <ExcludeFromBuild>true</ExcludeFromBuild>, which is not a real property, is silently ignored, and is
+       why the project quietly compiled an empty net10.0 assembly on every solution build for as long as it
+       has existed. If you need the exclusion to survive outside the solution too, override the Build target
+       after an explicit Sdk.targets import - a Build target declared in this file as it stands would be
+       replaced by the SDK's own, since the Sdk attribute imports Sdk.targets after the project body.
+
+       TargetFramework is still required: restore evaluates the project even when the build skips it. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\.claude\**\*" LinkBase=".claude" />
+    <None Include="..\CLAUDE.md" Link="CLAUDE.md" />
+    <None Include="..\README.md" Link="README.md" />
+    <None Include="..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
+    <None Include="..\version.txt" Link="version.txt" />
+  </ItemGroup>
+
+</Project>

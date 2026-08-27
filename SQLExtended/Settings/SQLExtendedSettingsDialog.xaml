@@ -1,0 +1,1084 @@
+<Window x:Class="SQLExtended.Settings.SQLExtendedSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SQLExtended for SSMS Settings"
+        Width="820" Height="620"
+        MinWidth="700" MinHeight="500"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E1E"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        KeyDown="Window_KeyDown">
+
+    <Window.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="/SQLExtended;component/Theme/DarkCombo.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+
+        <!-- Dark theme styles matching existing dialogs -->
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#3F3F46"/>
+                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SmallButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="FontSize" Value="11"/>
+        </Style>
+
+        <Style x:Key="DarkCheck" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+
+        <!-- DarkCombo comes from Theme/DarkCombo.xaml, merged above. -->
+
+
+        <Style x:Key="DarkTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#333337"/>
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="CaretBrush" Value="#D4D4D4"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4,3"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#007ACC"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,12,0,6"/>
+        </Style>
+
+        <Style x:Key="SettingLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style x:Key="DimLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#808080"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+
+        <!-- Tab item style for dark theme -->
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1,1,1,0"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,2,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#1E1E1E"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#333337"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListBox item style for snippet list -->
+        <Style x:Key="SnippetItem" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderBrush" Value="#2D2D30"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2A2D2E"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Tab control -->
+        <TabControl x:Name="Tabs" Grid.Row="0" Background="#1E1E1E" BorderBrush="#3F3F46">
+
+            <!-- ===== IntelliSense Tab ===== -->
+            <TabItem Header="IntelliSense">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Completion" Margin="0,4,0,6"/>
+
+                        <CheckBox x:Name="ChkIntelliSenseEnabled" Content="Enable SQLExtended IntelliSense"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Provides table, column, procedure, and keyword completions from the schema cache."/>
+
+                        <CheckBox x:Name="ChkSuppressBuiltIn" Content="Suppress built-in SSMS IntelliSense"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Prevents built-in completions from interfering. Disable if you experience issues."/>
+
+                        <CheckBox x:Name="ChkAutoTrigger" Content="Auto-trigger after keywords (FROM, JOIN, EXEC, etc.)"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+
+                        <CheckBox x:Name="ChkExpandProcParams" Content="Expand stored-procedure parameters on EXEC completion"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Accepting a procedure inserts its full &quot;@param = value -- TYPE&quot; call as interactive tab-stops. Tab jumps between values."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Commit keys"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Which keys accept the highlighted completion. Unchecked keys are typed normally and leave the list open."/>
+
+                        <CheckBox x:Name="ChkCommitOnTab" Content="Tab accepts completion"
+                                  Style="{StaticResource DarkCheck}" Margin="0,6,0,4"/>
+                        <CheckBox x:Name="ChkCommitOnEnter" Content="Enter accepts completion"
+                                  Style="{StaticResource DarkCheck}" Margin="0,0,0,4"/>
+                        <CheckBox x:Name="ChkCommitOnSpace" Content="Space accepts completion"
+                                  Style="{StaticResource DarkCheck}" Margin="0,0,0,4"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Casing"/>
+
+                        <CheckBox x:Name="ChkRecaseKeywords" Content="Recase keywords as you type"
+                                  Style="{StaticResource DarkCheck}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Rewrites a T-SQL keyword to match the formatter's keyword casing once you finish typing it (on space, punctuation, or newline). Uses the active formatter profile; does nothing when its keyword casing is Unchanged. Never affects identifiers, strings, comments, or bracketed names."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Matching"/>
+
+                        <CheckBox x:Name="ChkCamelCase" Content="CamelCase matching (e.g., OD matches OrderDetails)"
+                                  Style="{StaticResource DarkCheck}"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Display"/>
+
+                        <CheckBox x:Name="ChkShowColumnType" Content="Show column type info in completion details"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <CheckBox x:Name="ChkShowRowCounts" Content="Show row counts for tables/views"
+                                  Style="{StaticResource DarkCheck}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Formatter Tab ===== -->
+            <TabItem Header="Formatter">
+                <Grid Margin="16,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="SQL Formatting" Margin="0,4,0,6"/>
+                        <TextBlock Foreground="#CCCCCC" FontSize="12" TextWrapping="Wrap"
+                                   Text="The SQL formatter uses Microsoft's TransactSql.ScriptDom with additional post-processing. Click the button below to open the full formatter options dialog with live preview."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Foreground="#CCCCCC" FontSize="12" VerticalAlignment="Center" Text="Active profile: " Margin="0,0,4,0"/>
+                            <TextBlock x:Name="TxtActiveProfile" Foreground="#4EC9B0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Button x:Name="BtnOpenFormatterOptions"
+                                Content="Open Formatter Options..."
+                                Style="{StaticResource ActionButton}"
+                                Click="OpenFormatterOptions_Click"
+                                HorizontalAlignment="Left"
+                                Margin="0,12,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" VerticalAlignment="Bottom">
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Formatter settings are stored separately in formatter-options.json for sharing and import/export."/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,2,0,0">
+                            <Run Text="Location: "/>
+                            <Run x:Name="RunFormatterPath" Text="" Foreground="#569CD6"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== Schema Cache Tab ===== -->
+            <TabItem Header="Schema Cache">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Auto-Refresh" Margin="0,4,0,6"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Auto-refresh interval:"/>
+                            <TextBox x:Name="TxtRefreshInterval" Style="{StaticResource DarkTextBox}"
+                                     Width="60" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="minutes" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="How often the cache performs an incremental refresh. Set to 0 to disable."/>
+
+                        <CheckBox x:Name="ChkAutoLoadOnConnect" Content="Automatically load cache when connecting to a database"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+
+                        <CheckBox x:Name="ChkDetectDdl" Content="Detect DDL changes (CREATE, ALTER, DROP) and auto-refresh affected objects"
+                                  Style="{StaticResource DarkCheck}"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Encrypted Modules"/>
+
+                        <CheckBox x:Name="ChkDecryptEncryptedModules" Content="Decrypt encrypted modules (requires sysadmin)"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Recovers the text of procedures, views, functions and triggers created WITH ENCRYPTION, so their bodies appear in the schema viewer, in search-in-definitions and in schema exports instead of showing as blank. Completion lists are unaffected either way — encryption hides a module's body, not its columns or parameters."/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,4,0,0"
+                                   Text="There is no key to decrypt with. Recovering the text means briefly ALTERing each object to a throwaway definition over a dedicated administrator connection (DAC) and rolling that back in the same batch, so nothing is ever left changed — but the ALTER does take a schema-modification lock and recompile the module, and it needs sysadmin. A remote server also needs 'remote admin connections' enabled; Azure SQL Database has no DAC at all. Each object is decrypted once per version, not on every cache refresh."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Object Explorer"/>
+
+                        <CheckBox x:Name="ChkServerGrouping" Content="Group servers into folders by Registered Servers group"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Mirrors your Registered Servers group hierarchy as folders at the top of Object Explorer. Servers not in any group stay at the root. Takes effect within a few seconds; disabling stops re-grouping but leaves existing folders until the next SSMS restart."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Storage"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Max cache age:"/>
+                            <TextBox x:Name="TxtMaxCacheAge" Style="{StaticResource DarkTextBox}"
+                                     Width="60" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="days" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Cached entries older than this are automatically purged on startup."/>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,8,0,0">
+                            <Run Text="Cache location: "/>
+                            <Run x:Name="RunCachePath" Text="" Foreground="#569CD6"/>
+                        </TextBlock>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Actions"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <Button Content="Refresh Current Database" Style="{StaticResource SmallButton}"
+                                    Click="RefreshCurrentCache_Click" Margin="0,0,8,0"/>
+                            <Button Content="Refresh All Databases" Style="{StaticResource SmallButton}"
+                                    Click="RefreshAllCache_Click" Margin="0,0,8,0"/>
+                            <Button Content="Clear All Cache" Style="{StaticResource SmallButton}"
+                                    Click="ClearCache_Click"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtCacheStatus" Style="{StaticResource DimLabel}" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Search Tab ===== -->
+            <TabItem Header="Search">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Default Search Settings" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="These defaults are applied when the SQL Search tool window opens. You can override them per search."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Default scope:"/>
+                            <ComboBox x:Name="CboSearchScope" Style="{StaticResource DarkCombo}" Width="200">
+                                <ComboBoxItem Content="Current Database"/>
+                                <ComboBoxItem Content="All Cached Databases"/>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Search In"/>
+
+                        <CheckBox x:Name="ChkSearchObjectNames" Content="Object names (tables, views, procedures, functions)"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <CheckBox x:Name="ChkSearchColumnNames" Content="Column names"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <CheckBox x:Name="ChkSearchDefinitions" Content="Object definitions (stored procedure/function/view bodies)"
+                                  Style="{StaticResource DarkCheck}"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Results"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Max results:"/>
+                            <TextBox x:Name="TxtMaxResults" Style="{StaticResource DarkTextBox}"
+                                     Width="60" TextAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Maximum number of search results to display. Higher values may impact performance for large databases."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Temp Table Scripts"/>
+
+                        <CheckBox x:Name="ChkTempTableDropIfExists"
+                                  Content="Include DROP TABLE IF EXISTS when generating temp table scripts"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Prepends DROP TABLE IF EXISTS #TableName; above the CREATE TABLE when using the Temp Table tab in the search preview."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Snippets Tab ===== -->
+            <TabItem Header="Snippets">
+                <Grid Margin="16,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="80"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="100"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}"
+                               Text="Code Snippets" Margin="0,4,0,6"/>
+
+                    <!-- Snippet list -->
+                    <ListBox x:Name="SnippetList" Grid.Row="1"
+                             Background="#252526" BorderBrush="#333337" BorderThickness="1"
+                             ItemContainerStyle="{StaticResource SnippetItem}"
+                             SelectionChanged="SnippetList_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Code}"
+                                               Foreground="#569CD6" FontFamily="Cascadia Code, Consolas"
+                                               FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Title}"
+                                               Foreground="#D4D4D4" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Description}"
+                                               Foreground="#808080" FontSize="11" VerticalAlignment="Center"
+                                               MaxWidth="250" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Snippet edit area (metadata fields) -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Code:"/>
+                        <TextBox x:Name="TxtSnippetCode" Grid.Row="0" Grid.Column="1"
+                                 Style="{StaticResource DarkTextBox}" FontFamily="Cascadia Code, Consolas"/>
+
+                        <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource SettingLabel}" Text="Title:" Margin="12,0,8,0"/>
+                        <TextBox x:Name="TxtSnippetTitle" Grid.Row="0" Grid.Column="3"
+                                 Style="{StaticResource DarkTextBox}"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Description:" Margin="0,4,8,0"/>
+                        <TextBox x:Name="TxtSnippetDescription" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                                 Style="{StaticResource DarkTextBox}" Margin="0,4,0,0"/>
+                    </Grid>
+
+                    <!-- Body editor with placeholder bar -->
+                    <DockPanel Grid.Row="3" Margin="0,8,0,0">
+                        <!-- Placeholder bar above body -->
+                        <Border DockPanel.Dock="Top" Background="#252526" BorderBrush="#333337" BorderThickness="1,1,1,0"
+                                CornerRadius="2,2,0,0" Padding="6,3">
+                            <DockPanel>
+                                <TextBlock Text="Body" Foreground="#569CD6" FontSize="11" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,8,0"/>
+                                <TextBlock Text="Insert:" Foreground="#808080" FontSize="11"
+                                           VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,4,0"/>
+                                <WrapPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                    <Button Content="$date$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$date$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current date (yyyy-MM-dd)"/>
+                                    <Button Content="$time$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$time$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current time (HH:mm:ss)"/>
+                                    <Button Content="$datetime$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$datetime$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current date and time"/>
+                                    <Button Content="$user$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$user$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current Windows username"/>
+                                    <Button Content="$dbname$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$dbname$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current database name"/>
+                                    <Button Content="$server$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$server$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current server name"/>
+                                    <Button Content="$guid$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$guid$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="New unique GUID"/>
+                                    <Button Content="$year$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$year$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current year"/>
+                                    <Button Content="$machine$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$machine$" Margin="0,0,2,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Current machine name"/>
+                                    <Button Content="$cursor$" Style="{StaticResource SmallButton}" Click="InsertPlaceholder_Click"
+                                            Tag="$cursor$" Margin="0,0,0,0" FontFamily="Cascadia Code, Consolas" FontSize="10"
+                                            ToolTip="Final caret position after tab-stop navigation" Foreground="#DCDCAA"/>
+                                </WrapPanel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Body text editor (fills remaining space) -->
+                        <TextBox x:Name="TxtSnippetBody"
+                                 Style="{StaticResource DarkTextBox}"
+                                 AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 FontFamily="Cascadia Code, Consolas" FontSize="12"
+                                 BorderThickness="1,0,1,1"
+                                 TextChanged="TxtSnippetBody_TextChanged"/>
+                    </DockPanel>
+
+                    <!-- Placeholder defaults (auto-detected from body) -->
+                    <Border x:Name="PlaceholderDefaultsBorder" Grid.Row="4" Margin="0,6,0,0"
+                            Background="#252526" BorderBrush="#333337"
+                            BorderThickness="1" CornerRadius="2" Padding="6,4"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="Tab-Stop Placeholder Defaults" Foreground="#569CD6" FontSize="11"
+                                       FontWeight="SemiBold" Margin="0,0,0,4"/>
+                            <DataGrid x:Name="PlaceholderDefaultsGrid"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                      CanUserReorderColumns="False" CanUserSortColumns="False"
+                                      Background="#1E1E1E" Foreground="#D4D4D4"
+                                      BorderThickness="0" RowBackground="#1E1E1E" AlternatingRowBackground="#252526"
+                                      GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333337"
+                                      HeadersVisibility="Column" MaxHeight="120"
+                                      FontFamily="Cascadia Code, Consolas" FontSize="11">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#333337"/>
+                                        <Setter Property="Foreground" Value="#D4D4D4"/>
+                                        <Setter Property="Padding" Value="6,3"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Setter Property="BorderBrush" Value="#444"/>
+                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Placeholder" Binding="{Binding Name}"
+                                                        IsReadOnly="True" Width="140"
+                                                        Foreground="#9CDCFE"/>
+                                    <DataGridTextColumn Header="Default Value" Binding="{Binding DefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Width="*">
+                                        <DataGridTextColumn.EditingElementStyle>
+                                            <Style TargetType="TextBox">
+                                                <Setter Property="Background" Value="#1E1E1E"/>
+                                                <Setter Property="Foreground" Value="#D4D4D4"/>
+                                                <Setter Property="BorderThickness" Value="0"/>
+                                                <Setter Property="CaretBrush" Value="#D4D4D4"/>
+                                            </Style>
+                                        </DataGridTextColumn.EditingElementStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Snippet action buttons -->
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="New" Style="{StaticResource SmallButton}" Click="NewSnippet_Click" Margin="0,0,6,0"/>
+                        <Button Content="Save" Style="{StaticResource SmallButton}" Click="SaveSnippet_Click" Margin="0,0,6,0"/>
+                        <Button Content="Delete" Style="{StaticResource SmallButton}" Click="DeleteSnippet_Click" Margin="0,0,16,0"/>
+                        <Button Content="Import..." Style="{StaticResource SmallButton}" Click="ImportSnippets_Click" Margin="0,0,6,0"/>
+                        <Button Content="Import SQL Prompt..." Style="{StaticResource SmallButton}" Click="ImportSqlPromptSnippets_Click" Margin="0,0,6,0"/>
+                        <Button Content="Export..." Style="{StaticResource SmallButton}" Click="ExportSnippets_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== History Tab ===== -->
+            <TabItem Header="History">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="SQL Tab History" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Captures a snapshot of each SQL query tab whenever its text changes (after a brief pause). Browse via SQLExtended &gt; SQL History (Ctrl+Alt+H)."/>
+
+                        <CheckBox x:Name="ChkHistoryEnabled" Content="Enable tab history capture"
+                                  Style="{StaticResource DarkCheck}"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Capture"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Debounce interval:"/>
+                            <TextBox x:Name="TxtHistoryDebounce" Style="{StaticResource DarkTextBox}"
+                                     Width="80" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="milliseconds" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Snapshot is taken once typing has paused for this long. Lower = more snapshots."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Max text size to capture:"/>
+                            <TextBox x:Name="TxtHistoryMaxBytes" Style="{StaticResource DarkTextBox}"
+                                     Width="100" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="bytes" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Tabs larger than this are skipped to keep the database from growing unbounded."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Retention"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Keep snapshots for:"/>
+                            <TextBox x:Name="TxtHistoryRetentionDays" Style="{StaticResource DarkTextBox}"
+                                     Width="60" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="days (0 = forever)" Margin="6,0,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Max per document:"/>
+                            <TextBox x:Name="TxtHistoryMaxPerDoc" Style="{StaticResource DarkTextBox}"
+                                     Width="60" TextAlignment="Center"/>
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="snapshots (0 = no cap)" Margin="6,0,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,8,0,0">
+                            <Run Text="Database location: "/>
+                            <Run x:Name="RunHistoryPath" Text="" Foreground="#569CD6"/>
+                        </TextBlock>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Actions"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <Button Content="Clear All History" Style="{StaticResource SmallButton}"
+                                    Click="ClearHistory_Click" Margin="0,0,8,0"/>
+                            <Button Content="Open Folder" Style="{StaticResource SmallButton}"
+                                    Click="OpenHistoryFolder_Click"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtHistoryStatus" Style="{StaticResource DimLabel}" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Statistics Tab ===== -->
+            <TabItem Header="Statistics">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Statistics Parser" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Run a query with SET STATISTICS IO, TIME ON, then press Ctrl+K, Ctrl+G (or SQLExtended → Parse Statistics) to parse the Messages pane into sortable tables in the Statistics tool window."/>
+
+                        <CheckBox x:Name="ChkStatsSuppressZeroColumns" Content="Hide IO columns that are zero for every row"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Keeps the tables narrow by dropping columns SQL Server reported as all zeroes (LOB reads, page server reads, segment counts on most workloads)."/>
+
+                        <CheckBox x:Name="ChkStatsFormatTempTableNames" Content="Shorten generated temp table names"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Collapses the underscore padding SQL Server adds to session temp tables (#t____…____0000000157) so the table column stays readable. Regular table names are never altered."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Output Language"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Parse output as:"/>
+                            <ComboBox x:Name="CboStatsLanguage" Style="{StaticResource DarkCombo}" Width="200">
+                                <ComboBoxItem Content="Auto-detect"/>
+                                <ComboBoxItem Content="English"/>
+                                <ComboBoxItem Content="Spanish"/>
+                                <ComboBoxItem Content="Italian"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="STATISTICS output is emitted in the SQL Server session language. Auto-detect reads it from the captured text — pick a language explicitly only if detection gets it wrong."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Credits"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="The parser is vendored from Brent Ozar Unlimited's Statistics Parser extension (MIT licensed). See THIRD-PARTY-NOTICES.md in the install folder."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Results Grid Tab (aggregates + find) ===== -->
+            <TabItem Header="Results Grid">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Grid Aggregates" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Select cells in a results grid and the Grid Aggregates window totals them — sum, average, min, max, distinct and null counts, one row per selected column. Open it with Ctrl+Alt+G, from SQLExtended → Grid Aggregates, or from the results grid's right-click menu. Which aggregates are shown is chosen with the checkboxes in the window itself."/>
+
+                        <CheckBox x:Name="ChkAggregatesAutoShow" Content="Bring the window to the front when cells are selected"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Off by default. The window already updates live whenever it is open, so this only decides whether a stray drag-select is allowed to take screen space and pull focus off the grid mid-gesture."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Limits"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Maximum cells:"/>
+                            <TextBox x:Name="TxtAggregatesMaxCells" Style="{StaticResource DarkTextBox}" Width="100"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="A larger selection is refused rather than partly totalled — a total over the first part of a selection looks exactly like the real one. Reading the grid happens on the UI thread, so this is also what stops a Ctrl+A on a million-row grid freezing SSMS."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Recompute delay (ms):"/>
+                            <TextBox x:Name="TxtAggregatesDebounceMs" Style="{StaticResource DarkTextBox}" Width="100"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Quiet period after the selection stops changing before the totals are recalculated. The grid reports a selection change continuously through a drag, so without a delay every mouse-move would re-read the whole range."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Grid poll (seconds):"/>
+                            <TextBox x:Name="TxtAggregatesPollSeconds" Style="{StaticResource DarkTextBox}" Width="100"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="How often to look for results grids created since the last check. SSMS builds a new grid per result set on every execution and raises no event for it. Polling only runs while the Grid Aggregates window is open."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="What the numbers mean"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Aggregates are computed from the text the grid displays — it is the only value the results grid exposes. So a varchar column holding digits will be summed, Distinct counts distinct renderings (two datetime2 values differing below the displayed precision count once), and 'Text length' counts characters on screen, not DATALENGTH bytes. Sums are exact for decimal and money; a float value beyond decimal's range falls back to floating point and the window says so."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Find in Results" Margin="0,16,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Finds text in a results grid, tints every match and steps the grid's selection through them. Open it with Ctrl+Alt+S or from the results grid's right-click menu. Match case, whole cell, regular expressions and which result sets to search are chosen in the window itself and remembered between sessions."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Maximum cells:"/>
+                            <TextBox x:Name="TxtFindMaxCells" Style="{StaticResource DarkTextBox}" Width="100"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="How many cells one search will read before giving up. The scan is spread across idle moments and never blocks the window, so this is not about responsiveness — it is about a search over a result set nobody meant to search taking minutes. Hitting it is always reported, and the match count is then shown as 'N+' rather than passed off as a total."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Maximum matches:"/>
+                            <TextBox x:Name="TxtFindMaxMatches" Style="{StaticResource DarkTextBox}" Width="100"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="How many matches are collected, tinted and steppable. Past a few thousand the answer to 'where is it' stops being a list and starts being 'everywhere', where a narrower search is the better tool."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="What is searched"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="The text the grid displays, for the same reason aggregates work from it — it is the only value SSMS exposes. A NULL therefore arrives as the word NULL exactly as it appears on screen, so searching for NULL finds real NULLs and also finds a varchar cell containing the word. Comparison is ordinal, not culture-sensitive: what matches is what looks the same."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Agent Jobs Tab ===== -->
+            <TabItem Header="Agent Jobs">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Agent Jobs Dashboard" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Press Ctrl+Alt+J (or SQLExtended → Agent Jobs) to open a live view of SQL Server Agent jobs on the active query window's server. Double-click a job to open SSMS's Job Properties dialog. Reads msdb and needs SQLAgentReaderRole or sysadmin."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Hidden Categories"/>
+                        <TextBox x:Name="TxtJobsHiddenCategories" Style="{StaticResource DarkTextBox}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Comma-separated job categories excluded from the grid by default. SSRS subscription jobs (Report Server) are hidden out of the box; the dashboard's &quot;Show hidden categories&quot; checkbox brings them back for the session."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Refresh"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Auto-refresh interval (seconds):"/>
+                            <TextBox x:Name="TxtJobsRefreshSeconds" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Only applies while Auto is ticked on the dashboard toolbar. The toolbar's interval box overrides this for the current session."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="History"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="History tab reads back (days):"/>
+                            <TextBox x:Name="TxtJobsHistoryDays" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Average duration over last N runs:"/>
+                            <TextBox x:Name="TxtJobsAverageSampleRuns" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Both read msdb.dbo.sysjobhistory, which only retains as much as the Agent history limits allow — a long window here does not create history that was already purged."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Monitoring Tab ===== -->
+            <!--
+                Thresholds only. The dashboards' refresh intervals live on their own toolbars because they are
+                changed per session; these are the numbers that decide when a Diagnostics row appears, and they
+                belong to the server rather than the sitting.
+            -->
+            <TabItem Header="Monitoring">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Performance Dashboard" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Press Ctrl+Alt+P (or SQLExtended → Performance Monitor). Its Server info tab is a facts tab rather than a rules engine, so only a handful of things there are tinted amber — this is the one with a number behind it."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Flag memory dumps newer than (days):"/>
+                            <TextBox x:Name="TxtPerfRecentDumpDays" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="SQL Server writes a memory dump on a crash, an assertion or a non-yielding scheduler and then carries on, so nothing reports it after the fact. Older dumps are still listed on the Server info tab, just not flagged. Set to 0 to list them without flagging any."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Always On Monitor" Margin="0,14,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Press Ctrl+Alt+A (or SQLExtended → Always On Monitor) for availability group health. These thresholds decide when the Diagnostics tab reports a finding — defaults are deliberately conservative, because a rule that fires on a healthy server teaches you to ignore the tab."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Data Loss (RPO)"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Warn above (seconds):"/>
+                            <TextBox x:Name="TxtAgRpoWarning" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Critical above (seconds):"/>
+                            <TextBox x:Name="TxtAgRpoCritical" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Estimated data loss is the log send queue divided by the current send rate — how much work an unplanned failover would lose right now."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Lag and Queues"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Secondary lag warning (seconds):"/>
+                            <TextBox x:Name="TxtAgLagWarning" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Send queue warning (KB):"/>
+                            <TextBox x:Name="TxtAgSendQueueWarning" Style="{StaticResource DarkTextBox}" Width="110"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Redo queue warning (KB):"/>
+                            <TextBox x:Name="TxtAgRedoQueueWarning" Style="{StaticResource DarkTextBox}" Width="110"/>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Commit Latency"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Warn above (ms per transaction):"/>
+                            <TextBox x:Name="TxtAgCommitDelayWarning" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="What synchronous commit costs the primary, from Transaction Delay divided by Mirrored Write Transactions/sec on the Throughput tab. Single-digit milliseconds is normal; tens of milliseconds is a network or remote log-write problem."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Replication Monitor" Margin="0,14,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="Press Ctrl+Alt+R (or SQLExtended → Replication Monitor). Most of what it reads lives in the distribution database, so connect to the distributor for the full picture; the Publisher tab works from a publisher."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Auto-refresh interval (seconds):"/>
+                            <TextBox x:Name="TxtReplRefreshSeconds" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="End-to-End Latency"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Warn above (seconds):"/>
+                            <TextBox x:Name="TxtReplLatencyWarning" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Critical above (seconds):"/>
+                            <TextBox x:Name="TxtReplLatencyCritical" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Log reader latency (publisher to distributor) plus distribution latency (distributor to subscriber). Transactional replication routinely runs a few seconds behind, so start well above that."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Expiry and Backlog"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Warn at retention used (0–1):"/>
+                            <TextBox x:Name="TxtReplExpiryFraction" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="How much of the distribution retention window a subscription may go without activity before it is reported. Past 1.0 the expiry job deactivates it and it needs reinitializing rather than restarting, so 0.75 leaves room to act."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Undelivered command warning:"/>
+                            <TextBox x:Name="TxtReplPendingWarning" Style="{StaticResource DarkTextBox}" Width="110"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4">
+                            <TextBlock Style="{StaticResource SettingLabel}" Text="Errors tab reads (rows):"/>
+                            <TextBox x:Name="TxtReplErrorRows" Style="{StaticResource DarkTextBox}" Width="80"/>
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Undelivered commands are only counted when you press the button on the Subscriptions tab — the count scans the command table, which is slowest exactly when a backlog makes it most interesting."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Updates Tab ===== -->
+            <TabItem Header="Updates">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Update Check" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
+                                   Text="The extension can check a manifest URL on SSMS startup and notify you when a newer build is available. Manual install via the downloaded installer; SSMS restart required."/>
+
+                        <CheckBox x:Name="ChkUpdateCheckEnabled" Content="Check for updates on startup"
+                                  Style="{StaticResource DarkCheck}"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Feed URL"/>
+                        <TextBox x:Name="TxtUpdateFeedUrl" Style="{StaticResource DarkTextBox}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="HTTPS URL of the version.json manifest. Leave blank to disable. Default points to the SQLExtended internal feed."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Status"/>
+                        <TextBlock x:Name="TxtUpdateCurrentVersion" Style="{StaticResource DimLabel}"/>
+                        <TextBlock x:Name="TxtUpdateLastCheck"     Style="{StaticResource DimLabel}"/>
+                        <TextBlock x:Name="TxtUpdateSkipped"       Style="{StaticResource DimLabel}"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Check Now" Style="{StaticResource SmallButton}"
+                                    Click="CheckUpdatesNow_Click" Margin="0,0,8,0"/>
+                            <Button Content="Clear Skipped Version" Style="{StaticResource SmallButton}"
+                                    Click="ClearSkippedVersion_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Diagnostics Tab =====
+                 The log view is collapsed until logging is enabled; the two switches stay visible so
+                 there is somewhere to turn it on from. -->
+            <TabItem Header="Diagnostics">
+                <Grid Margin="16,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Session Log" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8" TextWrapping="Wrap"
+                                   Text="The extension handles most failures quietly so one bad query cannot take SSMS down — which means the reason normally goes nowhere. Turn this on to keep them, then reproduce the problem and come back to this tab. The log lives in memory only and is gone when SSMS closes."/>
+
+                        <CheckBox x:Name="ChkDiagnosticLogEnabled" Content="Capture errors to a session log"
+                                  Style="{StaticResource DarkCheck}"
+                                  Checked="DiagnosticLogEnabled_Changed" Unchecked="DiagnosticLogEnabled_Changed"/>
+
+                        <CheckBox x:Name="ChkDiagnosticLogToFile" Content="Also write the log to a file"
+                                  Style="{StaticResource DarkCheck}" Margin="16,4,0,0"/>
+                        <TextBlock x:Name="TxtDiagnosticLogPath" Style="{StaticResource DimLabel}"
+                                   Margin="16,0,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Shown instead of the grid while logging is off. -->
+                    <TextBlock x:Name="TxtDiagnosticLogOff" Grid.Row="1" Style="{StaticResource DimLabel}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"
+                               Text="Logging is off, so there is nothing to show. Tick the box above and press OK — capture starts immediately and this tab lists what it catches."/>
+
+                    <DataGrid x:Name="DiagnosticLogGrid" Grid.Row="2" Margin="0,12,0,0"
+                              AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                              CanUserReorderColumns="False" CanUserSortColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" SelectionChanged="DiagnosticLogGrid_SelectionChanged"
+                              Background="#1E1E1E" Foreground="#D4D4D4"
+                              BorderThickness="1" BorderBrush="#333337"
+                              RowBackground="#1E1E1E" AlternatingRowBackground="#252526"
+                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333337"
+                              HeadersVisibility="Column" Visibility="Collapsed"
+                              VerticalScrollBarVisibility="Auto"
+                              FontFamily="Cascadia Code, Consolas" FontSize="11">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#333337"/>
+                                <Setter Property="Foreground" Value="#D4D4D4"/>
+                                <Setter Property="Padding" Value="6,3"/>
+                                <Setter Property="FontSize" Value="11"/>
+                                <Setter Property="BorderBrush" Value="#444"/>
+                                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LevelText}" Value="ERROR">
+                                        <Setter Property="Foreground" Value="#F48771"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding LevelText}" Value="WARN">
+                                        <Setter Property="Foreground" Value="#DCDCAA"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Time"    Binding="{Binding TimeText}"  Width="130"/>
+                            <DataGridTextColumn Header="Level"   Binding="{Binding LevelText}" Width="55"/>
+                            <DataGridTextColumn Header="Source"  Binding="{Binding Source}"    Width="150"/>
+                            <DataGridTextColumn Header="Repeats" Binding="{Binding CountText}" Width="60"/>
+                            <DataGridTextColumn Header="Message" Binding="{Binding Message}"   Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBox x:Name="TxtDiagnosticLogDetail" Grid.Row="3" Margin="0,6,0,0"
+                             Height="110" Visibility="Collapsed"
+                             IsReadOnly="True" TextWrapping="NoWrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                             Background="#252526" Foreground="#D4D4D4" BorderBrush="#333337" BorderThickness="1"
+                             FontFamily="Cascadia Code, Consolas" FontSize="11"/>
+
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button x:Name="BtnDiagnosticCopy" Content="Copy All" Style="{StaticResource SmallButton}"
+                                Click="CopyDiagnosticLog_Click" Margin="0,0,6,0"/>
+                        <Button x:Name="BtnDiagnosticClear" Content="Clear" Style="{StaticResource SmallButton}"
+                                Click="ClearDiagnosticLog_Click" Margin="0,0,16,0"/>
+                        <Button Content="Open Log Folder" Style="{StaticResource SmallButton}"
+                                Click="OpenDiagnosticLogFolder_Click" Margin="0,0,16,0"/>
+                        <TextBlock x:Name="TxtDiagnosticLogStatus" Style="{StaticResource DimLabel}"
+                                   VerticalAlignment="Center" Margin="0"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== Keyboard Shortcuts Tab ===== -->
+            <TabItem Header="Keyboard Shortcuts">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="SQLExtended Keyboard Shortcuts" Margin="0,4,0,6"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,12"
+                                   Text="These shortcuts are registered by the SQLExtended extension. To change them, use Tools > Options > Keyboard in SSMS and search for 'SQLExtended'."/>
+
+                        <!-- Shortcuts table -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Header -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Command"
+                                       Foreground="#808080" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Shortcut"
+                                       Foreground="#808080" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="View Schema"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Shift+D"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Format SQL" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+K, Ctrl+F" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Refresh Schema Cache" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Shift+R" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="SQL Search" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+F" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="SQL History" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="5" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+H" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Parse Statistics" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="6" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+K, Ctrl+G" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Script Library" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="7" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+L" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Performance Monitor" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="8" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+P" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="9" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Always On Monitor" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="9" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+A" Margin="0,6,0,0"/>
+
+                            <TextBlock Grid.Row="10" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Agent Jobs" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Row="10" Grid.Column="1" Foreground="#569CD6" FontSize="12"
+                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+J" Margin="0,6,0,0"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Bottom button bar -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Reset to Defaults" Style="{StaticResource ActionButton}"
+                    Click="ResetDefaults_Click" Margin="0,0,8,0"/>
+            <Button Content="OK" Style="{StaticResource ActionButton}"
+                    Click="OK_Click" IsDefault="True" Width="80" Margin="0,0,8,0"/>
+            <Button Content="Cancel" Style="{StaticResource ActionButton}"
+                    Click="Cancel_Click" IsCancel="True" Width="80"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,341 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>SQLExtended</RootNamespace>
+    <AssemblyName>SQLExtended</AssemblyName>
+    <!-- One source of truth for the version: version.txt at the repo root. It reaches three places that
+         have to agree, and did not before — the assembly's FileVersion (which UpdateCheckService.
+         GetCurrentVersion reads to decide whether the feed is offering something newer), the .vsix
+         manifest's Identity Version (what Manage Extensions displays and what VSIXInstaller compares on
+         upgrade), and the version.json the release script publishes. The assembly said 1.0.0.0 while the
+         manifest said 1.0.19, so every published release read as newer than every installed build and the
+         update InfoBar could never be satisfied. publish-release.ps1 overrides this with -p:Version=. -->
+    <_VersionFile>$(MSBuildProjectDirectory)\..\version.txt</_VersionFile>
+    <!-- A command-line -p:Version= is a global property and is therefore already set while this project
+         body evaluates, whereas the SDK's own default (1.0.0) is not applied until its targets are
+         imported below. So a non-empty $(Version) *here* means someone passed one explicitly, and that is
+         the only way to tell the two apart later. -->
+    <_VersionPassedIn Condition="'$(Version)' != ''">true</_VersionPassedIn>
+    <Version Condition="'$(Version)' == '' AND Exists('$(_VersionFile)')">$([System.IO.File]::ReadAllText('$(_VersionFile)').Trim())</Version>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <LangVersion>latest</LangVersion>
+    <!-- The vendored StatisticsParser.Core sources (Statistics\Core) are written against
+		     <Nullable>enable</Nullable> upstream. "annotations" turns the annotation context on so
+		     their `string?` compiles without CS8632, while leaving nullable *warnings* off so no
+		     existing SQLExtended file changes behaviour. -->
+    <Nullable>annotations</Nullable>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <UseWPF>true</UseWPF>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <!-- Pack a distributable .vsix. IncludeCopyLocal... pulls the NuGet dependency DLLs
+		     (Newtonsoft, SQLite + interop, ScriptDom, SqlClient, AvalonEdit) into the container.
+		     DeployExtension=false stops the build from deploying into a VS experimental hive;
+		     F5 debugging into SSMS still works via StartProgram below. -->
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>false</DeployExtension>
+    <!-- Do NOT auto-pack every copy-local reference: that drags in the whole ~7MB SMO stack (plus
+		     SqlClient's transitive IdentityModel/Extensions/Bcl deps), all of which SSMS already provides.
+		     Instead we explicitly include only the managed deps the proven xcopy deployment shipped (below). -->
+    <IncludeCopyLocalReferencesInVSIXContainer>false</IncludeCopyLocalReferencesInVSIXContainer>
+    <!-- SDK-style projects leave TemplateOutputDirectory undefined, which makes the VSSDK
+		     GenerateTemplatesManifest target fail with VSSDK1202. This project ships no item/project
+		     templates, but the target still runs, so give it a valid directory. Use the reserved
+		     MSBuildProjectDirectory (always set) — IntermediateOutputPath is still empty at the point
+		     the VsSDK.targets import evaluates, so it can't be used here. -->
+    <TemplateOutputDirectory>$(MSBuildProjectDirectory)\obj\</TemplateOutputDirectory>
+    <!-- Same early-evaluation problem: VsSDK.targets derives the container path from $(OutDir)/$(TargetName),
+		     which are empty when it's imported (before the SDK's Sdk.targets). Set the full path explicitly from
+		     properties that are already defined, so the container lands at bin\$(Configuration)\$(TargetFramework)\. -->
+    <TargetVsixContainer>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).vsix</TargetVsixContainer>
+    <StartAction>Program</StartAction>
+    <StartProgram>C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Ssms.exe</StartProgram>
+    <StartArguments>/log</StartArguments>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <CreatePkgDefAssemblyToProcess>$(MSBuildProjectDirectory)\bin\$(Configuration)\net48\$(AssemblyName).dll</CreatePkgDefAssemblyToProcess>
+  </PropertyGroup>
+
+  <!-- Visual Studio SDK packages -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.25.0" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
+    <PackageReference
+      Include="Microsoft.VSSDK.BuildTools"
+      Version="18.5.40034"
+      PrivateAssets="all"
+    />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.18.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+  </ItemGroup>
+
+  <!--
+    SSMS Internal DLLs - UPDATE THESE PATHS to your SSMS 22 install location.
+    These are NOT on NuGet. You must reference them from the SSMS install folder.
+    
+    Typical SSMS 22 paths:
+      C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\
+      C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Extensions\Application\
+  -->
+  <PropertyGroup>
+    <SsmsInstallDir>C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE</SsmsInstallDir>
+    <SsmsExtDir>C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE\Extensions\SQLExtended</SsmsExtDir>
+  </PropertyGroup>
+
+  <!-- Stamp $(Version) into the .vsix manifest.
+
+       This edits the *merged* manifest the SDK generates ($(IntermediateMergedVsixManifest), produced by
+       MergeVsixManifestFile and consumed by DetokenizeVsixManifestFile), never the committed
+       source.extension.vsixmanifest — so a release build leaves the working tree clean and the committed
+       manifest never has to be hand-bumped in step with version.txt.
+
+       XmlPoke writes nothing and reports nothing when its XPath matches nothing, which would ship a .vsix
+       carrying whatever version the committed manifest happens to hold — the exact failure this target
+       exists to remove, and invisible until someone compares an installed build against the feed. So the
+       value is read back and the build fails if it did not take. -->
+  <!-- Neither source of a version leaves $(Version) empty by the time any target runs: the SDK defaults
+       it to 1.0.0. So a missing version.txt does not fail, it silently builds and publishes 1.0.0 — which
+       is older than every release, so every machine is offered an update it already has. Testing for the
+       file (and for an explicit -p:Version=) is the only test that actually distinguishes the cases. -->
+  <Target Name="ValidateVersionSource" BeforeTargets="MergeVsixManifestFile;GetAssemblyVersion">
+    <Error Condition="'$(_VersionPassedIn)' != 'true' AND !Exists('$(_VersionFile)')"
+           Text="No version to build with: '$(_VersionFile)' does not exist and no -p:Version= was passed. The build would fall back to the SDK's 1.0.0, which is older than every published release — so the update InfoBar would offer this build an update it already has, on every machine, forever." />
+  </Target>
+
+  <Target Name="StampVsixVersion"
+          AfterTargets="MergeVsixManifestFile"
+          BeforeTargets="DetokenizeVsixManifestFile"
+          Condition="'$(Version)' != '' AND Exists('$(IntermediateMergedVsixManifest)')">
+    <PropertyGroup>
+      <_VsixNs>&lt;Namespace Prefix="v" Uri="http://schemas.microsoft.com/developer/vsx-schema/2011" /&gt;</_VsixNs>
+      <_VsixIdentityVersionXPath>/v:PackageManifest/v:Metadata/v:Identity/@Version</_VsixIdentityVersionXPath>
+    </PropertyGroup>
+
+    <XmlPoke XmlInputPath="$(IntermediateMergedVsixManifest)"
+             Namespaces="$(_VsixNs)"
+             Query="$(_VsixIdentityVersionXPath)"
+             Value="$(Version)" />
+
+    <XmlPeek XmlInputPath="$(IntermediateMergedVsixManifest)"
+             Namespaces="$(_VsixNs)"
+             Query="$(_VsixIdentityVersionXPath)">
+      <Output TaskParameter="Result" PropertyName="_StampedVsixVersion" />
+    </XmlPeek>
+
+    <Error Condition="'$(_StampedVsixVersion)' != '$(Version)'"
+           Text="StampVsixVersion failed: the .vsix manifest reports '$(_StampedVsixVersion)' but the build is version '$(Version)'. The Identity/@Version XPath no longer matches $(IntermediateMergedVsixManifest)." />
+
+    <Message Importance="high" Text="StampVsixVersion: .vsix Identity Version set to $(_StampedVsixVersion)" />
+  </Target>
+
+  <Target Name="CopyToSsms" AfterTargets="Build">
+    <MakeDir Directories="$(SsmsExtDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
+    <Copy
+      SourceFiles="$(TargetDir)$(TargetName).pkgdef"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)$(TargetName).pkgdef')"
+    />
+    <Copy
+      SourceFiles="$(ProjectDir)extension.vsixmanifest"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(ProjectDir)extension.vsixmanifest')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.Extensions.Abstractions.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.Extensions.Abstractions.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.Internal.Logging.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.Internal.Logging.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)Newtonsoft.Json.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)System.Data.SQLite.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)System.Data.SQLite.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)x64\SQLite.Interop.dll"
+      DestinationFolder="$(SsmsExtDir)\x64"
+      Condition="Exists('$(TargetDir)x64\SQLite.Interop.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)x86\SQLite.Interop.dll"
+      DestinationFolder="$(SsmsExtDir)\x86"
+      Condition="Exists('$(TargetDir)x86\SQLite.Interop.dll')"
+    />
+    <Copy
+      SourceFiles="$(TargetDir)ICSharpCode.AvalonEdit.dll"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(TargetDir)ICSharpCode.AvalonEdit.dll')"
+    />
+  </Target>
+
+  <ItemGroup>
+    <!-- SqlPackageBase removed from compile references to avoid CS1705 version conflicts.
+		     ServiceCache is accessed via reflection at runtime. -->
+
+    <!-- Provides IObjectExplorerService and connection-related interfaces -->
+    <Reference Include="SqlWorkbench.Interfaces">
+      <HintPath>$(SsmsInstallDir)\SqlWorkbench.Interfaces.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Provides CurrentlyActiveWndConnectionInfo for getting the active connection -->
+    <Reference Include="SQLEditors">
+      <HintPath>$(SsmsInstallDir)\Extensions\Application\SQLEditors.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Provides GridControl / IGridStorage for reading the results grid -->
+    <Reference Include="Microsoft.SqlServer.GridControl">
+      <HintPath>$(SsmsInstallDir)\Microsoft.SqlServer.GridControl.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <VSCTCompile Include="SsmsSchemaViewerPackage.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+  </ItemGroup>
+
+  <!-- Explicit VSIX payload — only the managed deps the proven xcopy deployment shipped, plus the
+	     native SQLite interop (which is content, not a managed reference). Everything else the extension
+	     references (SMO, SqlClient's transitive deps, the VS SDK) is already present in SSMS, so packing
+	     it would only bloat the container and risk shadowing SSMS's own copies. Files are produced in the
+	     output dir during build; CreateVsixContainer runs after build, so they exist when zipped. -->
+  <ItemGroup>
+    <!-- Link = the path inside the .vsix. Without it, an absolute Include is packed under its full
+		     source path instead of at the container root. Visible=false is display-only: Solution Explorer
+		     renders every Content item as a node, so without it these build-output DLLs show as phantom
+		     files at the project root (and the unlinked interop pair materialises a bin\ node in the tree). -->
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>Microsoft.Data.SqlClient.dll</Link>
+    </Content>
+    <!-- SqlClient 7.x split these companion assemblies out of the main DLL; SSMS does not provide them,
+		     so they must ship in the VSIX or SqlClient fails to load at runtime. -->
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.Extensions.Abstractions.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>Microsoft.Data.SqlClient.Extensions.Abstractions.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.Internal.Logging.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>Microsoft.Data.SqlClient.Internal.Logging.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.SqlServer.TransactSql.ScriptDom.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>Microsoft.SqlServer.TransactSql.ScriptDom.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Newtonsoft.Json.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>Newtonsoft.Json.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\System.Data.SQLite.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>System.Data.SQLite.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\ICSharpCode.AvalonEdit.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <Link>ICSharpCode.AvalonEdit.dll</Link>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\x64\SQLite.Interop.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <VSIXSubPath>x64</VSIXSubPath>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\x86\SQLite.Interop.dll">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Visible>false</Visible>
+      <VSIXSubPath>x86</VSIXSubPath>
+    </Content>
+    <!-- MIT licence text for the vendored StatisticsParser.Core sources. The settings dialog points
+         users at this file in the install folder; the Inno installer used to place it there, so with
+         the .vsix as the only distribution the container has to carry it itself. -->
+    <Content Include="$(MSBuildProjectDirectory)\..\THIRD-PARTY-NOTICES.md">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <Link>THIRD-PARTY-NOTICES.md</Link>
+    </Content>
+  </ItemGroup>
+
+  <!-- WPF assembly references for .NET Framework -->
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <!-- WinForms: the Object Explorer tree is a System.Windows.Forms.TreeView whose
+		     ContextMenuStrip we extend (ObjectExplorerMenuService). -->
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <!-- T-SQL syntax highlighting definition for AvalonEdit (embedded resource) -->
+  <ItemGroup>
+    <EmbeddedResource Include="Search\TsqlDarkHighlighting.xshd" />
+    <EmbeddedResource Include="ScriptLibrary\CuratedScripts.json" />
+  </ItemGroup>
+
+  <!-- SchemaDialog.xaml is auto-discovered by UseWPF=true -->
+
+  <!-- Import VSSDK targets for GeneratePkgDef, VSCTCompile, VSIX container -->
+  <!--<Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />-->
+  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\18.5.40034\tools\vssdk\Microsoft.VsSDK.targets" />
+
+  <!-- Wire GeneratePkgDef into the build since SDK-style projects clobber PrepareForRunDependsOn.
+	     NOTE: do NOT post-process the pkgdef to strip the leading comma from the Menus value
+	     (", Menus.ctmenu, N"). That comma is correct: an empty first field means the command table
+	     is loaded from a MANAGED resource named Menus.ctmenu (UseManagedResourcesOnly). Stripping it
+	     makes SSMS treat "Menus.ctmenu" as a native satellite DLL filename and fail with
+	     "CreateFile failed to open 'Menus.ctmenu' with error code 2". -->
+  <Target Name="EnsurePkgDef" AfterTargets="Build" DependsOnTargets="GeneratePkgDef">
+    <Copy
+      SourceFiles="$(IntermediateOutputPath)$(TargetName).pkgdef"
+      DestinationFolder="$(OutputPath)"
+      Condition="Exists('$(IntermediateOutputPath)$(TargetName).pkgdef')"
+    />
+  </Target>
+
+  <!-- SDK-style projects also don't chain CreateVsixContainer into Build automatically, so invoke it
+	     explicitly after Build. Running it here (rather than standalone) means OutDir/TargetName are set,
+	     so the container lands at $(OutputPath)$(TargetName).vsix instead of an unnamed ".vsix". -->
+  <Target
+    Name="EnsureVsixContainer"
+    AfterTargets="Build"
+    DependsOnTargets="CreateVsixContainer"
+    Condition="'$(CreateVsixContainer)' == 'true'"
+  />
+</Project>
