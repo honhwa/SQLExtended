@@ -288,16 +288,18 @@ if ($LASTEXITCODE -ne 0) { Fail 'gh release create failed.' }
 # ---------------------------------------------------------------------------------------------------
 # 6. VSIX Gallery
 # ---------------------------------------------------------------------------------------------------
-# www.vsixgallery.com is a second, optional distribution channel: one POST of the .vsix body to
-# /api/upload, no account, no review queue. It matters for two reasons — it renders a public details
-# page (README, tags, version history) that a GitHub release does not, and it exposes a private-gallery
-# Atom feed that users can paste into Tools > Options > Environment > Extensions, which is the only way
-# an update ever shows up in SSMS's own Manage Extensions > Updates list. It does not replace the
-# version.json feed above and the extension does not read it.
+# www.vsixgallery.com is a second, optional distribution channel: one multipart POST to /api/upload, no
+# account, no review queue. It matters for two reasons — it renders a public details page (README, tags,
+# version history) that a GitHub release does not, and it exposes a per-extension Atom feed users can
+# paste into Tools > Options > Environment > Extensions, which is the only way an update ever shows up in
+# SSMS's own Manage Extensions > Updates list. It does not replace the version.json feed above, and the
+# extension does not read it.
+#
+# The upload itself lives in publish-to-gallery.ps1 so a failure here can be retried with one short
+# command instead of a hand-assembled multipart request.
 #
 # Deliberately last, and deliberately non-fatal. The GitHub release is the release; if the gallery is
-# down or the token is wrong, that must not read as a failed publish, so this warns and prints the
-# one-liner to retry with the .vsix already staged in artifacts\.
+# down or the token is wrong, that must not read as a failed publish.
 if ($NoGallery) {
     Step 'Skipping VSIX Gallery (-NoGallery)'
 } elseif ($Draft) {
@@ -308,35 +310,19 @@ if ($NoGallery) {
 } else {
     Step 'Publishing to VSIX Gallery'
 
-    $galleryId = ([xml] $manifestXml).PackageManifest.Metadata.Identity.Id
-
     $galleryToken = if ($GalleryToken) { $GalleryToken } else { $env:VSIXGALLERY_TOKEN }
+    $galleryScript = Join-Path $PSScriptRoot 'publish-to-gallery.ps1'
     if (-not $galleryToken) {
         Write-Host '  Skipped: no -GalleryToken and no $env:VSIXGALLERY_TOKEN.' -ForegroundColor Yellow
         Write-Host '  The gallery mints a manage token on an untokened first upload and never shows it again, so' -ForegroundColor Yellow
         Write-Host '  uploading without one can cost the ability to manage the listing. See Deployment.md section 7.' -ForegroundColor Yellow
     } else {
-        # Escaped: these values are URLs, and an unescaped one is truncated at its first & or #.
-        $repoUrl    = [Uri]::EscapeDataString("https://github.com/$Repo")
-        $issuesUrl  = [Uri]::EscapeDataString("https://github.com/$Repo/issues")
-        $readmeUrl  = [Uri]::EscapeDataString("https://raw.githubusercontent.com/$Repo/main/README.md")
-        # repo/issuetracker/readmeUrl are what the details page links and renders; without readmeUrl the
-        # page shows only the manifest Description.
-        $galleryQuery = "repo=$repoUrl&issuetracker=$issuesUrl&readmeUrl=$readmeUrl"
-
-        # Windows PowerShell 5.1 still defaults to TLS 1.0/1.1, which vsixgallery.com refuses.
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-
         try {
-            $response = Invoke-RestMethod -Method Post -Uri "https://www.vsixgallery.com/api/upload?$galleryQuery" `
-                -Headers @{ 'X-Manage-Token' = $galleryToken } -ContentType 'application/octet-stream' `
-                -InFile $vsixAsset -TimeoutSec 300
-            Write-Host "  https://www.vsixgallery.com/extension/$galleryId/" -ForegroundColor Green
-            if ($response) { $response | ConvertTo-Json -Depth 4 -Compress | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray } }
+            & $galleryScript -Vsix $vsixAsset -Token $galleryToken -Repo $Repo | Out-Null
         } catch {
             Write-Warning "VSIX Gallery upload failed: $($_.Exception.Message)"
-            Write-Warning "The GitHub release is published and unaffected. Retry the gallery alone with:"
-            Write-Warning "  Invoke-RestMethod -Method Post -Uri 'https://www.vsixgallery.com/api/upload?$galleryQuery' -Headers @{ 'X-Manage-Token' = `$env:VSIXGALLERY_TOKEN } -ContentType 'application/octet-stream' -InFile '$vsixAsset'"
+            Write-Warning 'The GitHub release is published and unaffected. Retry the gallery alone with:'
+            Write-Warning "  .\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix '$vsixAsset'"
         }
     }
 }

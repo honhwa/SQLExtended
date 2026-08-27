@@ -246,26 +246,41 @@ gallery adds that a GitHub release cannot:
 - A rendered details page — README, tags, description, version history, download count — at
   `https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/`, plus a version
   badge for the README.
-- An Atom feed at `https://www.vsixgallery.com/feed/`, which users can paste into **Tools → Options →
-  Environment → Extensions → Additional Extension Galleries**. That is the mechanism §5's *note on true
-  in-IDE updating* describes, and this is the closest thing to it that exists without hosting a feed
-  ourselves. Caveat worth stating to anyone who asks: that feed carries *every* extension on the gallery,
-  not just this one, so registering it turns their Manage Extensions list into the whole gallery.
+- A **per-extension** Atom feed at
+  `https://www.vsixgallery.com/feed/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890`, which
+  users paste into **Tools → Options → Environment → Extensions → Additional Extension Galleries**. That
+  is the mechanism §5's *note on true in-IDE updating* describes, and this is the closest thing to it that
+  exists without hosting a feed ourselves. Use the per-extension URL, not the gallery-wide
+  `https://www.vsixgallery.com/feed/` — the latter carries *every* extension on the gallery, and
+  registering it turns someone's Manage Extensions list into the whole gallery.
 
 ### The whole API
 
-One `POST` of the `.vsix` bytes as the request body:
+One `POST` to `/api/upload`, **as `multipart/form-data` with the `.vsix` in a file field** —
+`publish-to-gallery.ps1` is that request and nothing else:
 
 ```powershell
-Invoke-RestMethod -Method Post -InFile .\artifacts\SQLExtended-2026.8.27.1300.vsix `
-  -Uri 'https://www.vsixgallery.com/api/upload?repo=https%3A%2F%2Fgithub.com%2FJamTheRadar%2FSQLExtended' `
-  -Headers @{ 'X-Manage-Token' = $env:VSIXGALLERY_TOKEN } -ContentType 'application/octet-stream'
+.\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-2026.8.27.2011.vsix
 ```
 
-The server reads `extension.vsixmanifest` out of the container for the id, version, display name, tags and
-description — so everything on the details page except the README comes from
+**The gallery's own dev guide is wrong about the body.** It says to POST the `.vsix` "as the request
+body"; doing that returns `500` with
+
+> This request does not have a Content-Type header. Forms are available from requests with bodies like
+> POSTs and a form Content-Type of either application/x-www-form-urlencoded or multipart/form-data.
+
+— the server reads `Request.Form`, so `-InFile`/`-Body` with `application/octet-stream` cannot work no
+matter what the guide says. That cost a first publish: the release went out and the gallery step warned.
+Two consequences are baked into the script and should stay: it builds the multipart body by hand
+(PowerShell 5.1 has no `-Form`), and it uses `HttpWebRequest` rather than `Invoke-RestMethod` **so it can
+read the response body on failure** — `Invoke-RestMethod` on 5.1 discards everything but
+`(500) Internal Server Error`, and that body is the only reason the cause was ever found.
+
+The server reads `extension.vsixmanifest` out of the container for the id, version, display name, tags,
+description and icon — so everything on the details page except the README comes from
 `source.extension.vsixmanifest`, and `Identity/@Id` is what identifies the listing across uploads. Nothing
-is versioned separately on the gallery side; re-uploading the same `Identity/@Version` replaces it.
+is versioned separately on the gallery side; re-uploading the same `Identity/@Version` replaces it, which
+makes a retry safe.
 
 Optional query parameters, all set by the script: `repo`, `issuetracker`, `readmeUrl`.
 
@@ -286,33 +301,35 @@ the gallery step entirely when no token is available rather than uploading witho
 Keep it wherever the repo's other secrets live — it is not in the repo, and the only recovery from losing
 it is the gallery's management page at `/extension/<id>/manage`, which itself wants the token.
 
-### First publish
+### Uploading outside a release
 
-The first upload is the same command as every other one; there is no registration step.
+The upload is the same request every time — there was never a registration step, and the listing was first
+created by `publish-to-gallery.ps1` against an already-released container:
 
 ```powershell
-# Already have a built, verified container from a previous release? Publish just the gallery side:
-.\SoluitionDocs\Tools\publish-release.ps1 -Version <the version already released> -SkipBuild
+.\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-<version>.vsix
 ```
 
-That is not usually what you want, because it would try to create a GitHub release that already exists.
-For a one-off backfill of the current release, run the `Invoke-RestMethod` above by hand against the
-`.vsix` in `artifacts\`; from the next release on, step 6 handles it.
+Point it at the `.vsix` that was **released**, not a rebuild. A rebuild of the same version is not the same
+bytes, and the gallery's download and the GitHub asset for one version should not differ. Don't reach for
+`publish-release.ps1 -SkipBuild` for this: it would try to create a GitHub release that already exists.
 
 ### The README badge
 
-Deliberately *not* in `README.md` yet: both the badge and the link 404 until the first upload lands, so
-paste this into the Install section once it has (the gallery's ⚙ Actions menu offers the same snippet).
+Live, and in `README.md`:
 
 ```markdown
 [![VSIX Gallery](https://www.vsixgallery.com/badge/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890.svg)](https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/)
 ```
 
+The badge renders the current gallery version, so it goes stale only if an upload is skipped. The gallery's
+⚙ Actions menu offers the same snippet.
+
 ### Skipping it
 
 `-NoGallery` skips the upload; `-Draft` implies it, because a gallery upload is public the moment it lands
 while a draft release deliberately is not. A gallery failure is a **warning, never a failure** — the GitHub
-release is the release, and the script prints the one-liner to retry the upload on its own.
+release is the release, and the warning prints the `publish-to-gallery.ps1` line to retry it on its own.
 
 ---
 

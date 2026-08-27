@@ -53,11 +53,18 @@ also go to `SQLExtendedLog` for the reason the Diagnostics section gives.
 refuses to touch an extension while the IDE is running. So the InfoBar says to close SSMS first (the Inno
 installer used to do that via `CloseApplications`; nothing does now). The one step up is a private gallery
 Atom feed under `Tools → Options → Environment → Extensions`, which puts the update in SSMS's own Manage
-Extensions → Updates; we don't host such a feed, but www.vsixgallery.com's `/feed/` is one (see below).
+Extensions → Updates; we don't host such a feed, but the gallery's per-extension one
+(`vsixgallery.com/feed/extension/<id>`, **not** the gallery-wide `/feed/`) is one — see below.
 
-**The gallery upload is step 6, and it is not the feed.** The script POSTs the same `.vsix` to
-`https://www.vsixgallery.com/api/upload` after the GitHub release succeeds; the extension's update check
-still reads `version.json` from GitHub and knows nothing about the gallery. Three things about it are
+**The gallery upload is step 6, and it is not the feed.** It lives in `publish-to-gallery.ps1`, which step 6
+calls after the GitHub release succeeds; the extension's update check still reads `version.json` from
+GitHub and knows nothing about the gallery. **That upload is `multipart/form-data` with the `.vsix` in a
+file field, whatever the gallery's dev guide says** — the guide's "POST the .vsix as the request body"
+returns 500 (`This request does not have a Content-Type header…`) because the server reads `Request.Form`,
+and it cost a first publish to find out. Hence two things in that script: the multipart body is built by
+hand (5.1 has no `-Form`), and `HttpWebRequest` is used instead of `Invoke-RestMethod` so the **response
+body** is readable on failure — 5.1 discards all of it but `(500) Internal Server Error`, and that body was
+the only thing that identified the cause. Three more things are
 load-bearing and all three are why it sits last: uploads are authenticated by an `X-Manage-Token` **we
 choose**, and an untokened *first* upload makes the gallery mint one and show it once — so the step skips
 itself when neither `-GalleryToken` nor `$env:VSIXGALLERY_TOKEN` is set rather than uploading without one

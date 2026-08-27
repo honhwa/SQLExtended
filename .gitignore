@@ -268,3 +268,5 @@ __pycache__/
 
 # Claude Code plans - working notes, not part of the product
 .claude/plans/
+/tag-rule.json
+/branch-rule.json

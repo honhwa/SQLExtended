@@ -40,8 +40,11 @@ swallowed rather than thrown.
 
 ## Install
 
+[![VSIX Gallery](https://www.vsixgallery.com/badge/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890.svg)](https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/)
+
 Grab the latest `SQLExtended-<version>.vsix` from
-[Releases](https://github.com/JamTheRadar/SQLExtended/releases/latest).
+[Releases](https://github.com/JamTheRadar/SQLExtended/releases/latest), or from the
+[VSIX Gallery listing](https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/).
 
 Close SSMS, then double-click the `.vsix`. It installs per-user — no admin rights needed. Reopen SSMS and
 the **SQLExtended** menu appears in the menu bar; if it doesn't, run `clearSSMScache.ps1` to clear SSMS's
