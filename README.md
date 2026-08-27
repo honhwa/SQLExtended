@@ -1,3 +1,9 @@
+<!-- Absolute raw URL, not a repo-relative path: publish-release.ps1 hands this file to
+     www.vsixgallery.com as ?readmeUrl=, and the gallery renders it on its own domain, where a relative
+     path resolves to nothing. Same image as the .vsix icon — SQLExtended\Resources\preview.png. -->
+<img src="https://raw.githubusercontent.com/JamTheRadar/SQLExtended/main/SQLExtended/Resources/preview.png"
+     alt="SQLExtended" width="92" align="right">
+
 # SQLExtended for SSMS
 
 **SSMS, extended.** A free, open-source suite of tools for SQL Server Management Studio 22 —
