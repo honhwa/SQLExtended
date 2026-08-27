@@ -11,7 +11,10 @@ After `dotnet build --configuration Release`, grab these from `SQLExtended\bin\R
 ```
 SQLExtended.dll
 SQLExtended.pkgdef
-extension.vsixmanifest                 (copy from SQLExtended\source.extension.vsixmanifest, rename)
+extension.vsixmanifest                 (the build writes this into SQLExtended\; on a machine with no
+                                        build, copy SQLExtended\source.extension.vsixmanifest and rename)
+Resources\icon.png                     (the manifest names these by relative path - without them
+Resources\preview.png                    Manage Extensions has no icon to draw)
 Microsoft.Data.SqlClient.dll
 Microsoft.SqlServer.TransactSql.ScriptDom.dll
 Newtonsoft.Json.dll
@@ -55,6 +58,9 @@ SQLExtended\
 ├── Newtonsoft.Json.dll
 ├── System.Data.SQLite.dll
 ├── ICSharpCode.AvalonEdit.dll
+├── Resources\
+│   ├── icon.png
+│   └── preview.png
 ├── x64\
 │   └── SQLite.Interop.dll
 └── x86\

@@ -54,13 +54,18 @@ folder needs in order for SSMS to load it. `CopyToSsms` (in `SQLExtended.csproj`
 into `…\Common7\IDE\Extensions\SQLExtended\` after every build, alongside the DLL and the pkgdef.
 
 Because `DeployExtension=false`, that xcopy copy *is* the dev inner loop: build, then F5 into
-`Ssms.exe`. Without this file the extension folder is inert. It is gitignored and created by hand — see
-`SoluitionDocs/ManualInstall.md`.
+`Ssms.exe`. Without this file the extension folder is inert.
 
-**Its `Version` is hand-maintained.** `StampVsixVersion` only touches the merged manifest, so this file
-does not track `version.txt` and will silently drift. It only affects what a locally xcopy-deployed
-build reports, never a published release, but if you are chasing a version mismatch in a dev install,
-this is where it comes from.
+**It is a build output, not a hand-written file** — `DetokenizeVsixManifestFile` writes it here on every
+build, landing in the project root for the same reason `merged.source.extension.vsixmanifest` does.
+Gitignored; delete it and the next build puts it back, carrying the version that build stamped. (An
+earlier note here claimed it was hand-made and that its `Version` drifted from `version.txt`; deleting it
+and rebuilding disproves both. `SoluitionDocs/ManualInstall.md` still describes copying and renaming
+`source.extension.vsixmanifest` by hand — that is for a machine with no build, where there is no
+detokenized manifest to copy.)
+
+Anything the manifest names by relative path has to exist next to it in that folder, or Manage Extensions
+has nothing to load — which is why `CopyToSsms` also copies `Resources\` for `Icon`/`PreviewImage`.
 
 > Naming trap: the `.vsix` container also holds an entry named `extension.vsixmanifest` (that is the
 > standard entry name inside the zip, and what `publish-release.ps1:173` reads the version from). That

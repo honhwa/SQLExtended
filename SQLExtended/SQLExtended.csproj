@@ -150,6 +150,12 @@
       DestinationFolder="$(SsmsExtDir)"
       Condition="Exists('$(ProjectDir)extension.vsixmanifest')"
     />
+    <!-- The manifest's Icon/PreviewImage are paths relative to the extension folder, so an xcopy deploy
+         needs Resources\ alongside it or Manage Extensions has nothing to draw. -->
+    <Copy
+      SourceFiles="$(ProjectDir)Resources\icon.png;$(ProjectDir)Resources\preview.png"
+      DestinationFolder="$(SsmsExtDir)\Resources"
+    />
     <Copy
       SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.dll"
       DestinationFolder="$(SsmsExtDir)"
@@ -282,6 +288,18 @@
       <IncludeInVSIX>true</IncludeInVSIX>
       <Visible>false</Visible>
       <VSIXSubPath>x86</VSIXSubPath>
+    </Content>
+    <!-- Icon and preview image. Metadata/Icon and Metadata/PreviewImage in the manifest name these by
+         relative path, and the path only resolves if the file is in the container - a manifest pointing
+         at a missing asset makes VSIXInstaller reject the package outright, so these two must stay
+         IncludeInVSIX. Regenerate with SoluitionDocs\Tools\render-icon.ps1; both are committed. -->
+    <Content Include="Resources\icon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\preview.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- MIT licence text for the vendored StatisticsParser.Core sources. The settings dialog points
          users at this file in the install folder; the Inno installer used to place it there, so with

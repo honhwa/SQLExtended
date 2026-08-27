@@ -10,6 +10,10 @@
     <DisplayName>SQLExtended for SSMS</DisplayName>
     <Description xml:space="preserve">SQLExtended for SSMS 22: schema viewer, T-SQL formatting, object/definition search, schema-reference validation, query history, a script library, and IntelliSense enhancements.</Description>
     <MoreInfo>https://github.com/JamTheRadar/SQLExtended</MoreInfo>
+    <!-- Icon and PreviewImage must sit here, before Tags: the vsx-schema/2011 Metadata sequence is
+         ordered, and the VSSDK's manifest validation fails the build outright if they come after it. -->
+    <Icon>Resources\icon.png</Icon>
+    <PreviewImage>Resources\preview.png</PreviewImage>
     <Tags>SSMS, SQL Server, Schema, Formatting, Search, DBA, Productivity</Tags>
   </Metadata>
   <Installation>
