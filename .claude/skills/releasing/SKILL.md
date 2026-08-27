@@ -53,7 +53,19 @@ also go to `SQLExtendedLog` for the reason the Diagnostics section gives.
 refuses to touch an extension while the IDE is running. So the InfoBar says to close SSMS first (the Inno
 installer used to do that via `CloseApplications`; nothing does now). The one step up is a private gallery
 Atom feed under `Tools → Options → Environment → Extensions`, which puts the update in SSMS's own Manage
-Extensions → Updates; not implemented, and independent of everything above.
+Extensions → Updates; we don't host such a feed, but www.vsixgallery.com's `/feed/` is one (see below).
+
+**The gallery upload is step 6, and it is not the feed.** The script POSTs the same `.vsix` to
+`https://www.vsixgallery.com/api/upload` after the GitHub release succeeds; the extension's update check
+still reads `version.json` from GitHub and knows nothing about the gallery. Three things about it are
+load-bearing and all three are why it sits last: uploads are authenticated by an `X-Manage-Token` **we
+choose**, and an untokened *first* upload makes the gallery mint one and show it once — so the step skips
+itself when neither `-GalleryToken` nor `$env:VSIXGALLERY_TOKEN` is set rather than uploading without one
+and losing the listing; a gallery upload is public the instant it lands, so `-Draft` skips it too, or a
+draft release would advertise the version it is deliberately hiding; and a failed upload is a warning, not
+a `Fail`, because the GitHub release is already published by then and must not read as a failed publish.
+`SoluitionDocs/Deployment.md` §7 has the rest, including the README badge that is deliberately not in
+`README.md` until the first upload exists.
 
 Release notes default to `Build <version>`. **Nothing is auto-extracted from `release-notes.md`** — each
 entry there is one unstructured block, so "the first paragraph" is the whole changelog, which is what the

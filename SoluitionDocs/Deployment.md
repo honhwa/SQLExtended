@@ -133,12 +133,18 @@ leading BOM defensively in case a future publisher gets it wrong.
 # Explicit version and notes
 .\SoluitionDocs\Tools\publish-release.ps1 -Version 2026.9.1.900 -NotesFile .\notes.md
 
+# Skip the VSIX Gallery upload and publish the GitHub release only
+.\SoluitionDocs\Tools\publish-release.ps1 -NoGallery
+
 # A fix nobody may skip
 .\SoluitionDocs\Tools\publish-release.ps1 -MinRequiredVersion 2026.9.1.900
 ```
 
 Needs the GitHub CLI (`gh auth login`) and, for the build, SSMS 22 installed. Commit the `version.txt`
 bump afterwards so the tag and the tree agree.
+
+The same `.vsix` is also pushed to www.vsixgallery.com as a second channel, which needs
+`$env:VSIXGALLERY_TOKEN` set — see §7. That step is skipped, not failed, when the token is missing.
 
 Release notes default to `Build <version>`. **Nothing is extracted from `release-notes.md`
 automatically** — each entry in that file is one long unstructured block, so "the first paragraph" of it is
@@ -187,7 +193,9 @@ If the browser round trip is the objectionable part, the next step up is a **pri
 Atom/SimpleFeed XML from `Tools → Options → Environment → Extensions → Additional Extension Galleries`, and
 an extension in a registered gallery appears under **Manage Extensions → Updates** with an Update button.
 Install still happens on restart via VSIXInstaller, but the user never leaves SSMS. GitHub Pages can host
-that feed statically. Not implemented; it is independent of everything above.
+that feed statically. Not implemented as *our* feed — but the VSIX Gallery upload in §7 gives users exactly
+this, at the cost of a gallery feed that lists every extension on the gallery rather than only ours. It is
+independent of everything above.
 
 ---
 
@@ -222,6 +230,89 @@ code-signing certificate and sign the `.vsix` as a post-build step.
 
 **VSIXInstaller: "not installable on any currently installed products".**
 The manifest targets `Microsoft.VisualStudio.Ssms` `[22.0,)` — that machine has no SSMS 22.
+
+---
+
+## 7. VSIX Gallery
+
+[www.vsixgallery.com](https://www.vsixgallery.com/) (Open VSIX Gallery) is a free, unmoderated host for
+VS/SSMS extensions: no account, no publisher registration, no review queue. Step 6 of
+`publish-release.ps1` uploads there after the GitHub release succeeds.
+
+It is a **second channel, not the feed.** The extension's own update check still reads
+`releases/latest/download/version.json` from GitHub and knows nothing about the gallery. Two things the
+gallery adds that a GitHub release cannot:
+
+- A rendered details page — README, tags, description, version history, download count — at
+  `https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/`, plus a version
+  badge for the README.
+- An Atom feed at `https://www.vsixgallery.com/feed/`, which users can paste into **Tools → Options →
+  Environment → Extensions → Additional Extension Galleries**. That is the mechanism §5's *note on true
+  in-IDE updating* describes, and this is the closest thing to it that exists without hosting a feed
+  ourselves. Caveat worth stating to anyone who asks: that feed carries *every* extension on the gallery,
+  not just this one, so registering it turns their Manage Extensions list into the whole gallery.
+
+### The whole API
+
+One `POST` of the `.vsix` bytes as the request body:
+
+```powershell
+Invoke-RestMethod -Method Post -InFile .\artifacts\SQLExtended-2026.8.27.1300.vsix `
+  -Uri 'https://www.vsixgallery.com/api/upload?repo=https%3A%2F%2Fgithub.com%2FJamTheRadar%2FSQLExtended' `
+  -Headers @{ 'X-Manage-Token' = $env:VSIXGALLERY_TOKEN } -ContentType 'application/octet-stream'
+```
+
+The server reads `extension.vsixmanifest` out of the container for the id, version, display name, tags and
+description — so everything on the details page except the README comes from
+`source.extension.vsixmanifest`, and `Identity/@Id` is what identifies the listing across uploads. Nothing
+is versioned separately on the gallery side; re-uploading the same `Identity/@Version` replaces it.
+
+Optional query parameters, all set by the script: `repo`, `issuetracker`, `readmeUrl`.
+
+### The manage token
+
+Uploads are authenticated by an `X-Manage-Token` header whose value **we choose** — any string. It is
+stored against the extension on first upload and must be sent with every upload afterwards.
+
+**Set it before the first upload.** An untokened first upload makes the gallery mint one and return it in
+that single response; miss it and the listing can never be managed or replaced. The script therefore skips
+the gallery step entirely when no token is available rather than uploading without one.
+
+```powershell
+# Machine-persistent, so publish-release.ps1 picks it up without -GalleryToken
+[Environment]::SetEnvironmentVariable('VSIXGALLERY_TOKEN', '<a long random string>', 'User')
+```
+
+Keep it wherever the repo's other secrets live — it is not in the repo, and the only recovery from losing
+it is the gallery's management page at `/extension/<id>/manage`, which itself wants the token.
+
+### First publish
+
+The first upload is the same command as every other one; there is no registration step.
+
+```powershell
+# Already have a built, verified container from a previous release? Publish just the gallery side:
+.\SoluitionDocs\Tools\publish-release.ps1 -Version <the version already released> -SkipBuild
+```
+
+That is not usually what you want, because it would try to create a GitHub release that already exists.
+For a one-off backfill of the current release, run the `Invoke-RestMethod` above by hand against the
+`.vsix` in `artifacts\`; from the next release on, step 6 handles it.
+
+### The README badge
+
+Deliberately *not* in `README.md` yet: both the badge and the link 404 until the first upload lands, so
+paste this into the Install section once it has (the gallery's ⚙ Actions menu offers the same snippet).
+
+```markdown
+[![VSIX Gallery](https://www.vsixgallery.com/badge/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890.svg)](https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/)
+```
+
+### Skipping it
+
+`-NoGallery` skips the upload; `-Draft` implies it, because a gallery upload is public the moment it lands
+while a draft release deliberately is not. A gallery failure is a **warning, never a failure** — the GitHub
+release is the release, and the script prints the one-liner to retry the upload on its own.
 
 ---
 

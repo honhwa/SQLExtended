@@ -18,6 +18,8 @@
        installs cleanly and then nags forever, which is exactly the bug this release process replaced.
     4. Writes version.json.
     5. Creates the release with `gh` and uploads SQLExtended-<version>.vsix + version.json.
+    6. Uploads the same .vsix to www.vsixgallery.com, if a manage token is available. Optional, non-fatal,
+       and not what the extension's own update check reads — see .PARAMETER GalleryToken.
 
   version.json is uploaded under a fixed name so the feed URL
   (…/releases/latest/download/version.json) always resolves to the newest release's copy. The .vsix
@@ -53,6 +55,16 @@
   Publish the .vsix already in bin\Release\net48 instead of rebuilding. The version checks in step 3
   still run, so a stale container is rejected rather than published.
 
+.PARAMETER GalleryToken
+  The X-Manage-Token for www.vsixgallery.com. Defaults to $env:VSIXGALLERY_TOKEN; when neither is set the
+  gallery step is skipped rather than uploaded untokened, because the gallery mints a token on an
+  untokened first upload and shows it only in the response of that one request — lose it and the listing
+  can't be managed again. The token is yours to choose: any string, sent with every upload.
+
+.PARAMETER NoGallery
+  Skip the gallery upload and publish the GitHub release only. Also implied by -Draft, since a gallery
+  upload is public the moment it lands and a draft release deliberately is not.
+
 .EXAMPLE
   .\SoluitionDocs\Tools\publish-release.ps1
   Build and publish with a date-derived version.
@@ -69,7 +81,9 @@ param(
     [string] $MinRequiredVersion,
     [switch] $Draft,
     [switch] $SkipBuild,
-    [switch] $NoPublish
+    [switch] $NoPublish,
+    [string] $GalleryToken,
+    [switch] $NoGallery
 )
 
 $ErrorActionPreference = 'Stop'
@@ -254,6 +268,62 @@ if ($Draft) { $ghArgs += '--draft' }
 
 & gh @ghArgs
 if ($LASTEXITCODE -ne 0) { Fail 'gh release create failed.' }
+
+# ---------------------------------------------------------------------------------------------------
+# 6. VSIX Gallery
+# ---------------------------------------------------------------------------------------------------
+# www.vsixgallery.com is a second, optional distribution channel: one POST of the .vsix body to
+# /api/upload, no account, no review queue. It matters for two reasons — it renders a public details
+# page (README, tags, version history) that a GitHub release does not, and it exposes a private-gallery
+# Atom feed that users can paste into Tools > Options > Environment > Extensions, which is the only way
+# an update ever shows up in SSMS's own Manage Extensions > Updates list. It does not replace the
+# version.json feed above and the extension does not read it.
+#
+# Deliberately last, and deliberately non-fatal. The GitHub release is the release; if the gallery is
+# down or the token is wrong, that must not read as a failed publish, so this warns and prints the
+# one-liner to retry with the .vsix already staged in artifacts\.
+if ($NoGallery) {
+    Step 'Skipping VSIX Gallery (-NoGallery)'
+} elseif ($Draft) {
+    # There is no such thing as a draft on the gallery: an upload is live immediately, which would
+    # advertise a version the GitHub feed is deliberately still hiding.
+    Step 'Skipping VSIX Gallery (draft release)'
+    Write-Host '  A gallery upload is public the moment it lands; a draft is not. Re-run after publishing.' -ForegroundColor Yellow
+} else {
+    Step 'Publishing to VSIX Gallery'
+
+    $galleryId = ([xml] $manifestXml).PackageManifest.Metadata.Identity.Id
+
+    $galleryToken = if ($GalleryToken) { $GalleryToken } else { $env:VSIXGALLERY_TOKEN }
+    if (-not $galleryToken) {
+        Write-Host '  Skipped: no -GalleryToken and no $env:VSIXGALLERY_TOKEN.' -ForegroundColor Yellow
+        Write-Host '  The gallery mints a manage token on an untokened first upload and never shows it again, so' -ForegroundColor Yellow
+        Write-Host '  uploading without one can cost the ability to manage the listing. See Deployment.md section 7.' -ForegroundColor Yellow
+    } else {
+        # Escaped: these values are URLs, and an unescaped one is truncated at its first & or #.
+        $repoUrl    = [Uri]::EscapeDataString("https://github.com/$Repo")
+        $issuesUrl  = [Uri]::EscapeDataString("https://github.com/$Repo/issues")
+        $readmeUrl  = [Uri]::EscapeDataString("https://raw.githubusercontent.com/$Repo/main/README.md")
+        # repo/issuetracker/readmeUrl are what the details page links and renders; without readmeUrl the
+        # page shows only the manifest Description.
+        $galleryQuery = "repo=$repoUrl&issuetracker=$issuesUrl&readmeUrl=$readmeUrl"
+
+        # Windows PowerShell 5.1 still defaults to TLS 1.0/1.1, which vsixgallery.com refuses.
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+        try {
+            $response = Invoke-RestMethod -Method Post -Uri "https://www.vsixgallery.com/api/upload?$galleryQuery" `
+                -Headers @{ 'X-Manage-Token' = $galleryToken } -ContentType 'application/octet-stream' `
+                -InFile $vsixAsset -TimeoutSec 300
+            Write-Host "  https://www.vsixgallery.com/extension/$galleryId/" -ForegroundColor Green
+            if ($response) { $response | ConvertTo-Json -Depth 4 -Compress | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray } }
+        } catch {
+            Write-Warning "VSIX Gallery upload failed: $($_.Exception.Message)"
+            Write-Warning "The GitHub release is published and unaffected. Retry the gallery alone with:"
+            Write-Warning "  Invoke-RestMethod -Method Post -Uri 'https://www.vsixgallery.com/api/upload?$galleryQuery' -Headers @{ 'X-Manage-Token' = `$env:VSIXGALLERY_TOKEN } -ContentType 'application/octet-stream' -InFile '$vsixAsset'"
+        }
+    }
+}
 
 Step 'Done'
 if ($Draft) {
