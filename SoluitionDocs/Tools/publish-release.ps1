@@ -101,6 +101,21 @@ $StageDir    = Join-Path $RepoRoot 'artifacts'
 function Step($message) { Write-Host "`n==> $message" -ForegroundColor Cyan }
 function Fail($message) { throw $message }
 
+# Every native command (gh, dotnet) goes through this, and only $LASTEXITCODE decides success.
+#
+# Windows PowerShell 5.1 turns anything a native command writes to stderr into a *terminating* error
+# while $ErrorActionPreference is 'Stop' — and `2>$null` on the line does not prevent it. `gh release
+# view` on a tag that does not exist yet writes "release not found" to stderr, which killed this script
+# at its own pre-flight check, so the very first publish of any version could never get past step 1.
+# `gh release create` and `dotnet build` write to stderr too, which would have failed a run mid-publish.
+# Restoring the previous value rather than assuming 'Stop' keeps this honest if the caller dot-sources.
+function Invoke-Native {
+    param([Parameter(Mandatory)] [scriptblock] $Command)
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command 2>&1 } finally { $ErrorActionPreference = $previous }
+}
+
 # ---------------------------------------------------------------------------------------------------
 # 0. Prerequisites
 # ---------------------------------------------------------------------------------------------------
@@ -111,7 +126,7 @@ if (-not $NoPublish) {
         Fail "The GitHub CLI (gh) is not on PATH. Install it from https://cli.github.com, then 'gh auth login'."
     }
     # `gh auth status` exits non-zero when not logged in. Check now rather than after a five-minute build.
-    & gh auth status *> $null
+    Invoke-Native { gh auth status } | Out-Null
     if ($LASTEXITCODE -ne 0) { Fail "Not logged in to GitHub. Run 'gh auth login' first." }
 }
 
@@ -149,7 +164,8 @@ if ($parsed.ToString() -ne $Version) {
 }
 
 if (-not $NoPublish) {
-    $existing = & gh release view "v$Version" --repo $Repo --json tagName 2>$null
+    # $existing holds gh's stderr on failure as well, so the exit code has to be tested first.
+    $existing = Invoke-Native { gh release view "v$Version" --repo $Repo --json tagName }
     if ($LASTEXITCODE -eq 0 -and $existing) {
         Fail "Release v$Version already exists in $Repo. Pass a different -Version; re-tagging a published release changes what existing installs were offered."
     }
@@ -171,7 +187,7 @@ if ($SkipBuild) {
     # build short-circuits, and publishing a stale container is indistinguishable from publishing a good one.
     if (Test-Path $BuiltVsix) { Remove-Item $BuiltVsix -Force }
 
-    & dotnet build $Project --configuration Release -p:Version=$Version -v q --nologo
+    Invoke-Native { dotnet build $Project --configuration Release -p:Version=$Version -v q --nologo } | Out-Host
     if ($LASTEXITCODE -ne 0) { Fail 'Build failed.' }
     if (-not (Test-Path $BuiltVsix)) { Fail "Build reported success but produced no $BuiltVsix." }
 }
@@ -266,7 +282,7 @@ $ghArgs = @(
 )
 if ($Draft) { $ghArgs += '--draft' }
 
-& gh @ghArgs
+Invoke-Native { gh @ghArgs } | Out-Host
 if ($LASTEXITCODE -ne 0) { Fail 'gh release create failed.' }
 
 # ---------------------------------------------------------------------------------------------------
