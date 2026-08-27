@@ -10,8 +10,13 @@
     <DisplayName>SQLExtended for SSMS</DisplayName>
     <Description xml:space="preserve">SQLExtended for SSMS 22: schema viewer, T-SQL formatting, object/definition search, schema-reference validation, query history, a script library, and IntelliSense enhancements.</Description>
     <MoreInfo>https://github.com/JamTheRadar/SQLExtended</MoreInfo>
-    <!-- Icon and PreviewImage must sit here, before Tags: the vsx-schema/2011 Metadata sequence is
-         ordered, and the VSSDK's manifest validation fails the build outright if they come after it. -->
+    <!-- A path inside the container, not a URL, and the file has to actually be in there — see the
+         LICENSE Content item in SQLExtended.csproj. Without this the VSIX Gallery listing carries a
+         "No license is specified in the .vsixmanifest" validation error, and SSMS's Manage Extensions
+         offers no licence link. -->
+    <License>LICENSE.txt</License>
+    <!-- License, Icon and PreviewImage must sit here, before Tags: the vsx-schema/2011 Metadata sequence
+         is ordered, and the VSSDK's manifest validation fails the build outright if they come after it. -->
     <Icon>Resources\icon.png</Icon>
     <PreviewImage>Resources\preview.png</PreviewImage>
     <Tags>SSMS, SQL Server, Schema, Formatting, Search, DBA, Productivity</Tags>

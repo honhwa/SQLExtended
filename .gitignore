@@ -270,3 +270,4 @@ __pycache__/
 .claude/plans/
 /tag-rule.json
 /branch-rule.json
+/SQLExtended/LICENSE.txt

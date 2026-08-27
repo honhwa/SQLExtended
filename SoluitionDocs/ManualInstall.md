@@ -15,6 +15,8 @@ extension.vsixmanifest                 (the build writes this into SQLExtended\;
                                         build, copy SQLExtended\source.extension.vsixmanifest and rename)
 Resources\icon.png                     (the manifest names these by relative path - without them
 Resources\preview.png                    Manage Extensions has no icon to draw)
+LICENSE.txt                            (likewise, for the manifest's License element; the build stages
+                                        it into SQLExtended\ from the repo root LICENSE)
 Microsoft.Data.SqlClient.dll
 Microsoft.SqlServer.TransactSql.ScriptDom.dll
 Newtonsoft.Json.dll
@@ -58,6 +60,7 @@ SQLExtended\
 ├── Newtonsoft.Json.dll
 ├── System.Data.SQLite.dll
 ├── ICSharpCode.AvalonEdit.dll
+├── LICENSE.txt
 ├── Resources\
 │   ├── icon.png
 │   └── preview.png

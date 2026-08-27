@@ -137,6 +137,18 @@
     <Message Importance="high" Text="StampVsixVersion: .vsix Identity Version set to $(_StampedVsixVersion)" />
   </Target>
 
+  <!-- Metadata/License names a path inside the .vsix, so the licence has to be a file in this project at
+       exactly that path. Copying the repo's root LICENSE rather than committing a second copy keeps one
+       licence in the tree; LICENSE.txt here is gitignored. Runs before PrepareForBuild so the file exists
+       by the time the VSSDK checks the file list (VSSDK1310) and long before the container is zipped. -->
+  <Target Name="StageLicenseForVsix" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\..\LICENSE')"
+           Text="No LICENSE at the repo root. Metadata/License in source.extension.vsixmanifest names LICENSE.txt inside the container, and the build has nothing to put there." />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\LICENSE"
+          DestinationFiles="$(ProjectDir)LICENSE.txt"
+          SkipUnchangedFiles="true" />
+  </Target>
+
   <Target Name="CopyToSsms" AfterTargets="Build">
     <MakeDir Directories="$(SsmsExtDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
@@ -151,10 +163,15 @@
       Condition="Exists('$(ProjectDir)extension.vsixmanifest')"
     />
     <!-- The manifest's Icon/PreviewImage are paths relative to the extension folder, so an xcopy deploy
-         needs Resources\ alongside it or Manage Extensions has nothing to draw. -->
+         needs Resources\ alongside it or Manage Extensions has nothing to draw. Same for License. -->
     <Copy
       SourceFiles="$(ProjectDir)Resources\icon.png;$(ProjectDir)Resources\preview.png"
       DestinationFolder="$(SsmsExtDir)\Resources"
+    />
+    <Copy
+      SourceFiles="$(ProjectDir)LICENSE.txt"
+      DestinationFolder="$(SsmsExtDir)"
+      Condition="Exists('$(ProjectDir)LICENSE.txt')"
     />
     <Copy
       SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.dll"
@@ -300,6 +317,13 @@
     <Content Include="Resources\preview.png">
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The repo's MIT licence, carried into the container because Metadata/License in the manifest names
+         a path inside the .vsix, not a URL. Written here by StageLicenseForVsix rather than committed, so
+         the repo keeps one licence file; a <Link> on the root LICENSE does not work, because VSSDK1310
+         checks the file list for a real item at the expected path and rejects the link's rename. -->
+    <Content Include="LICENSE.txt">
+      <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
     <!-- MIT licence text for the vendored StatisticsParser.Core sources. The settings dialog points
          users at this file in the install folder; the Inno installer used to place it there, so with
