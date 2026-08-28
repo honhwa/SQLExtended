@@ -188,8 +188,16 @@ internal static class JobDialogLauncher
     {
         var builder = new SqlConnectionStringBuilder(connectionString);
 
-        // SqlConnectionInfo expresses integrated and SQL logins. Entra/AAD modes carry a token flow that would
-        // need an IRenewableToken we have no way to obtain from a harvested connection string.
+        // SqlConnectionInfo expresses integrated and SQL logins. An Entra sign-in reaches our own connections as
+        // the access token EntraTokenBroker holds, which this dialog has no property to receive - and such a
+        // connection string carries no credentials at all, so without this check the sheet would open on a
+        // connection that cannot log in.
+        if (EntraTokenBroker.HasToken(builder.DataSource))
+        {
+            throw new NotSupportedException("Opening the Job Properties dialog is not supported for Entra (Azure AD) authentication. "
+                                          + "Use Object Explorer for this connection.");
+        }
+
         if (builder.Authentication != SqlAuthenticationMethod.NotSpecified && builder.Authentication != SqlAuthenticationMethod.SqlPassword)
         {
             throw new NotSupportedException($"Opening the Job Properties dialog is not supported for {builder.Authentication} authentication. "

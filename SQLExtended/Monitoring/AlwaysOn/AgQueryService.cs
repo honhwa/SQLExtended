@@ -66,7 +66,7 @@ internal static class AgQueryService
             return snapshot;
         }
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 
@@ -899,7 +899,7 @@ END";
     {
         var rows = new List<AgEventRow>();
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(HealthEventsBodySql, conn) { CommandTimeout = 60 })

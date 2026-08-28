@@ -126,7 +126,7 @@ internal sealed class SystemCatalogCache
     {
         var data = new SystemCatalogData();
 
-        using var conn = new SqlConnection(connectionString);
+        using var conn = SqlConnectionFactory.Create(connectionString);
         conn.Open();
         using var cmd = new SqlCommand(SystemCatalogSql.ObjectsAndColumns, conn) { CommandTimeout = 60 };
         using var reader = cmd.ExecuteReader();

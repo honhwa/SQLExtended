@@ -49,7 +49,7 @@ internal static class JobActionService
 
     private static async Task ExecuteAsync(string connectionString, string procedure, Guid jobId, CancellationToken ct, Action<SqlCommand> addParameters = null)
     {
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 

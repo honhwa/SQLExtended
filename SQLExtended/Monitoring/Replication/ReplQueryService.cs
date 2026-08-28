@@ -160,7 +160,7 @@ internal static class ReplQueryService
 
     private static async Task ReadDistributorInfoAsync(string masterConnectionString, ReplSnapshot snapshot, CancellationToken ct)
     {
-        using (var conn = new SqlConnection(masterConnectionString))
+        using (var conn = SqlConnectionFactory.Create(masterConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(DistributorInfoSql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -222,7 +222,7 @@ ORDER BY publisher, pub.publisher_db, pub.publication;";
 
     private static async Task ReadPublicationsAsync(string connectionString, ReplCapabilities caps, ReplSnapshot snapshot, CancellationToken ct)
     {
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(PublicationsSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -340,7 +340,7 @@ ORDER BY publisher, subs.publisher_db, subs.publication, subscriber, subs.subscr
 
     private static async Task ReadSubscriptionsAsync(string connectionString, ReplCapabilities caps, ReplThresholds thresholds, ReplSnapshot snapshot, CancellationToken ct)
     {
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(SubscriptionsSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -628,7 +628,7 @@ ORDER BY publisher, ma.publisher_db, ma.publication, subscriber;";
         var queries = AgentQueries(caps);
         if (queries.Count == 0) return;
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 
@@ -735,7 +735,7 @@ OUTER APPLY (
 
         var byAgent = new Dictionary<string, (string Name, bool Enabled, bool Running)>(StringComparer.OrdinalIgnoreCase);
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(sql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -810,7 +810,7 @@ ORDER BY d.name;";
 
     private static async Task ReadPublisherDatabasesAsync(string masterConnectionString, ReplThresholds thresholds, ReplSnapshot snapshot, CancellationToken ct)
     {
-        using (var conn = new SqlConnection(masterConnectionString))
+        using (var conn = SqlConnectionFactory.Create(masterConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(PublisherDatabasesSql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -850,7 +850,7 @@ ORDER BY d.name;";
         foreach (var row in snapshot.PublisherDatabases)
             byDatabase[row.DatabaseName ?? ""] = row;
 
-        using (var conn = new SqlConnection(masterConnectionString))
+        using (var conn = SqlConnectionFactory.Create(masterConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(ReplCountersSql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -914,7 +914,7 @@ END";
 
     private static async Task ReadSubscriberDatabasesAsync(string masterConnectionString, ReplSnapshot snapshot, CancellationToken ct)
     {
-        using (var conn = new SqlConnection(masterConnectionString))
+        using (var conn = SqlConnectionFactory.Create(masterConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(SubscriberDatabasesSql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -968,7 +968,7 @@ GROUP BY ds.agent_id;";
     {
         var results = new Dictionary<int, (long, long)>();
 
-        using (var conn = new SqlConnection(distributionConnectionString))
+        using (var conn = SqlConnectionFactory.Create(distributionConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 
@@ -1010,7 +1010,7 @@ ORDER BY e.time DESC;";
     {
         var rows = new List<ReplErrorRow>();
 
-        using (var conn = new SqlConnection(distributionConnectionString))
+        using (var conn = SqlConnectionFactory.Create(distributionConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(ErrorsBodySql, conn) { CommandTimeout = 60 })
@@ -1065,7 +1065,7 @@ ORDER BY t.publisher_commit DESC, subscriber;";
     {
         var rows = new List<ReplTracerRow>();
 
-        using (var conn = new SqlConnection(distributionConnectionString))
+        using (var conn = SqlConnectionFactory.Create(distributionConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(TracerTokensSql, conn) { CommandTimeout = 60 })

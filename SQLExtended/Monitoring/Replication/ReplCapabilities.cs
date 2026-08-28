@@ -139,7 +139,7 @@ CROSS APPLY (SELECT name FROM sys.all_columns WHERE object_id = OBJECT_ID(N'dbo.
     {
         var caps = new ReplCapabilities();
 
-        using (var conn = new SqlConnection(masterConnectionString))
+        using (var conn = SqlConnectionFactory.Create(masterConnectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(RoleProbeSql, conn) { CommandTimeout = ReplQueryService.CommandTimeoutSeconds })
@@ -170,7 +170,7 @@ CROSS APPLY (SELECT name FROM sys.all_columns WHERE object_id = OBJECT_ID(N'dbo.
     {
         string connectionString = ReplQueryService.BuildMonitorConnectionString(masterConnectionString, DistributionDatabase);
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(DistributionProbeSql, conn) { CommandTimeout = ReplQueryService.CommandTimeoutSeconds })

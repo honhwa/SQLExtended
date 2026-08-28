@@ -71,12 +71,15 @@ answers with master plus that one database and looks like a real answer.
 
 `ConnectionHelper.GetActiveConnectionString` is the one that earns its own note: it reports which of the
 three reflection strategies answered, what authentication the result expresses, and — loudly — when an
-Azure-looking server has been harvested as **integrated security**. `BuildConnectionString` can only spell
-Windows auth or SQL auth with a password reflection could reach, so every Entra mode and every SQL login
-whose password it could not read both fall back to integrated security against a server that has no idea
-what a Windows account is. It then fails at the far end, on a background thread, as a login error naming
-nothing about where the credentials came from. That is the most likely reason an Azure SQL database will
-not cache, and without this line nothing on the machine says so.
+Azure-looking server has been harvested as **integrated security**. A connection string can only spell
+Windows auth or SQL auth with a password reflection could reach; an Entra sign-in travels out of band, as
+the access token `EntraTokenBroker` holds and `SqlConnectionFactory` attaches (see `UIConnectionInfoReader`).
+When even that is missing the connection falls back to integrated security against a server that has no idea
+what a Windows account is, and then fails at the far end, on a background thread, as a login error naming
+nothing about where the credentials came from — Azure SQL answers it with error **40607**. That is the most
+likely reason an Azure SQL database will not cache, and without this line nothing on the machine says so.
+The line now also distinguishes the good case: a harvest that carried a token says so, and the Azure warning
+is suppressed when one is held.
 
 `Diagnostics/DiagnosticLogBuffer.cs` holds the ring and is free of VS, WPF and SqlClient so the test project
 can link it (`SQLExtended.Tests/Diagnostics/DiagnosticLogBufferTests.cs`) — the static facade is the half

@@ -128,6 +128,18 @@
     <Compile Include="..\SQLExtended\Diagnostics\DiagnosticLogBuffer.cs" Link="Diagnostics\DiagnosticLogBuffer.cs" />
   </ItemGroup>
 
+  <!--
+    Connections. Every query service linked below now opens through SqlConnectionFactory, which attaches the
+    Entra access token EntraTokenBroker holds for the server - the only way an Azure AD sign-in can reach a
+    connection, since no connection string keyword can express one. Both are free of the VS assemblies for
+    that reason, and the log facade comes with them (it is plain System.* despite living in Diagnostics).
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Diagnostics\SQLExtendedLog.cs" Link="Diagnostics\SQLExtendedLog.cs" />
+    <Compile Include="..\SQLExtended\EntraTokenBroker.cs" Link="EntraTokenBroker.cs" />
+    <Compile Include="..\SQLExtended\SqlConnectionFactory.cs" Link="SqlConnectionFactory.cs" />
+  </ItemGroup>
+
   <!-- Rainbow parentheses: the depth scanner is free of the VS editor assemblies so it can be tested here. -->
   <ItemGroup>
     <Compile Include="..\SQLExtended\Rainbow\RainbowPair.cs" Link="Rainbow\RainbowPair.cs" />

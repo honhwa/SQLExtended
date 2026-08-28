@@ -140,7 +140,7 @@ internal static class SchemaValidationService
               AND d.referenced_entity_name IS NOT NULL";
 
         var rows = new List<RawDependency>();
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             conn.Open();
             using (var cmd = conn.CreateCommand())
@@ -176,7 +176,7 @@ internal static class SchemaValidationService
     private static ISet<string> QueryStringSet(string connectionString, string sql)
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             conn.Open();
             using (var cmd = conn.CreateCommand())
@@ -202,7 +202,7 @@ internal static class SchemaValidationService
     /// <summary>Returns the T-SQL definition of a module by object_id, or null if unavailable.</summary>
     private static string QueryModuleDefinition(string connectionString, int objectId)
     {
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             conn.Open();
             using (var cmd = conn.CreateCommand())

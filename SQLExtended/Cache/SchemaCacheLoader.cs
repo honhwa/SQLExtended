@@ -25,7 +25,7 @@ internal static class SchemaCacheLoader
 
         await Task.Run(() =>
         {
-            using var conn = new SqlConnection(connectionString);
+            using var conn = SqlConnectionFactory.Create(connectionString);
             conn.Open();
 
             result.Objects = LoadObjects(conn, ct);
@@ -69,7 +69,7 @@ internal static class SchemaCacheLoader
               AND o.modify_date > @since";
 
         var objects = new List<CachedObject>();
-        using var conn = new SqlConnection(connectionString);
+        using var conn = SqlConnectionFactory.Create(connectionString);
         conn.Open();
         using var cmd = new SqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@since", since);

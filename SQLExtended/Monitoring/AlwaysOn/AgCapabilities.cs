@@ -97,7 +97,7 @@ SELECT
     {
         var caps = new AgCapabilities();
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(ProbeSql, conn) { CommandTimeout = AgQueryService.CommandTimeoutSeconds })

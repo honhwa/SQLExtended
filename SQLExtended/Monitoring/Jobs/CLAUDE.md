@@ -101,8 +101,11 @@ Four things that are easy to get wrong here:
 - Assemblies are resolved from **already-loaded** ones first. A second copy loaded off disk gets a different
   identity, and the `ISqlControlCollection` check then fails on a sheet that is actually fine.
 
-Only integrated and SQL auth can be expressed (Entra/AAD would need an `IRenewableToken` a harvested connection
-string cannot supply), so those get a clear "use Object Explorer" message instead.
+Only integrated and SQL auth can be expressed. An Entra/AAD connection reaches the rest of the extension as an
+access token attached to the `SqlConnection` (`EntraTokenBroker` / `SqlConnectionFactory`), and `SqlConnectionInfo`
+has no property to receive one — worse, such a connection string carries *no* credentials, so it would sail past a
+check that only looked at `Authentication`. `CreateDataContainer` therefore asks the broker directly and gives
+those a clear "use Object Explorer" message instead.
 
 **Failures have to be legible.** Reflection failures arrive wrapped in `TargetInvocationException`, whose own
 message ("Exception has been thrown by the target of an invocation") says nothing — so `JobDialogLauncher.Step`

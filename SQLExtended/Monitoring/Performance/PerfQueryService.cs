@@ -54,7 +54,7 @@ internal static class PerfQueryService
         var started = DateTime.UtcNow;
         var snapshot = new PerfSnapshot { CollectedAtLocal = DateTime.Now };
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 

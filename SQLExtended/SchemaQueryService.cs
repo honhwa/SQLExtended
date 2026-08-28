@@ -399,7 +399,7 @@ internal static class SchemaQueryService
 
     private static string BuildSchemaScriptDirect(string connectionString, string schema, string objectName)
     {
-        using var conn = new SqlConnection(connectionString);
+        using var conn = SqlConnectionFactory.Create(connectionString);
         conn.Open();
 
         if (string.IsNullOrEmpty(schema))
@@ -433,7 +433,7 @@ internal static class SchemaQueryService
     {
         try
         {
-            using var conn = new SqlConnection(connectionString);
+            using var conn = SqlConnectionFactory.Create(connectionString);
             conn.Open();
 
             if (string.IsNullOrEmpty(schema))

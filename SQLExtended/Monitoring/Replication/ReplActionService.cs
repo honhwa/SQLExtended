@@ -40,7 +40,7 @@ internal static class ReplActionService
 
         string connectionString = ReplQueryService.BuildMonitorConnectionString(baseConnectionString, publisherDatabase);
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 

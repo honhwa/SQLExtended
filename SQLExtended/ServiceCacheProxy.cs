@@ -1,5 +1,4 @@
 using System;
-using System.Data.SqlClient;
 using System.Reflection;
 
 namespace SQLExtended;
@@ -100,101 +99,8 @@ internal static class ServiceCacheProxy
 
     /// <summary>
     /// Builds a SqlClient connection string from a UIConnectionInfo object via reflection.
+    /// The reading of it - including the Entra token an Azure sign-in carries instead of a password - lives in
+    /// <see cref="UIConnectionInfoReader"/>, which all three harvest strategies share.
     /// </summary>
-    public static string BuildConnectionString(object uiConnInfo)
-    {
-        var type = uiConnInfo.GetType();
-
-        string server = GetProp(type, uiConnInfo, "ServerName")
-                     ?? GetProp(type, uiConnInfo, "ServerNameNoDot");
-
-        string database = GetIndexedProp(type, uiConnInfo, "AdvancedOptions", "DATABASE")
-                       ?? GetProp(type, uiConnInfo, "DatabaseName")
-                       ?? "master";
-
-        string userName = GetProp(type, uiConnInfo, "UserName");
-        string password = GetProp(type, uiConnInfo, "Password");
-
-        if (string.IsNullOrEmpty(server))
-            return null;
-
-        var builder = new SqlConnectionStringBuilder
-        {
-            // ADMIN: stripped — see ConnectionHelper.NormalizeHarvestedDataSource. Harvesting a DAC window's
-            // server name verbatim would run the whole schema cache over the instance's single
-            // administrator connection, and leave a pooled one holding it afterwards.
-            DataSource = ConnectionHelper.NormalizeHarvestedDataSource(server),
-            InitialCatalog = database,
-            TrustServerCertificate = true,
-            ConnectTimeout = 10,
-            ApplicationName = "SQLExtended for SSMS"
-        };
-
-        // Check authentication type
-        string authValue = GetProp(type, uiConnInfo, "AuthenticationType");
-        if (authValue != null && authValue.Contains("Sql"))
-        {
-            builder.IntegratedSecurity = false;
-            builder.UserID = userName ?? "";
-            if (!string.IsNullOrEmpty(password))
-                builder.Password = password;
-            else
-                builder.IntegratedSecurity = true;
-        }
-        else
-        {
-            builder.IntegratedSecurity = string.IsNullOrEmpty(password);
-            if (!builder.IntegratedSecurity)
-            {
-                builder.UserID = userName ?? "";
-                builder.Password = password;
-            }
-        }
-
-        return builder.ConnectionString;
-    }
-
-    private static string GetProp(Type type, object obj, string propName)
-    {
-        try
-        {
-            var prop = type.GetProperty(propName,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            return prop?.GetValue(obj)?.ToString();
-        }
-        catch { return null; }
-    }
-
-    private static string GetIndexedProp(Type type, object obj, string collectionProp, string key)
-    {
-        try
-        {
-            var prop = type.GetProperty(collectionProp,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            var collection = prop?.GetValue(obj);
-            if (collection == null) return null;
-
-            // Use the specific string-keyed indexer to avoid AmbiguousMatchException
-            // when the collection has multiple indexers (e.g., Item[string] and Item[int]).
-            var collType = collection.GetType();
-            var indexer = collType.GetProperty("Item",
-                BindingFlags.Instance | BindingFlags.Public,
-                null, typeof(string), new[] { typeof(string) }, null);
-
-            if (indexer != null)
-                return indexer.GetValue(collection, new object[] { key })?.ToString();
-
-            // Fallback: try finding the indexer by scanning all "Item" properties
-            foreach (var p in collType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
-            {
-                if (p.Name != "Item") continue;
-                var parameters = p.GetIndexParameters();
-                if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
-                    return p.GetValue(collection, new object[] { key })?.ToString();
-            }
-
-            return null;
-        }
-        catch { return null; }
-    }
+    public static string BuildConnectionString(object uiConnInfo) => UIConnectionInfoReader.BuildConnectionString(uiConnInfo, "SQLExtended for SSMS");
 }

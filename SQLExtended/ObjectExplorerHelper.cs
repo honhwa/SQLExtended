@@ -242,7 +242,7 @@ internal static class ObjectExplorerHelper
 
             int totalOnline = 0, noAccess = 0, added = 0;
 
-            using (var conn = new SqlConnection(masterConnStr))
+            using (var conn = SqlConnectionFactory.Create(masterConnStr))
             {
                 conn.Open();
                 using (var cmd = conn.CreateCommand())
@@ -778,49 +778,13 @@ internal static class ObjectExplorerHelper
         return null;
     }
 
+    /// <summary>
+    /// Builds a connection string for the Object Explorer node's server, always against master.
+    /// The reading of the connection info - including the Entra token an Azure sign-in carries instead of a
+    /// password - lives in <see cref="UIConnectionInfoReader"/>, which all three harvest strategies share.
+    /// </summary>
     private static string BuildConnectionStringFromUIConnInfo(object uiConnInfo)
-    {
-        try
-        {
-            var type = uiConnInfo.GetType();
-            string server = type.GetProperty("ServerName")?.GetValue(uiConnInfo)?.ToString();
-            if (string.IsNullOrEmpty(server)) return null;
-
-            var builder = new SqlConnectionStringBuilder
-            {
-                DataSource = server,
-                InitialCatalog = "master",
-                TrustServerCertificate = true,
-                ConnectTimeout = 10,
-                ApplicationName = "SQLExtended for SSMS"
-            };
-
-            var authProp = type.GetProperty("AuthenticationType",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            string authValue = authProp?.GetValue(uiConnInfo)?.ToString();
-
-            if (authValue != null && authValue.Contains("Sql"))
-            {
-                builder.IntegratedSecurity = false;
-                builder.UserID = type.GetProperty("UserName")?.GetValue(uiConnInfo)?.ToString() ?? "";
-                string password = type.GetProperty("Password")?.GetValue(uiConnInfo)?.ToString();
-                if (!string.IsNullOrEmpty(password))
-                    builder.Password = password;
-                else
-                    builder.IntegratedSecurity = true;
-            }
-            else
-            {
-                builder.IntegratedSecurity = true;
-            }
-
-            return builder.ConnectionString;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+        => UIConnectionInfoReader.BuildConnectionString(uiConnInfo, "SQLExtended for SSMS", databaseOverride: "master");
 
     private static List<ServerInfo> GetServersFromCache()
     {

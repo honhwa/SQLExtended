@@ -52,6 +52,7 @@ FormatCommand.ExecuteFormat()
 ### Key Design Decisions
 
 - **ConnectionHelper uses three reflection-based fallback strategies** to extract the active connection from undocumented SSMS internals (ServiceCache, ScriptFactory, ServiceProvider). All wrapped in try/catch to prevent SSMS crashes.
+- **All three strategies read the connection through `UIConnectionInfoReader`**, which is also the only place that knows how to spot an Entra (Azure AD) sign-in: it carries a token, not a password, so the string is harvested credential-free and `SqlConnectionFactory.Create` attaches the token `EntraTokenBroker` holds for that server. **Open connections through `SqlConnectionFactory.Create`, never `new SqlConnection`** — a direct `new` gets a string with no credentials and fails to log in on Azure.
 - **SchemaQueryService caches** results in a `ConcurrentDictionary` keyed by `"connStr|schema|name"`. Cache is per-session only (clears on SSMS restart).
 - **All UI thread operations** must go through `ThreadHelper.JoinableTaskFactory`. Database queries run on background threads.
 - **SSMS internal DLLs** (`SqlWorkbench.Interfaces.dll`, `SQLEditors.dll`, `Microsoft.SqlServer.GridControl.dll`) are undocumented and referenced from the SSMS install folder — marked `Private=false` so they're excluded from the VSIX output.

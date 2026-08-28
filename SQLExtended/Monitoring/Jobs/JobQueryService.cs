@@ -69,7 +69,7 @@ internal static class JobQueryService
         var snapshot = new JobsSnapshot { CollectedAtLocal = DateTime.Now };
         var byId = new Dictionary<Guid, JobRow>();
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 
@@ -261,7 +261,7 @@ internal static class JobQueryService
     {
         var steps = new List<JobStepRow>();
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(StepsSql, conn) { CommandTimeout = CommandTimeoutSeconds })
@@ -316,7 +316,7 @@ internal static class JobQueryService
         // sysjobhistory.run_date is an integer, so the cut-off has to be one too rather than a date parameter.
         int minRunDate = int.Parse(DateTime.Today.AddDays(-Math.Max(1, days)).ToString("yyyyMMdd", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 
-        using (var conn = new SqlConnection(connectionString))
+        using (var conn = SqlConnectionFactory.Create(connectionString))
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
             using (var cmd = new SqlCommand(HistorySql, conn) { CommandTimeout = CommandTimeoutSeconds })

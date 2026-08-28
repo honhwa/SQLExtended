@@ -72,7 +72,7 @@ internal static class JobStepSearchService
 
         try
         {
-            using (var conn = new SqlConnection(BuildConnectionString(connectionString)))
+            using (var conn = SqlConnectionFactory.Create(BuildConnectionString(connectionString)))
             {
                 await conn.OpenAsync(ct).ConfigureAwait(false);
 

@@ -114,11 +114,12 @@ internal static class ConnectionHelper
     /// <para>Everything downstream - the schema cache, completion, the monitoring dashboards - reconnects from
     /// this string alone, so an authentication mode that does not survive being written into one is not a
     /// degraded connection but a failing one, and it fails at the far end with a login error that names
-    /// nothing about where the credentials came from. <see cref="BuildConnectionString"/> can only spell
-    /// integrated security or SQL auth with a password reflection could reach; every Entra mode, and a SQL
-    /// login whose password it could not read, arrive here as integrated security against a server that has
-    /// no idea what a Windows account is. That is the single most likely reason an Azure SQL database will
-    /// not cache, and without this line there is nothing on the machine that says so.</para>
+    /// nothing about where the credentials came from. A connection string can only spell integrated security or
+    /// SQL auth with a password reflection could reach; an Entra sign-in is carried out of band, as the access
+    /// token <see cref="EntraTokenBroker"/> holds and <see cref="SqlConnectionFactory"/> attaches. When even that
+    /// is missing the connection arrives as integrated security against a server that has no idea what a Windows
+    /// account is - the single most likely reason an Azure SQL database will not cache, and without this line
+    /// there is nothing on the machine that says so.</para>
     ///
     /// <para>The string itself is never logged - it can carry a password.</para>
     /// </summary>
@@ -138,9 +139,12 @@ internal static class ConnectionHelper
 
             var builder = new SqlConnectionStringBuilder(connStr);
             string server = builder.DataSource ?? "";
-            string auth = builder.IntegratedSecurity
-                ? "integrated security"
-                : "SQL auth as " + (string.IsNullOrEmpty(builder.UserID) ? "(no user)" : builder.UserID);
+            bool hasToken = EntraTokenBroker.HasToken(server);
+            string auth = hasToken
+                ? "SSMS's own Entra access token"
+                : builder.IntegratedSecurity
+                    ? "integrated security"
+                    : "SQL auth as " + (string.IsNullOrEmpty(builder.UserID) ? "(no user)" : builder.UserID);
 
             Diagnostics.SQLExtendedLog.Info("Connection", $"Harvested {server} / {builder.InitialCatalog} via {strategy}, using {auth}.");
 
@@ -148,13 +152,13 @@ internal static class ConnectionHelper
                 server.IndexOf(".database.windows.net", StringComparison.OrdinalIgnoreCase) >= 0
                 || server.IndexOf(".database.azure.com", StringComparison.OrdinalIgnoreCase) >= 0;
 
-            if (looksAzure && builder.IntegratedSecurity)
+            if (looksAzure && builder.IntegratedSecurity && !hasToken)
             {
                 Diagnostics.SQLExtendedLog.Warning(
                     "Connection",
-                    $"{server} looks like Azure SQL but the harvested connection uses integrated security, which it will refuse. "
-                        + "Only Windows auth and SQL auth can be expressed in a harvested connection string; an Entra sign-in, or a SQL "
-                        + "login whose password could not be read, both end up here."
+                    $"{server} looks like Azure SQL but the harvested connection uses integrated security, which it will refuse "
+                        + "(error 40607). An Entra sign-in is normally picked up as an access token instead; landing here means SSMS "
+                        + "exposed neither a token nor a readable password for this window."
                 );
             }
         }
@@ -261,113 +265,13 @@ internal static class ConnectionHelper
 
     /// <summary>
     /// Builds a SqlClient connection string from a UIConnectionInfo object.
-    /// UIConnectionInfo has properties like ServerName, DatabaseName, AuthenticationType, etc.
+    /// The reading of it - including the Entra token an Azure sign-in carries instead of a password - lives in
+    /// <see cref="UIConnectionInfoReader"/>, which all three harvest strategies share.
     /// </summary>
-    private static string BuildConnectionString(object uiConnInfo)
-    {
-        var type = uiConnInfo.GetType();
-
-        string server = GetStringProp(type, uiConnInfo, "ServerName") ?? GetStringProp(type, uiConnInfo, "ServerNameNoDot");
-        string database = GetStringProp(type, uiConnInfo, "AdvancedOptions", "DATABASE") ?? GetStringProp(type, uiConnInfo, "DatabaseName") ?? "master";
-        string userName = GetStringProp(type, uiConnInfo, "UserName");
-
-        if (string.IsNullOrEmpty(server))
-            return null;
-
-        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder
-        {
-            DataSource = NormalizeHarvestedDataSource(server),
-            InitialCatalog = database,
-            TrustServerCertificate = true, // common in dev/DBA environments
-            ConnectTimeout = 10,
-            ApplicationName = "SSMS Schema Viewer",
-        };
-
-        // Check authentication type
-        var authProp = type.GetProperty("AuthenticationType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-        if (authProp != null)
-        {
-            var authValue = authProp.GetValue(uiConnInfo)?.ToString();
-            if (authValue != null && authValue.Contains("Sql"))
-            {
-                // SQL Authentication
-                builder.IntegratedSecurity = false;
-                builder.UserID = userName ?? "";
-                // Note: password may not be accessible via reflection for security reasons.
-                // In that case, we fall back to integrated auth.
-                string password = GetStringProp(type, uiConnInfo, "Password");
-                if (!string.IsNullOrEmpty(password))
-                    builder.Password = password;
-                else
-                    builder.IntegratedSecurity = true; // fallback
-            }
-            else
-            {
-                // Windows Authentication
-                builder.IntegratedSecurity = true;
-            }
-        }
-        else
-        {
-            builder.IntegratedSecurity = true;
-        }
-
-        return builder.ConnectionString;
-    }
+    private static string BuildConnectionString(object uiConnInfo) => UIConnectionInfoReader.BuildConnectionString(uiConnInfo, "SSMS Schema Viewer");
 
     /// <summary>Strategy and connection string of the last harvest reported, so the note is only made on a change.</summary>
     private static string _lastHarvestNote;
-
-    private static string GetStringProp(Type type, object obj, string propName)
-    {
-        try
-        {
-            var prop = type.GetProperty(propName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            return prop?.GetValue(obj)?.ToString();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Some properties are accessed via an indexer, e.g. AdvancedOptions["DATABASE"]
-    /// </summary>
-    private static string GetStringProp(Type type, object obj, string collectionProp, string key)
-    {
-        try
-        {
-            var prop = type.GetProperty(collectionProp, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            var collection = prop?.GetValue(obj);
-            if (collection == null)
-                return null;
-
-            // Use the specific string-keyed indexer to avoid AmbiguousMatchException
-            // when the collection has multiple indexers (e.g., Item[string] and Item[int]).
-            var collType = collection.GetType();
-            var indexer = collType.GetProperty("Item", BindingFlags.Instance | BindingFlags.Public, null, typeof(string), new[] { typeof(string) }, null);
-
-            if (indexer != null)
-                return indexer.GetValue(collection, new object[] { key })?.ToString();
-
-            foreach (var p in collType.GetProperties(BindingFlags.Instance | BindingFlags.Public))
-            {
-                if (p.Name != "Item")
-                    continue;
-                var parameters = p.GetIndexParameters();
-                if (parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
-                    return p.GetValue(collection, new object[] { key })?.ToString();
-            }
-
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
 
     private static Assembly FindLoadedAssembly(string partialName)
     {
