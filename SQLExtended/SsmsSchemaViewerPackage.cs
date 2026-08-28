@@ -77,6 +77,12 @@ public sealed class SsmsSchemaViewerPackage : AsyncPackage
         }
         catch { /* the logger is not allowed to break the package it reports on */ }
 
+        // Writes the chosen comment colour scheme into Fonts and Colors, but only when it is not already
+        // the one in force — so hand-tuned entries are not overwritten on every start. Also starts
+        // listening for a dark/light theme switch, which needs the other variant of the same scheme.
+        try { Comments.CommentThemeApplier.Initialize(); }
+        catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "Comment theme init failed", ex); }
+
         try { await SchemaViewerCommand.InitializeAsync(this); }
         catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "SchemaViewerCommand init failed", ex); }
 

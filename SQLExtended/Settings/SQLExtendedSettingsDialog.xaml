@@ -1,4 +1,4 @@
-<Window x:Class="SQLExtended.Settings.SQLExtendedSettingsDialog"
+﻿<Window x:Class="SQLExtended.Settings.SQLExtendedSettingsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="SQLExtended for SSMS Settings"
@@ -222,6 +222,60 @@
                                   Style="{StaticResource DarkCheck}"/>
                         <CheckBox x:Name="ChkShowRowCounts" Content="Show row counts for tables/views"
                                   Style="{StaticResource DarkCheck}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ===== Editor Tab ===== -->
+            <TabItem Header="Editor">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Rainbow parentheses" Margin="0,4,0,6"/>
+
+                        <CheckBox x:Name="ChkRainbowParens" Content="Colour parentheses by nesting depth"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Each nesting level gets its own colour, so the closing bracket of a derived table or a long function call is easy to find. Parentheses inside strings, comments and [bracketed] names are ignored."/>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,10,0,4" Text="Colours to cycle through"/>
+                        <ComboBox x:Name="CboRainbowLevels" Style="{StaticResource DarkCombo}" Width="80" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="2"/>
+                            <ComboBoxItem Content="3"/>
+                            <ComboBoxItem Content="4"/>
+                            <ComboBoxItem Content="5"/>
+                            <ComboBoxItem Content="6"/>
+                            <ComboBoxItem Content="7"/>
+                        </ComboBox>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,4,0,4"
+                                   Text="Nesting deeper than this starts the palette again."/>
+
+                        <CheckBox x:Name="ChkRainbowUnmatched" Content="Tint a parenthesis with no partner"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="A script being typed is unbalanced most of the time, so this stays deliberately quiet. Turn it off to leave unmatched brackets in the ordinary text colour."/>
+
+                        <CheckBox x:Name="ChkRainbowBlocks" Content="Also colour BEGIN / END blocks"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Pairs BEGIN with END, CASE with its END, and BEGIN TRY / BEGIN CATCH with theirs, counting their own nesting depth separately from the parentheses. BEGIN TRAN and BEGIN DIALOG are left alone — neither is closed by END."/>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,12,0,0"
+                                   Text="The colours themselves live in Tools &#x2192; Options &#x2192; Environment &#x2192; Fonts and Colors, under &quot;SQLExtended Rainbow Parenthesis 1-7&quot; and &quot;(unmatched)&quot;."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Comment tags" Margin="0,18,0,6"/>
+
+                        <CheckBox x:Name="ChkCommentTags" Content="Colour tagged comments"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="A comment that opens with ! is coloured as an alert, ? as a question, todo as a task, and * as a highlight — in both the -- and /* */ forms. Banner headers are picked apart too: their rules of stars and dashes are dimmed and their headings coloured, leaving the change rows alone. Ordinary comments keep the editor's own comment colour."/>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,10,0,4" Text="Colour scheme"/>
+                        <ComboBox x:Name="CboCommentScheme" Style="{StaticResource DarkCombo}" Width="190" HorizontalAlignment="Left"/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,4,0,4"
+                                   Text="Each scheme has a dark and a light version, picked from the editor background rather than the theme's name. Choosing one writes its colours into Fonts and Colors — that is the only time they are overwritten, so anything you retune by hand there survives until you change scheme again."/>
+
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,12,0,0"
+                                   Text="These colours live in the same place: Tools &#x2192; Options &#x2192; Environment &#x2192; Fonts and Colors, under &quot;SQLExtended Comment&quot;."/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -73,6 +73,19 @@ public partial class SQLExtendedSettingsDialog : Window
             ChkCommitOnSpace.IsChecked = _settings.CommitOnSpace;
             ChkRecaseKeywords.IsChecked = _settings.RecaseKeywordsWhileTyping;
             ChkCamelCase.IsChecked = _settings.CamelCaseMatching;
+
+            // Editor — rainbow parentheses. The combo starts at 2 colours, so index 0 is 2.
+            ChkRainbowParens.IsChecked = _settings.RainbowParensEnabled;
+            CboRainbowLevels.SelectedIndex = Math.Min(Math.Max(_settings.RainbowParensLevels, 2), 7) - 2;
+            ChkRainbowUnmatched.IsChecked = _settings.RainbowParensHighlightUnmatched;
+            ChkRainbowBlocks.IsChecked = _settings.RainbowParensIncludeBlocks;
+            ChkCommentTags.IsChecked = _settings.CommentTagsEnabled;
+
+            // Items are the schemes themselves; the combo shows DisplayName via the ToString below, so a
+            // scheme added to CommentThemes appears here without touching this file.
+            CboCommentScheme.ItemsSource = Comments.CommentThemes.All.Select(s => new SchemeItem(s)).ToList();
+            CboCommentScheme.SelectedItem = ((System.Collections.Generic.List<SchemeItem>)CboCommentScheme.ItemsSource)
+                .FirstOrDefault(i => i.Scheme == _settings.CommentScheme);
             ChkShowColumnType.IsChecked = _settings.ShowColumnTypeInfo;
             ChkShowRowCounts.IsChecked = _settings.ShowRowCounts;
 
@@ -170,6 +183,15 @@ public partial class SQLExtendedSettingsDialog : Window
         _settings.CamelCaseMatching = ChkCamelCase.IsChecked == true;
         _settings.ShowColumnTypeInfo = ChkShowColumnType.IsChecked == true;
         _settings.ShowRowCounts = ChkShowRowCounts.IsChecked == true;
+
+        // Editor
+        _settings.RainbowParensEnabled = ChkRainbowParens.IsChecked == true;
+        _settings.RainbowParensLevels = Math.Max(0, CboRainbowLevels.SelectedIndex) + 2;
+        _settings.RainbowParensHighlightUnmatched = ChkRainbowUnmatched.IsChecked == true;
+        _settings.RainbowParensIncludeBlocks = ChkRainbowBlocks.IsChecked == true;
+        _settings.CommentTagsEnabled = ChkCommentTags.IsChecked == true;
+        if (CboCommentScheme.SelectedItem is SchemeItem scheme)
+            _settings.CommentScheme = scheme.Scheme;
 
         // Cache
         _settings.AutoRefreshIntervalMinutes = ParseInt(TxtRefreshInterval.Text, 5);
@@ -939,4 +961,16 @@ internal sealed class PlaceholderDefaultItem : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler PropertyChanged;
+}
+
+/// <summary>
+/// One entry in the comment colour-scheme combo. A wrapper rather than binding the enum directly so the
+/// list shows the scheme's display name — the combo has no DisplayMemberPath, and an enum would show as
+/// "MonochromeRamp".
+/// </summary>
+internal sealed class SchemeItem(Comments.CommentScheme scheme)
+{
+    public Comments.CommentScheme Scheme { get; } = scheme;
+
+    public override string ToString() => Comments.CommentThemes.DisplayName(Scheme);
 }

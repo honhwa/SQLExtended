@@ -62,6 +62,62 @@ public sealed class SQLExtendedSettings
     /// </summary>
     public bool RecaseKeywordsWhileTyping { get; set; } = true;
 
+    // --- Editor: rainbow parentheses ---
+
+    /// <summary>
+    /// Colour parentheses in the query editor by nesting depth. The colours themselves live in
+    /// Tools → Options → Environment → Fonts and Colors ("SQLExtended Rainbow Parenthesis …"),
+    /// which is why there is no palette here.
+    /// </summary>
+    public bool RainbowParensEnabled { get; set; } = true;
+
+    /// <summary>
+    /// How many colours to cycle through before repeating. Clamped to 1..<c>RainbowPairScanner.MaxSupportedLevels</c>
+    /// when it is used, so a hand-edited settings file cannot put a nesting level outside the palette.
+    /// </summary>
+    public int RainbowParensLevels { get; set; } = 4;
+
+    /// <summary>
+    /// Tint a parenthesis that has no partner. Off leaves it in the editor's ordinary text colour —
+    /// worth having, because a script being typed is unbalanced most of the time.
+    /// </summary>
+    public bool RainbowParensHighlightUnmatched { get; set; } = true;
+
+    /// <summary>
+    /// Also colour BEGIN/END, CASE/END and the TRY/CATCH forms by nesting depth, on their own depth
+    /// counter. Off by default: it doubles what is coloured in procedural code, which not everyone wants.
+    /// BEGIN TRAN and BEGIN DIALOG are deliberately excluded — neither is closed by END.
+    /// </summary>
+    public bool RainbowParensIncludeBlocks { get; set; } = false;
+
+    // --- Editor: comment tags ---
+
+    /// <summary>
+    /// Colour comments that open with <c>!</c>, <c>?</c>, <c>todo</c> or <c>*</c> apart from ordinary ones,
+    /// and pick apart a banner header — dimming its rules of stars and dashes, colouring its headings.
+    /// The colours live in Tools → Options → Environment → Fonts and Colors ("SQLExtended Comment …"),
+    /// which is why — as with the rainbow parentheses — there is no palette here.
+    /// </summary>
+    public bool CommentTagsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Which colour scheme to write into Fonts and Colors. See <c>CommentThemes</c> for what each one is
+    /// after; each ships a dark and a light variant, chosen from the editor background rather than from the
+    /// theme's name, so a hand-edited theme still gets the right one.
+    /// </summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public Comments.CommentScheme CommentScheme { get; set; } = Comments.CommentScheme.StructuralFade;
+
+    /// <summary>
+    /// The scheme and variant last written to Fonts and Colors, as <c>Scheme/dark</c>.
+    ///
+    /// <para>This is what makes hand-tuning survive. A scheme is only written when this does not match what
+    /// is wanted — so once on first run, on a deliberate scheme change, and on a dark/light switch. Recolour
+    /// an entry by hand and nothing rewrites it, because nothing here has changed. Clearing this field
+    /// forces the scheme to be applied again, which is the way back from a hand-tuning that went wrong.</para>
+    /// </summary>
+    public string CommentSchemeApplied { get; set; } = "";
+
     // --- Schema Cache ---
 
     public int AutoRefreshIntervalMinutes { get; set; } = 5;
@@ -436,8 +492,18 @@ public sealed class SQLExtendedSettings
         return new SQLExtendedSettings();
     }
 
+    /// <summary>
+    /// Raised after <see cref="Save"/> has replaced <see cref="Current"/>, for the features that hold live
+    /// state built from these settings and would otherwise keep showing the old ones until SSMS restarted
+    /// (the editor taggers). Handlers run on the saving thread — the settings dialog's OK, so the UI thread —
+    /// and <b>must unsubscribe</b>: this is static, so a subscriber that does not outlives its own window.
+    /// </summary>
+    public static event EventHandler Changed;
+
     public void Save()
     {
+        bool saved = false;
+
         try
         {
             Directory.CreateDirectory(SettingsDir);
@@ -446,10 +512,24 @@ public sealed class SQLExtendedSettings
 
             // Refresh the hot-path cache so saved changes take effect without an SSMS restart.
             _current = this;
+            saved = true;
         }
         catch
         {
             // Best effort
+        }
+
+        if (!saved) return;
+
+        // Outside the catch above, and in its own: a subscriber that throws would otherwise be
+        // indistinguishable from the write itself failing.
+        try
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch
+        {
+            // A listener that cannot refresh is not a reason to lose the save.
         }
     }
 
