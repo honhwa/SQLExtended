@@ -18,8 +18,9 @@
        installs cleanly and then nags forever, which is exactly the bug this release process replaced.
     4. Writes version.json.
     5. Creates the release with `gh` and uploads SQLExtended-<version>.vsix + version.json.
-    6. Uploads the same .vsix to www.vsixgallery.com, if a manage token is available. Optional, non-fatal,
-       and not what the extension's own update check reads — see .PARAMETER GalleryToken.
+    6. Uploads the same .vsix to both VSIX galleries — www.vsixgallery.com and ssmsgallery.azurewebsites.net
+       — each one if its manage token is available. Optional, non-fatal, and not what the extension's own
+       update check reads — see .PARAMETER GalleryToken.
 
   version.json is uploaded under a fixed name so the feed URL
   (…/releases/latest/download/version.json) always resolves to the newest release's copy. The .vsix
@@ -56,13 +57,19 @@
   still run, so a stale container is rejected rather than published.
 
 .PARAMETER GalleryToken
-  The X-Manage-Token for www.vsixgallery.com. Defaults to $env:VSIXGALLERY_TOKEN; when neither is set the
-  gallery step is skipped rather than uploaded untokened, because the gallery mints a token on an
-  untokened first upload and shows it only in the response of that one request — lose it and the listing
-  can't be managed again. The token is yours to choose: any string, sent with every upload.
+  The X-Manage-Token for www.vsixgallery.com. Defaults to $env:VSIXGALLERY_TOKEN; when neither is set that
+  gallery is skipped rather than uploaded untokened, because a gallery mints a token on an untokened first
+  upload and shows it only in the response of that one request — lose it and the listing can't be managed
+  again. The token is yours to choose: any string, sent with every upload.
+
+.PARAMETER SsmsGalleryToken
+  The same thing for ssmsgallery.azurewebsites.net, defaulting to $env:SSMSGALLERY_TOKEN. **A separate
+  token for a separate listing**: the two galleries run the same server against different databases, so
+  neither token works on the other host and each is minted once, by that host's first upload. Skipped
+  independently of www.vsixgallery.com when it is missing.
 
 .PARAMETER NoGallery
-  Skip the gallery upload and publish the GitHub release only. Also implied by -Draft, since a gallery
+  Skip both gallery uploads and publish the GitHub release only. Also implied by -Draft, since a gallery
   upload is public the moment it lands and a draft release deliberately is not.
 
 .EXAMPLE
@@ -83,6 +90,7 @@ param(
     [switch] $SkipBuild,
     [switch] $NoPublish,
     [string] $GalleryToken,
+    [string] $SsmsGalleryToken,
     [switch] $NoGallery
 )
 
@@ -286,43 +294,59 @@ Invoke-Native { gh @ghArgs } | Out-Host
 if ($LASTEXITCODE -ne 0) { Fail 'gh release create failed.' }
 
 # ---------------------------------------------------------------------------------------------------
-# 6. VSIX Gallery
+# 6. The VSIX galleries
 # ---------------------------------------------------------------------------------------------------
-# www.vsixgallery.com is a second, optional distribution channel: one multipart POST to /api/upload, no
-# account, no review queue. It matters for two reasons — it renders a public details page (README, tags,
-# version history) that a GitHub release does not, and it exposes a per-extension Atom feed users can
-# paste into Tools > Options > Environment > Extensions, which is the only way an update ever shows up in
-# SSMS's own Manage Extensions > Updates list. It does not replace the version.json feed above, and the
-# extension does not read it.
+# A gallery is a second, optional distribution channel: one multipart POST to /api/upload, no account, no
+# review queue. It matters for two reasons — it renders a public details page (README, tags, version
+# history) that a GitHub release does not, and it exposes a per-extension Atom feed users can paste into
+# Tools > Options > Environment > Extensions, which is the only way an update ever shows up in SSMS's own
+# Manage Extensions > Updates list. It does not replace the version.json feed above, and the extension
+# does not read it.
+#
+# There are two of them and we publish to both: www.vsixgallery.com is the general VS/SSMS gallery, and
+# ssmsgallery.azurewebsites.net lists SSMS extensions only and is what the SSMS Extension Manager installs
+# and updates from. **They are one codebase over two databases** — separate listings, separate manage
+# tokens, and an upload to one does nothing for the other. Hence a loop and two tokens rather than two
+# URLs: each is skipped or retried on its own, because a missing token on one says nothing about the
+# other. (The SSMS gallery's dev guide prints www.vsixgallery.com as its endpoint; it is the parent
+# site's guide with the branding swapped, and following it uploads to the wrong host.)
 #
 # The upload itself lives in publish-to-gallery.ps1 so a failure here can be retried with one short
 # command instead of a hand-assembled multipart request.
 #
-# Deliberately last, and deliberately non-fatal. The GitHub release is the release; if the gallery is
-# down or the token is wrong, that must not read as a failed publish.
+# Deliberately last, and deliberately non-fatal. The GitHub release is the release; if a gallery is down
+# or a token is wrong, that must not read as a failed publish.
 if ($NoGallery) {
-    Step 'Skipping VSIX Gallery (-NoGallery)'
+    Step 'Skipping the VSIX galleries (-NoGallery)'
 } elseif ($Draft) {
-    # There is no such thing as a draft on the gallery: an upload is live immediately, which would
+    # There is no such thing as a draft on a gallery: an upload is live immediately, which would
     # advertise a version the GitHub feed is deliberately still hiding.
-    Step 'Skipping VSIX Gallery (draft release)'
+    Step 'Skipping the VSIX galleries (draft release)'
     Write-Host '  A gallery upload is public the moment it lands; a draft is not. Re-run after publishing.' -ForegroundColor Yellow
 } else {
-    Step 'Publishing to VSIX Gallery'
+    Step 'Publishing to the VSIX galleries'
 
-    $galleryToken = if ($GalleryToken) { $GalleryToken } else { $env:VSIXGALLERY_TOKEN }
     $galleryScript = Join-Path $PSScriptRoot 'publish-to-gallery.ps1'
-    if (-not $galleryToken) {
-        Write-Host '  Skipped: no -GalleryToken and no $env:VSIXGALLERY_TOKEN.' -ForegroundColor Yellow
-        Write-Host '  The gallery mints a manage token on an untokened first upload and never shows it again, so' -ForegroundColor Yellow
-        Write-Host '  uploading without one can cost the ability to manage the listing. See Deployment.md section 7.' -ForegroundColor Yellow
-    } else {
+    $vsixGalleryToken = if ($GalleryToken) { $GalleryToken } else { $env:VSIXGALLERY_TOKEN }
+    $ssmsGalleryToken = if ($SsmsGalleryToken) { $SsmsGalleryToken } else { $env:SSMSGALLERY_TOKEN }
+    $galleries = @(
+        @{ Gallery = 'VsixGallery'; Host = 'www.vsixgallery.com';           Token = $vsixGalleryToken; TokenVar = 'VSIXGALLERY_TOKEN'; Param = '-GalleryToken' }
+        @{ Gallery = 'SsmsGallery'; Host = 'ssmsgallery.azurewebsites.net'; Token = $ssmsGalleryToken; TokenVar = 'SSMSGALLERY_TOKEN'; Param = '-SsmsGalleryToken' }
+    )
+
+    foreach ($gallery in $galleries) {
+        if (-not $gallery.Token) {
+            Write-Host "  Skipped $($gallery.Host): no $($gallery.Param) and no `$env:$($gallery.TokenVar)." -ForegroundColor Yellow
+            Write-Host '  A gallery mints a manage token on an untokened first upload and never shows it again, so' -ForegroundColor Yellow
+            Write-Host '  uploading without one can cost the ability to manage the listing. See Deployment.md section 7.' -ForegroundColor Yellow
+            continue
+        }
         try {
-            & $galleryScript -Vsix $vsixAsset -Token $galleryToken -Repo $Repo | Out-Null
+            & $galleryScript -Vsix $vsixAsset -Gallery $gallery.Gallery -Token $gallery.Token -Repo $Repo | Out-Null
         } catch {
-            Write-Warning "VSIX Gallery upload failed: $($_.Exception.Message)"
-            Write-Warning 'The GitHub release is published and unaffected. Retry the gallery alone with:'
-            Write-Warning "  .\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix '$vsixAsset'"
+            Write-Warning "$($gallery.Host) upload failed: $($_.Exception.Message)"
+            Write-Warning 'The GitHub release is published and unaffected. Retry that gallery alone with:'
+            Write-Warning "  .\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix '$vsixAsset' -Gallery $($gallery.Gallery)"
         }
     }
 }

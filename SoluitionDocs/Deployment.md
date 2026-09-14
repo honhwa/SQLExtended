@@ -133,7 +133,7 @@ leading BOM defensively in case a future publisher gets it wrong.
 # Explicit version and notes
 .\SoluitionDocs\Tools\publish-release.ps1 -Version 2026.9.1.900 -NotesFile .\notes.md
 
-# Skip the VSIX Gallery upload and publish the GitHub release only
+# Skip both gallery uploads and publish the GitHub release only
 .\SoluitionDocs\Tools\publish-release.ps1 -NoGallery
 
 # A fix nobody may skip
@@ -143,8 +143,9 @@ leading BOM defensively in case a future publisher gets it wrong.
 Needs the GitHub CLI (`gh auth login`) and, for the build, SSMS 22 installed. Commit the `version.txt`
 bump afterwards so the tag and the tree agree.
 
-The same `.vsix` is also pushed to www.vsixgallery.com as a second channel, which needs
-`$env:VSIXGALLERY_TOKEN` set — see §7. That step is skipped, not failed, when the token is missing.
+The same `.vsix` is also pushed to **both** VSIX galleries as second channels, which needs
+`$env:VSIXGALLERY_TOKEN` and `$env:SSMSGALLERY_TOKEN` set — see §7. Each is skipped, not failed, when its
+own token is missing, and neither token is the other's.
 
 Release notes default to `Build <version>`. **Nothing is extracted from `release-notes.md`
 automatically** — each entry in that file is one long unstructured block, so "the first paragraph" of it is
@@ -233,37 +234,57 @@ The manifest targets `Microsoft.VisualStudio.Ssms` `[22.0,)` — that machine ha
 
 ---
 
-## 7. VSIX Gallery
+## 7. The VSIX galleries
 
-[www.vsixgallery.com](https://www.vsixgallery.com/) (Open VSIX Gallery) is a free, unmoderated host for
-VS/SSMS extensions: no account, no publisher registration, no review queue. Step 6 of
-`publish-release.ps1` uploads there after the GitHub release succeeds.
+A VSIX gallery is a free, unmoderated host for extensions: no account, no publisher registration, no
+review queue. Step 6 of `publish-release.ps1` uploads to **two of them** after the GitHub release
+succeeds:
+
+| Gallery | `-Gallery` | Token | What it is |
+|---------|-----------|-------|------------|
+| [www.vsixgallery.com](https://www.vsixgallery.com/) | `VsixGallery` (default) | `$env:VSIXGALLERY_TOKEN` | Open VSIX Gallery, the general VS/SSMS one |
+| [ssmsgallery.azurewebsites.net](https://ssmsgallery.azurewebsites.net/) | `SsmsGallery` | `$env:SSMSGALLERY_TOKEN` | Open SSMS VSIX Gallery, SSMS extensions only |
+
+**They are the same server (`madskristensen/VsixGallery`) over two different databases.** Same API, same
+manifest handling, same badge and feed routes — and entirely separate listings, version histories and
+manage tokens. Publishing to one lists nothing on the other; before the second was wired in, our id
+returned `200` on www.vsixgallery.com and `404` on ssmsgallery.azurewebsites.net. The SSMS one is also
+what the **SSMS Extension Manager** (linked from its front page) installs and updates from, which is the
+reason to be on it at all.
 
 It is a **second channel, not the feed.** The extension's own update check still reads
-`releases/latest/download/version.json` from GitHub and knows nothing about the gallery. Two things the
+`releases/latest/download/version.json` from GitHub and knows nothing about either gallery. Two things a
 gallery adds that a GitHub release cannot:
 
 - A rendered details page — README, tags, description, version history, download count — at
-  `https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/`, plus a version
-  badge for the README.
+  `/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/` on each host, plus a version badge
+  for the README.
 - A **per-extension** Atom feed at
-  `https://www.vsixgallery.com/feed/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890`, which
-  users paste into **Tools → Options → Environment → Extensions → Additional Extension Galleries**. That
-  is the mechanism §5's *note on true in-IDE updating* describes, and this is the closest thing to it that
-  exists without hosting a feed ourselves. Use the per-extension URL, not the gallery-wide
-  `https://www.vsixgallery.com/feed/` — the latter carries *every* extension on the gallery, and
-  registering it turns someone's Manage Extensions list into the whole gallery.
+  `/feed/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890`, which users paste into
+  **Tools → Options → Environment → Extensions → Additional Extension Galleries**. That is the mechanism
+  §5's *note on true in-IDE updating* describes, and this is the closest thing to it that exists without
+  hosting a feed ourselves. Use the per-extension URL, not the gallery-wide `/feed/` — the latter
+  carries *every* extension on that gallery, and registering it turns someone's Manage Extensions list
+  into the whole gallery.
 
 ### The whole API
 
 One `POST` to `/api/upload`, **as `multipart/form-data` with the `.vsix` in a file field** —
-`publish-to-gallery.ps1` is that request and nothing else:
+`publish-to-gallery.ps1` is that request and nothing else. `-Gallery` picks the host; everything else is
+identical between them:
 
 ```powershell
 .\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-2026.8.27.2011.vsix
+.\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-2026.8.27.2011.vsix -Gallery SsmsGallery
 ```
 
-**The gallery's own dev guide is wrong about the body.** It says to POST the `.vsix` "as the request
+**The SSMS gallery's dev guide prints the wrong host.** Every endpoint on
+<https://ssmsgallery.azurewebsites.net/devguide> — upload URL, badge URL, the GitHub Action it recommends
+— says `www.vsixgallery.com`, because the page is the parent site's guide with the branding swapped and
+the URLs left behind. Follow it literally and you re-publish to the gallery you are already on, get a
+`200`, and are still not listed on the SSMS one. POST to the host you want to appear on.
+
+**Both dev guides are wrong about the body.** It says to POST the `.vsix` "as the request
 body"; doing that returns `500` with
 
 > This request does not have a Content-Type header. Forms are available from requests with bodies like
@@ -289,17 +310,22 @@ Optional query parameters, all set by the script: `repo`, `issuetracker`, `readm
 Uploads are authenticated by an `X-Manage-Token` header whose value **we choose** — any string. It is
 stored against the extension on first upload and must be sent with every upload afterwards.
 
-**Set it before the first upload.** An untokened first upload makes the gallery mint one and return it in
+**One token per gallery, and they are not interchangeable** — separate databases, separate listings,
+separate tokens. Each host mints its own on its own first upload.
+
+**Set it before the first upload.** An untokened first upload makes that gallery mint one and return it in
 that single response; miss it and the listing can never be managed or replaced. The script therefore skips
-the gallery step entirely when no token is available rather than uploading without one.
+a gallery entirely when its token is unavailable rather than uploading without one — so the first
+upload to a *new* gallery only happens once its variable is set, deliberately.
 
 ```powershell
-# Machine-persistent, so publish-release.ps1 picks it up without -GalleryToken
+# Machine-persistent, so publish-release.ps1 picks them up without -GalleryToken/-SsmsGalleryToken
 [Environment]::SetEnvironmentVariable('VSIXGALLERY_TOKEN', '<a long random string>', 'User')
+[Environment]::SetEnvironmentVariable('SSMSGALLERY_TOKEN', '<a different long random string>', 'User')
 ```
 
-Keep it wherever the repo's other secrets live — it is not in the repo, and the only recovery from losing
-it is the gallery's management page at `/extension/<id>/manage`, which itself wants the token.
+Keep them wherever the repo's other secrets live — they are not in the repo, and the only recovery from
+losing one is that gallery's management page at `/extension/<id>/manage`, which itself wants the token.
 
 ### Uploading outside a release
 
@@ -308,6 +334,7 @@ created by `publish-to-gallery.ps1` against an already-released container:
 
 ```powershell
 .\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-<version>.vsix
+.\SoluitionDocs\Tools\publish-to-gallery.ps1 -Vsix .\artifacts\SQLExtended-<version>.vsix -Gallery SsmsGallery
 ```
 
 Point it at the `.vsix` that was **released**, not a rebuild. A rebuild of the same version is not the same
@@ -316,20 +343,26 @@ bytes, and the gallery's download and the GitHub asset for one version should no
 
 ### The README badge
 
-Live, and in `README.md`:
+Both are live, and both are in `README.md`:
 
 ```markdown
 [![VSIX Gallery](https://www.vsixgallery.com/badge/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890.svg)](https://www.vsixgallery.com/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/)
+[![SSMS VSIX Gallery](https://ssmsgallery.azurewebsites.net/badge/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890.svg)](https://ssmsgallery.azurewebsites.net/extension/SQLExtended.f1e2d3c4-a5b6-7890-abcd-ef1234567890/)
 ```
 
-The badge renders the current gallery version, so it goes stale only if an upload is skipped. The gallery's
-⚙ Actions menu offers the same snippet.
+Each badge renders that gallery's current version, so it goes stale only if that upload is skipped —
+which is the useful part: two badges showing different versions means one host was skipped or failed. A
+gallery's ⚙ Actions menu offers the same snippet. **A badge goes in only once its listing exists**, or it
+renders as a broken image on the repo's front page; the SSMS one was added right after that host's first
+upload, on 2026-09-14.
 
-### Skipping it
+### Skipping them
 
-`-NoGallery` skips the upload; `-Draft` implies it, because a gallery upload is public the moment it lands
-while a draft release deliberately is not. A gallery failure is a **warning, never a failure** — the GitHub
-release is the release, and the warning prints the `publish-to-gallery.ps1` line to retry it on its own.
+`-NoGallery` skips both uploads; `-Draft` implies it, because a gallery upload is public the moment it
+lands while a draft release deliberately is not. A gallery failure is a **warning, never a failure** — the
+GitHub release is the release, and the warning prints the `publish-to-gallery.ps1` line, with the right
+`-Gallery`, to retry that one on its own. The two are independent: one host being down or untokened
+neither skips nor fails the other.
 
 ---
 
