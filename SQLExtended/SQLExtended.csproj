@@ -64,15 +64,11 @@
 
   <!-- Visual Studio SDK packages -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.25.0" />
+    <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.36.0" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
-    <PackageReference
-      Include="Microsoft.VSSDK.BuildTools"
-      Version="18.5.40034"
-      PrivateAssets="all"
-    />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
-    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.18.1" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.107.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
     <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
@@ -107,32 +103,22 @@
        is older than every release, so every machine is offered an update it already has. Testing for the
        file (and for an explicit -p:Version=) is the only test that actually distinguishes the cases. -->
   <Target Name="ValidateVersionSource" BeforeTargets="MergeVsixManifestFile;GetAssemblyVersion">
-    <Error Condition="'$(_VersionPassedIn)' != 'true' AND !Exists('$(_VersionFile)')"
-           Text="No version to build with: '$(_VersionFile)' does not exist and no -p:Version= was passed. The build would fall back to the SDK's 1.0.0, which is older than every published release — so the update InfoBar would offer this build an update it already has, on every machine, forever." />
+    <Error Condition="'$(_VersionPassedIn)' != 'true' AND !Exists('$(_VersionFile)')" Text="No version to build with: '$(_VersionFile)' does not exist and no -p:Version= was passed. The build would fall back to the SDK's 1.0.0, which is older than every published release — so the update InfoBar would offer this build an update it already has, on every machine, forever." />
   </Target>
 
-  <Target Name="StampVsixVersion"
-          AfterTargets="MergeVsixManifestFile"
-          BeforeTargets="DetokenizeVsixManifestFile"
-          Condition="'$(Version)' != '' AND Exists('$(IntermediateMergedVsixManifest)')">
+  <Target Name="StampVsixVersion" AfterTargets="MergeVsixManifestFile" BeforeTargets="DetokenizeVsixManifestFile" Condition="'$(Version)' != '' AND Exists('$(IntermediateMergedVsixManifest)')">
     <PropertyGroup>
       <_VsixNs>&lt;Namespace Prefix="v" Uri="http://schemas.microsoft.com/developer/vsx-schema/2011" /&gt;</_VsixNs>
       <_VsixIdentityVersionXPath>/v:PackageManifest/v:Metadata/v:Identity/@Version</_VsixIdentityVersionXPath>
     </PropertyGroup>
 
-    <XmlPoke XmlInputPath="$(IntermediateMergedVsixManifest)"
-             Namespaces="$(_VsixNs)"
-             Query="$(_VsixIdentityVersionXPath)"
-             Value="$(Version)" />
+    <XmlPoke XmlInputPath="$(IntermediateMergedVsixManifest)" Namespaces="$(_VsixNs)" Query="$(_VsixIdentityVersionXPath)" Value="$(Version)" />
 
-    <XmlPeek XmlInputPath="$(IntermediateMergedVsixManifest)"
-             Namespaces="$(_VsixNs)"
-             Query="$(_VsixIdentityVersionXPath)">
+    <XmlPeek XmlInputPath="$(IntermediateMergedVsixManifest)" Namespaces="$(_VsixNs)" Query="$(_VsixIdentityVersionXPath)">
       <Output TaskParameter="Result" PropertyName="_StampedVsixVersion" />
     </XmlPeek>
 
-    <Error Condition="'$(_StampedVsixVersion)' != '$(Version)'"
-           Text="StampVsixVersion failed: the .vsix manifest reports '$(_StampedVsixVersion)' but the build is version '$(Version)'. The Identity/@Version XPath no longer matches $(IntermediateMergedVsixManifest)." />
+    <Error Condition="'$(_StampedVsixVersion)' != '$(Version)'" Text="StampVsixVersion failed: the .vsix manifest reports '$(_StampedVsixVersion)' but the build is version '$(Version)'. The Identity/@Version XPath no longer matches $(IntermediateMergedVsixManifest)." />
 
     <Message Importance="high" Text="StampVsixVersion: .vsix Identity Version set to $(_StampedVsixVersion)" />
   </Target>
@@ -142,11 +128,8 @@
        licence in the tree; LICENSE.txt here is gitignored. Runs before PrepareForBuild so the file exists
        by the time the VSSDK checks the file list (VSSDK1310) and long before the container is zipped. -->
   <Target Name="StageLicenseForVsix" BeforeTargets="PrepareForBuild">
-    <Error Condition="!Exists('$(MSBuildProjectDirectory)\..\LICENSE')"
-           Text="No LICENSE at the repo root. Metadata/License in source.extension.vsixmanifest names LICENSE.txt inside the container, and the build has nothing to put there." />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\LICENSE"
-          DestinationFiles="$(ProjectDir)LICENSE.txt"
-          SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\..\LICENSE')" Text="No LICENSE at the repo root. Metadata/License in source.extension.vsixmanifest names LICENSE.txt inside the container, and the build has nothing to put there." />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\LICENSE" DestinationFiles="$(ProjectDir)LICENSE.txt" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- A name in _SqlClientRuntimeDependency that no longer lands in the output directory means the closure
@@ -163,71 +146,28 @@
       <_MissingSqlClientDependency Include="@(_SqlClientRuntimeDependency)" Condition="!Exists('$(TargetDir)%(Identity).dll')" />
     </ItemGroup>
 
-    <Error Condition="'@(_MissingSqlClientDependency)' != ''"
-           Text="Microsoft.Data.SqlClient's shipped runtime closure is incomplete: @(_MissingSqlClientDependency, ', ') is listed in _SqlClientRuntimeDependency but was not produced in $(TargetDir). Packing the .vsix without it leaves SqlConnection's static constructor to throw FileNotFoundException on any SSMS build whose SSMS.exe.config does not redirect that assembly far enough. Re-derive the list in SQLExtended.csproj from Microsoft.Data.SqlClient.dll's GetReferencedAssemblies()." />
+    <Error Condition="'@(_MissingSqlClientDependency)' != ''" Text="Microsoft.Data.SqlClient's shipped runtime closure is incomplete: @(_MissingSqlClientDependency, ', ') is listed in _SqlClientRuntimeDependency but was not produced in $(TargetDir). Packing the .vsix without it leaves SqlConnection's static constructor to throw FileNotFoundException on any SSMS build whose SSMS.exe.config does not redirect that assembly far enough. Re-derive the list in SQLExtended.csproj from Microsoft.Data.SqlClient.dll's GetReferencedAssemblies()." />
   </Target>
 
   <Target Name="CopyToSsms" AfterTargets="Build">
     <MakeDir Directories="$(SsmsExtDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
-    <Copy
-      SourceFiles="$(TargetDir)$(TargetName).pkgdef"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)$(TargetName).pkgdef')"
-    />
-    <Copy
-      SourceFiles="$(ProjectDir)extension.vsixmanifest"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(ProjectDir)extension.vsixmanifest')"
-    />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pkgdef" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)$(TargetName).pkgdef')" />
+    <Copy SourceFiles="$(ProjectDir)extension.vsixmanifest" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(ProjectDir)extension.vsixmanifest')" />
     <!-- The manifest's Icon/PreviewImage are paths relative to the extension folder, so an xcopy deploy
          needs Resources\ alongside it or Manage Extensions has nothing to draw. Same for License. -->
-    <Copy
-      SourceFiles="$(ProjectDir)Resources\icon.png;$(ProjectDir)Resources\preview.png"
-      DestinationFolder="$(SsmsExtDir)\Resources"
-    />
-    <Copy
-      SourceFiles="$(ProjectDir)LICENSE.txt"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(ProjectDir)LICENSE.txt')"
-    />
+    <Copy SourceFiles="$(ProjectDir)Resources\icon.png;$(ProjectDir)Resources\preview.png" DestinationFolder="$(SsmsExtDir)\Resources" />
+    <Copy SourceFiles="$(ProjectDir)LICENSE.txt" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(ProjectDir)LICENSE.txt')" />
     <!-- The same closure the .vsix carries. The xcopy deploy has to match it or an F5 into SSMS binds
          against whatever the shell happens to provide, which is exactly the difference that hides a
          missing dependency on the dev box until someone on an older SSMS installs the .vsix. -->
-    <Copy
-      SourceFiles="@(_SqlClientRuntimeDependency->'$(TargetDir)%(Identity).dll')"
-      DestinationFolder="$(SsmsExtDir)"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)Newtonsoft.Json.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)System.Data.SQLite.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)System.Data.SQLite.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)x64\SQLite.Interop.dll"
-      DestinationFolder="$(SsmsExtDir)\x64"
-      Condition="Exists('$(TargetDir)x64\SQLite.Interop.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)x86\SQLite.Interop.dll"
-      DestinationFolder="$(SsmsExtDir)\x86"
-      Condition="Exists('$(TargetDir)x86\SQLite.Interop.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)ICSharpCode.AvalonEdit.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)ICSharpCode.AvalonEdit.dll')"
-    />
+    <Copy SourceFiles="@(_SqlClientRuntimeDependency->'$(TargetDir)%(Identity).dll')" DestinationFolder="$(SsmsExtDir)" />
+    <Copy SourceFiles="$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll')" />
+    <Copy SourceFiles="$(TargetDir)Newtonsoft.Json.dll" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')" />
+    <Copy SourceFiles="$(TargetDir)System.Data.SQLite.dll" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)System.Data.SQLite.dll')" />
+    <Copy SourceFiles="$(TargetDir)x64\SQLite.Interop.dll" DestinationFolder="$(SsmsExtDir)\x64" Condition="Exists('$(TargetDir)x64\SQLite.Interop.dll')" />
+    <Copy SourceFiles="$(TargetDir)x86\SQLite.Interop.dll" DestinationFolder="$(SsmsExtDir)\x86" Condition="Exists('$(TargetDir)x86\SQLite.Interop.dll')" />
+    <Copy SourceFiles="$(TargetDir)ICSharpCode.AvalonEdit.dll" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)ICSharpCode.AvalonEdit.dll')" />
   </Target>
 
   <ItemGroup>
@@ -420,20 +360,11 @@
 	     makes SSMS treat "Menus.ctmenu" as a native satellite DLL filename and fail with
 	     "CreateFile failed to open 'Menus.ctmenu' with error code 2". -->
   <Target Name="EnsurePkgDef" AfterTargets="Build" DependsOnTargets="GeneratePkgDef">
-    <Copy
-      SourceFiles="$(IntermediateOutputPath)$(TargetName).pkgdef"
-      DestinationFolder="$(OutputPath)"
-      Condition="Exists('$(IntermediateOutputPath)$(TargetName).pkgdef')"
-    />
+    <Copy SourceFiles="$(IntermediateOutputPath)$(TargetName).pkgdef" DestinationFolder="$(OutputPath)" Condition="Exists('$(IntermediateOutputPath)$(TargetName).pkgdef')" />
   </Target>
 
   <!-- SDK-style projects also don't chain CreateVsixContainer into Build automatically, so invoke it
 	     explicitly after Build. Running it here (rather than standalone) means OutDir/TargetName are set,
 	     so the container lands at $(OutputPath)$(TargetName).vsix instead of an unnamed ".vsix". -->
-  <Target
-    Name="EnsureVsixContainer"
-    AfterTargets="Build"
-    DependsOnTargets="CreateVsixContainer"
-    Condition="'$(CreateVsixContainer)' == 'true'"
-  />
+  <Target Name="EnsureVsixContainer" AfterTargets="Build" DependsOnTargets="CreateVsixContainer" Condition="'$(CreateVsixContainer)' == 'true'" />
 </Project>
