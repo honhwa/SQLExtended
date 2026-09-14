@@ -40,9 +40,9 @@
 		     F5 debugging into SSMS still works via StartProgram below. -->
     <CreateVsixContainer>true</CreateVsixContainer>
     <DeployExtension>false</DeployExtension>
-    <!-- Do NOT auto-pack every copy-local reference: that drags in the whole ~7MB SMO stack (plus
-		     SqlClient's transitive IdentityModel/Extensions/Bcl deps), all of which SSMS already provides.
-		     Instead we explicitly include only the managed deps the proven xcopy deployment shipped (below). -->
+    <!-- Do NOT auto-pack every copy-local reference: that drags in the whole ~7MB SMO stack, which SSMS
+		     genuinely does provide. Instead we explicitly include the managed deps below. SqlClient's own
+		     transitive closure is NOT in that "SSMS provides it" category — see _SqlClientRuntimeDependency. -->
     <IncludeCopyLocalReferencesInVSIXContainer>false</IncludeCopyLocalReferencesInVSIXContainer>
     <!-- SDK-style projects leave TemplateOutputDirectory undefined, which makes the VSSDK
 		     GenerateTemplatesManifest target fail with VSSDK1202. This project ships no item/project
@@ -149,6 +149,24 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- A name in _SqlClientRuntimeDependency that no longer lands in the output directory means the closure
+       moved under us — a package bump renamed or dropped an assembly. Left alone, the .vsix is packed
+       without it and the only symptom is a TypeInitializationException on someone else's machine, weeks
+       later, from whichever SSMS build does not redirect that far. Fail here instead. Declared before
+       CopyToSsms so it runs first and reports the name, rather than letting the Copy fail on a path.
+
+       The gap this cannot close is an *added* dependency: a new reference is not in the list to be missed.
+       After any Microsoft.Data.SqlClient bump, re-derive the list from the assembly itself rather than
+       trusting a green build. -->
+  <Target Name="ValidateSqlClientPayload" AfterTargets="Build" BeforeTargets="CreateVsixContainer">
+    <ItemGroup>
+      <_MissingSqlClientDependency Include="@(_SqlClientRuntimeDependency)" Condition="!Exists('$(TargetDir)%(Identity).dll')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_MissingSqlClientDependency)' != ''"
+           Text="Microsoft.Data.SqlClient's shipped runtime closure is incomplete: @(_MissingSqlClientDependency, ', ') is listed in _SqlClientRuntimeDependency but was not produced in $(TargetDir). Packing the .vsix without it leaves SqlConnection's static constructor to throw FileNotFoundException on any SSMS build whose SSMS.exe.config does not redirect that assembly far enough. Re-derive the list in SQLExtended.csproj from Microsoft.Data.SqlClient.dll's GetReferencedAssemblies()." />
+  </Target>
+
   <Target Name="CopyToSsms" AfterTargets="Build">
     <MakeDir Directories="$(SsmsExtDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
@@ -173,20 +191,12 @@
       DestinationFolder="$(SsmsExtDir)"
       Condition="Exists('$(ProjectDir)LICENSE.txt')"
     />
+    <!-- The same closure the .vsix carries. The xcopy deploy has to match it or an F5 into SSMS binds
+         against whatever the shell happens to provide, which is exactly the difference that hides a
+         missing dependency on the dev box until someone on an older SSMS installs the .vsix. -->
     <Copy
-      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.dll"
+      SourceFiles="@(_SqlClientRuntimeDependency->'$(TargetDir)%(Identity).dll')"
       DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.Extensions.Abstractions.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.Extensions.Abstractions.dll')"
-    />
-    <Copy
-      SourceFiles="$(TargetDir)Microsoft.Data.SqlClient.Internal.Logging.dll"
-      DestinationFolder="$(SsmsExtDir)"
-      Condition="Exists('$(TargetDir)Microsoft.Data.SqlClient.Internal.Logging.dll')"
     />
     <Copy
       SourceFiles="$(TargetDir)Microsoft.SqlServer.TransactSql.ScriptDom.dll"
@@ -249,32 +259,78 @@
     </VSCTCompile>
   </ItemGroup>
 
-  <!-- Explicit VSIX payload — only the managed deps the proven xcopy deployment shipped, plus the
-	     native SQLite interop (which is content, not a managed reference). Everything else the extension
-	     references (SMO, SqlClient's transitive deps, the VS SDK) is already present in SSMS, so packing
-	     it would only bloat the container and risk shadowing SSMS's own copies. Files are produced in the
+  <!-- Microsoft.Data.SqlClient's entire net48 runtime closure, shipped in the container.
+
+       This list is NOT optional padding and it is NOT "SSMS already has these". SqlClient 7.0.1 binds to
+       exact assembly versions — System.Diagnostics.DiagnosticSource 10.0.0.3, System.Text.Json 10.0.0.3,
+       Microsoft.IdentityModel.* 8.16.0.0 and so on — and on the machines where those loads succeed they
+       succeed only because that SSMS build happens to carry a bindingRedirect in SSMS.exe.config whose
+       oldVersion range reaches high enough. Nothing pins that range: it is raised, quietly, whenever
+       Microsoft refreshes the shell, so it is lower on every SSMS build older than the one you develop on.
+
+       When the range does not reach, the redirect does not apply, Fusion probes for the literal version,
+       finds nothing, and SqlConnection's *static constructor* throws FileNotFoundException — which surfaces
+       as a TypeInitializationException from the first line of SqlConnectionFactory.Create and takes down
+       every single feature here, because every one of them opens a connection. That is what SSMS 22.5.2
+       did with DiagnosticSource 10.0.0.3 while 22.10 was fine.
+
+       Shipping the exact versions removes the dependency on the host's redirect ceiling entirely:
+       [ProvideBindingPath] puts this folder on the probing path, so an unredirected load lands on our copy.
+       Where the host *does* redirect, its redirect still wins — a bindingRedirect is applied before any
+       probing — so SSMS keeps using its own assembly and these are simply never touched. The cost is ~3MB
+       in the container and the rule that this list must stay the full closure: see ValidateSqlClientPayload,
+       and re-derive it with `Assembly.ReflectionOnlyLoadFrom(...).GetReferencedAssemblies()` after any
+       Microsoft.Data.SqlClient bump. -->
+  <ItemGroup>
+    <_SqlClientRuntimeDependency Include="Microsoft.Data.SqlClient" />
+    <!-- SqlClient 7.x split these companion assemblies out of the main DLL. -->
+    <_SqlClientRuntimeDependency Include="Microsoft.Data.SqlClient.Extensions.Abstractions" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Data.SqlClient.Internal.Logging" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Bcl.AsyncInterfaces" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Bcl.Cryptography" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Bcl.TimeProvider" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.Caching.Abstractions" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.Caching.Memory" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.Logging.Abstractions" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.Options" />
+    <_SqlClientRuntimeDependency Include="Microsoft.Extensions.Primitives" />
+    <!-- The Entra path only. They load when a token is acquired, not on every connection, which is why a
+         missing one fails later and on fewer machines than DiagnosticSource does — not why it is safe. -->
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.Abstractions" />
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.JsonWebTokens" />
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.Logging" />
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.Protocols" />
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" />
+    <_SqlClientRuntimeDependency Include="Microsoft.IdentityModel.Tokens" />
+    <_SqlClientRuntimeDependency Include="System.IdentityModel.Tokens.Jwt" />
+    <_SqlClientRuntimeDependency Include="System.Buffers" />
+    <_SqlClientRuntimeDependency Include="System.Diagnostics.DiagnosticSource" />
+    <_SqlClientRuntimeDependency Include="System.IO.Pipelines" />
+    <_SqlClientRuntimeDependency Include="System.Memory" />
+    <_SqlClientRuntimeDependency Include="System.Numerics.Vectors" />
+    <_SqlClientRuntimeDependency Include="System.Runtime.CompilerServices.Unsafe" />
+    <_SqlClientRuntimeDependency Include="System.Security.Cryptography.Pkcs" />
+    <_SqlClientRuntimeDependency Include="System.Text.Encodings.Web" />
+    <_SqlClientRuntimeDependency Include="System.Text.Json" />
+    <_SqlClientRuntimeDependency Include="System.Threading.Channels" />
+    <_SqlClientRuntimeDependency Include="System.Threading.Tasks.Extensions" />
+  </ItemGroup>
+
+  <!-- Explicit VSIX payload — the managed deps the proven xcopy deployment shipped, the SqlClient closure
+	     above, and the native SQLite interop (which is content, not a managed reference). What is left out
+	     is SMO and the VS SDK, which SSMS really does provide at versions it redirects to itself; packing
+	     those would only bloat the container and risk shadowing SSMS's own copies. Files are produced in the
 	     output dir during build; CreateVsixContainer runs after build, so they exist when zipped. -->
   <ItemGroup>
     <!-- Link = the path inside the .vsix. Without it, an absolute Include is packed under its full
 		     source path instead of at the container root. Visible=false is display-only: Solution Explorer
 		     renders every Content item as a node, so without it these build-output DLLs show as phantom
 		     files at the project root (and the unlinked interop pair materialises a bin\ node in the tree). -->
-    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.dll">
+    <Content Include="@(_SqlClientRuntimeDependency->'$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\%(Identity).dll')">
       <IncludeInVSIX>true</IncludeInVSIX>
       <Visible>false</Visible>
-      <Link>Microsoft.Data.SqlClient.dll</Link>
-    </Content>
-    <!-- SqlClient 7.x split these companion assemblies out of the main DLL; SSMS does not provide them,
-		     so they must ship in the VSIX or SqlClient fails to load at runtime. -->
-    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.Extensions.Abstractions.dll">
-      <IncludeInVSIX>true</IncludeInVSIX>
-      <Visible>false</Visible>
-      <Link>Microsoft.Data.SqlClient.Extensions.Abstractions.dll</Link>
-    </Content>
-    <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.Data.SqlClient.Internal.Logging.dll">
-      <IncludeInVSIX>true</IncludeInVSIX>
-      <Visible>false</Visible>
-      <Link>Microsoft.Data.SqlClient.Internal.Logging.dll</Link>
+      <Link>%(Filename)%(Extension)</Link>
     </Content>
     <Content Include="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\Microsoft.SqlServer.TransactSql.ScriptDom.dll">
       <IncludeInVSIX>true</IncludeInVSIX>
