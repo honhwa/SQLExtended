@@ -281,12 +281,25 @@ if ($NoPublish) {
 
 Step "Creating release v$Version in $Repo"
 
+# --notes-file, never --notes. Windows PowerShell 5.1 builds a native command's argument string by
+# concatenation and does not escape a double quote inside a value, so release notes containing one arrive
+# at gh split into extra arguments: a build whose notes said "columns per line" died with
+# `no matches found for `per` — gh globbing a fragment of the sentence — after a full build, and with the
+# version already written to version.txt. Notes are prose and will contain quotes again. A file has no
+# quoting rules at all, and it carries newlines and UTF-8 intact, which --notes on 5.1 also does not.
+#
+# It lives in the staging directory but is NOT an asset: gh uploads only the positional file arguments
+# ($vsixAsset, $jsonAsset), and this is passed as a flag value. Written without a BOM for the same reason
+# version.json is - the body is posted verbatim and a leading U+FEFF would show at the top of the page.
+$notesFile = Join-Path $StageDir 'release-notes.txt'
+[System.IO.File]::WriteAllText($notesFile, $Notes, (New-Object System.Text.UTF8Encoding($false)))
+
 $ghArgs = @(
     'release', 'create', "v$Version",
     $vsixAsset, $jsonAsset,
     '--repo', $Repo,
     '--title', "SQLExtended $Version",
-    '--notes', $Notes
+    '--notes-file', $notesFile
 )
 if ($Draft) { $ghArgs += '--draft' }
 
