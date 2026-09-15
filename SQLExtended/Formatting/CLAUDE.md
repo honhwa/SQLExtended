@@ -72,7 +72,13 @@ T-SQL and merely not what was asked for (`FormatterListLayoutTests` pins each):
   `FindDerivedTableParen`: a `(SELECT` preceded by a table-reference keyword, which is what keeps it off
   `IN (SELECT …`, `EXISTS (SELECT …` and a scalar subquery in a SELECT list — all of which contain the same
   text and none of which is a table reference. The keyword test is **not anchored to the start of the
-  line**, because ScriptDom keeps an APPLY on the FROM line (`FROM A AS a CROSS APPLY (SELECT …`).
+  line**: ScriptDom used to keep an APPLY on the FROM line (`FROM A AS a CROSS APPLY (SELECT …`), and
+  anchoring would have missed every one. **180.107.0 changed that** — an APPLY now gets its own line,
+  indented to the column after `FROM ` (five spaces, not an indent unit) — so `JoinOrApplyLineStart` was
+  added for `ApplyAlignFromAndJoins` to pull it back to the FROM's column the way a JOIN already was.
+  Leave the test un-anchored anyway: it costs nothing and the generator has now moved this once.
+  APPLY is deliberately **not** in `JoinLineStart`, which drives `ApplyJoinOnSameLine` — matching there
+  means "awaiting an ON", and an APPLY has none to await.
 - **`AlignSetWithUpdate` is a post-pass, not ScriptDom's `IndentSetClause = false`.** That generator option
   does left-align SET, but it also re-flows the clause to its own "river" alignment (SET padded out to the
   item column) and follows neither `IndentSize` nor the tab setting. `ApplySetClauseAlignment` instead shifts

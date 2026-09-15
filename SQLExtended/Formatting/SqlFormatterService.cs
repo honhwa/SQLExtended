@@ -181,7 +181,14 @@ public class SqlFormatterService
             // Multiline lists
             MultilineSelectElementsList = _options.SelectColumnLayout != SelectColumnLayoutOption.SameLine,
             MultilineInsertSourcesList = true,
-            MultilineInsertTargetsList = true,
+            // Deliberately false, and not a preference: ApplyInsertWrapping owns the INSERT target list.
+            // It offers three bracket layouts ScriptDom cannot express (InsertOpenParenthesisOnSameLine,
+            // InsertParenthesesOnSameLine, neither) and packs InsertColumnsPerLine columns onto a line,
+            // and it does all of that by reading the list back off a *single* generated line. This was
+            // true with the flag on as well until ScriptDom 180.107.0, which started honouring it for
+            // targets — emitting one column per line, a shape none of those three cases matched, so the
+            // column-packing options silently stopped doing anything. Sources (VALUES) are unaffected.
+            MultilineInsertTargetsList = false,
             MultilineWherePredicatesList = _options.WhereConditionLayout == WhereConditionLayoutOption.NewLinePerCondition,
             MultilineViewColumnsList = _options.MultilineViewColumnsList,
 

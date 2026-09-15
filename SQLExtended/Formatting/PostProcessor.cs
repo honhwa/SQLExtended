@@ -1137,6 +1137,24 @@ public static class PostProcessor
         @"^(INNER\s+JOIN|LEFT\s+(OUTER\s+)?JOIN|RIGHT\s+(OUTER\s+)?JOIN|FULL\s+(OUTER\s+)?JOIN|CROSS\s+JOIN|JOIN)\s",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    /// <summary>
+    /// The same table-reference keywords plus CROSS/OUTER APPLY, for the alignment pass only.
+    ///
+    /// <para>APPLY is deliberately absent from <see cref="JoinLineStart"/>: that one drives
+    /// <see cref="ApplyJoinOnSameLine"/>, where matching marks the line as *awaiting an ON*, and an APPLY
+    /// has no ON to await. Sharing one regex would leave a stale flag for the next ON at that depth to be
+    /// merged onto the wrong line.</para>
+    ///
+    /// <para>ScriptDom did not start a line with APPLY until 180.107.0 — it kept it on the FROM line
+    /// (<c>FROM A AS a CROSS APPLY (SELECT …</c>), which is why the alignment pass never needed it. It now
+    /// breaks APPLY onto its own line and indents it to the column after <c>FROM </c> — five spaces, not an
+    /// indent unit — so without this the keyword sits on a column no setting here chose and a stacked
+    /// derived table hangs off it.</para>
+    /// </summary>
+    private static readonly Regex JoinOrApplyLineStart = new Regex(
+        @"^(INNER\s+JOIN|LEFT\s+(OUTER\s+)?JOIN|RIGHT\s+(OUTER\s+)?JOIN|FULL\s+(OUTER\s+)?JOIN|CROSS\s+JOIN|JOIN|CROSS\s+APPLY|OUTER\s+APPLY)\s",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     /// <summary>Clause keywords that end a JOIN's table reference, so an ON past one belongs to
     /// something else (or to nothing).</summary>
     private static readonly Regex JoinBlockBoundary = new Regex(
@@ -1663,8 +1681,8 @@ public static class PostProcessor
                 result.Add(line);
             }
 
-            // Align JOIN lines to match FROM indentation
-            else if (fromIndent != null && JoinLineStart.IsMatch(stripped))
+            // Align JOIN and APPLY lines to match FROM indentation
+            else if (fromIndent != null && JoinOrApplyLineStart.IsMatch(stripped))
             {
                 result.Add(fromIndent + stripped);
                 if (depth > lineDepth && !string.Equals(lineIndent, fromIndent, StringComparison.Ordinal) &&
@@ -2459,8 +2477,10 @@ public static class PostProcessor
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>The same keywords ending the text that precedes a "(". Not anchored to the start of the
-    /// line: ScriptDom keeps an APPLY on the FROM line ("FROM A AS a CROSS APPLY (SELECT …"), so requiring
-    /// the keyword at column zero would miss every CROSS/OUTER APPLY.</summary>
+    /// line: ScriptDom used to keep an APPLY on the FROM line ("FROM A AS a CROSS APPLY (SELECT …"), so
+    /// requiring the keyword at column zero would have missed every CROSS/OUTER APPLY. 180.107.0 gives the
+    /// APPLY its own line, so the anchored form would now match too — this stays un-anchored because it
+    /// costs nothing and the generator has already moved this once.</summary>
     private static readonly Regex TableRefKeywordBeforeParen = new Regex(
         @"(^|\s)(FROM|INNER\s+JOIN|LEFT\s+(OUTER\s+)?JOIN|RIGHT\s+(OUTER\s+)?JOIN|FULL\s+(OUTER\s+)?JOIN|CROSS\s+JOIN|JOIN|CROSS\s+APPLY|OUTER\s+APPLY)\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);

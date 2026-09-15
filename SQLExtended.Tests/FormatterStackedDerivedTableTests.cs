@@ -114,7 +114,12 @@ public class FormatterStackedDerivedTableTests
     {
         var result = Format("select a.Id from A a cross apply (select top 1 z from Z where Z.Id = a.Id order by z desc) zz");
 
-        Assert.Contains("FROM A AS a CROSS APPLY (\n", result);
+        // The APPLY gets its own line at the FROM's own column, exactly as a JOIN does. Until ScriptDom
+        // 180.107.0 it arrived on the FROM line and this asserted "FROM A AS a CROSS APPLY (" — that was
+        // pinning the generator's placement, not a decision made here. ScriptDom now breaks it onto its own
+        // line indented five spaces (the column after "FROM "), and the alignment pass pulls it back to a
+        // real indent, so what this asserts now is the alignment rather than whatever the generator did.
+        Assert.Contains("FROM A AS a\nCROSS APPLY (\n", result);
         Assert.Contains("\n) AS zz;", result);
     }
 
