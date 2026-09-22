@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -65,6 +65,7 @@ public partial class SqlSearchControl : UserControl
 
         Loaded += (s, e) =>
         {
+            ApplySearchDefaults();
             SearchTextBox.Focus();
             LoadServers();
         };
@@ -73,6 +74,28 @@ public partial class SqlSearchControl : UserControl
         {
             Dispatcher.BeginInvoke(new Action(() => UpdateConnectionInfo()));
         };
+    }
+
+    /// <summary>
+    /// The result cap for a search, from the Search tab. Clamped to at least 1: a hand-edited 0 in the
+    /// settings file would otherwise make every search return nothing, which reads as "no matches".
+    /// </summary>
+    private static int MaxResultsSetting() => Math.Max(1, SQLExtendedSettings.Current.DefaultMaxSearchResults);
+
+    /// <summary>
+    /// Applies the Search tab's defaults to the "Search in" boxes as the window opens.
+    ///
+    /// <para>Applied here rather than left to the XAML's <c>IsChecked="True"</c>, which is what made all
+    /// three settings inert. Only these three are defaults: the type filter and Agent jobs have no setting,
+    /// and anything the user changes during a session stays changed - the settings are the starting point,
+    /// not a policy, which is what "you can override them per search" in the dialog means.</para>
+    /// </summary>
+    private void ApplySearchDefaults()
+    {
+        var settings = SQLExtendedSettings.Current;
+        SearchObjectNamesCheck.IsChecked = settings.DefaultSearchObjectNames;
+        SearchColumnNamesCheck.IsChecked = settings.DefaultSearchColumnNames;
+        SearchDefinitionsCheck.IsChecked = settings.DefaultSearchDefinitions;
     }
 
     // --- Server / Database population ---
@@ -120,9 +143,12 @@ public partial class SqlSearchControl : UserControl
             if (ServerCombo.SelectedIndex < 0 && ServerCombo.Items.Count > 0)
                 ServerCombo.SelectedIndex = 0;
 
-            // SelectionChanged is suppressed while loading, so trigger the DB load ourselves when we
-            // either have a single server or a pending target whose database we want to pre-select.
-            if (ServerCombo.Items.Count == 1 || !string.IsNullOrEmpty(_pendingTargetDatabase))
+            // SelectionChanged is suppressed while loading, so whatever we just selected has to load its
+            // databases here - unconditionally. Gating this on a single server or a pending target left the
+            // ordinary first open (two or more connected servers, no Object Explorer target) with a server
+            // named in the combo and an empty database list, and reselecting the same item fires nothing:
+            // the only way out was to pick another server and come back.
+            if (ServerCombo.SelectedIndex >= 0)
                 LoadDatabasesForSelectedServer();
         }
         finally
@@ -131,6 +157,35 @@ public partial class SqlSearchControl : UserControl
         }
 
         UpdateConnectionInfo();
+    }
+
+    /// <summary>
+    /// Selects the databases the default scope asks for. <c>AllCachedDatabases</c> selects the lot, which is
+    /// what this always did; <c>CurrentDatabase</c> selects the one the active connection is pointing at.
+    ///
+    /// <para>Falls back to selecting all when the current database cannot be named or is not in the list -
+    /// which is the normal case when the chosen server is not the one the active query window is on. An
+    /// empty selection would be the literal reading of "current database" there, and it makes the window
+    /// open unable to search anything, reported as "Select at least one database" for a scope the user never
+    /// chose per search.</para>
+    /// </summary>
+    private void ApplyDefaultScope(List<string> databases)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (SQLExtendedSettings.Current.DefaultSearchScope == SearchScope.CurrentDatabase)
+        {
+            string current = null;
+            try { current = ConnectionHelper.GetCurrentDatabaseName(); } catch { }
+
+            if (!string.IsNullOrEmpty(current) && databases.Contains(current))
+            {
+                DatabaseList.SelectedItem = current;
+                return;
+            }
+        }
+
+        DatabaseList.SelectAll();
     }
 
     private void ServerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -186,13 +241,15 @@ public partial class SqlSearchControl : UserControl
                 foreach (string db in databases)
                     DatabaseList.Items.Add(db);
 
-                // Pre-select the pending target database (from the OE menu) when present; else select all.
+                // Pre-select the pending target database (from the OE menu) when present; else fall back to
+                // the default scope. A target chosen from Object Explorer is an explicit answer to the same
+                // question the setting answers by default, so it wins.
                 string pendingDb = _pendingTargetDatabase;
                 _pendingTargetDatabase = null;
                 if (!string.IsNullOrEmpty(pendingDb) && databases.Contains(pendingDb))
                     DatabaseList.SelectedItem = pendingDb;
                 else
-                    DatabaseList.SelectAll();
+                    ApplyDefaultScope(databases);
 
                 StatusText.Text = $"{databases.Count} database(s) found";
             }));
@@ -323,7 +380,7 @@ public partial class SqlSearchControl : UserControl
             SearchObjectNames = SearchObjectNamesCheck.IsChecked == true,
             SearchColumnNames = SearchColumnNamesCheck.IsChecked == true,
             SearchDefinitions = SearchDefinitionsCheck.IsChecked == true,
-            MaxResults = 500
+            MaxResults = MaxResultsSetting()
         };
 
         // Agent job steps are not part of SearchOptions: they live in msdb, belong to the server rather than to
@@ -419,7 +476,7 @@ public partial class SqlSearchControl : UserControl
             SearchObjectNames = SearchObjectNamesCheck.IsChecked == true,
             SearchColumnNames = SearchColumnNamesCheck.IsChecked == true,
             SearchDefinitions = SearchDefinitionsCheck.IsChecked == true,
-            MaxResults = 500
+            MaxResults = MaxResultsSetting()
         };
     }
 

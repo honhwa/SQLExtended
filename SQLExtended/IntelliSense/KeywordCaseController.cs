@@ -5,6 +5,7 @@ using SQLExtended.Formatting;
 using SQLExtended.Settings;
 using System;
 using System.ComponentModel.Composition;
+using System.Windows.Threading;
 
 namespace SQLExtended.IntelliSense;
 
@@ -37,13 +38,13 @@ internal sealed class KeywordCaseControllerProvider : IWpfTextViewCreationListen
 /// </summary>
 internal sealed class KeywordCaseController
 {
-    private readonly ITextView _textView;
+    private readonly IWpfTextView _textView;
     private readonly ITextBuffer _buffer;
 
     /// <summary>Guards against re-entrancy when our own replace raises <see cref="ITextBuffer.Changed"/>.</summary>
     private bool _applying;
 
-    public KeywordCaseController(ITextView textView)
+    public KeywordCaseController(IWpfTextView textView)
     {
         _textView = textView;
         _buffer = textView.TextBuffer;
@@ -109,11 +110,62 @@ internal sealed class KeywordCaseController
             if (IsInStringCommentOrBracket(line.GetText(), tokenStart - line.Start.Position))
                 return;
 
+            // Queued, not applied here — see QueueRecase.
+            QueueRecase(snapshot.CreateTrackingSpan(tokenStart, len, SpanTrackingMode.EdgeExclusive), token, cased);
+        }
+        catch
+        {
+            // A recasing failure must never disrupt typing.
+        }
+    }
+
+    /// <summary>
+    /// Applies the recase once the keystroke that triggered it has finished, rather than from inside the
+    /// <see cref="ITextBuffer.Changed"/> handler.
+    ///
+    /// <para>Two things were wrong with replacing in place. The edit was <b>re-entrant</b> — applied to the
+    /// buffer that was still raising the event for the character just typed, with the editor's own typing and
+    /// caret handling part way through it. And the span was computed against <c>e.After</c> but applied to
+    /// <c>CurrentSnapshot</c>, which need not be the same snapshot: any other <c>Changed</c> handler that
+    /// edits ahead of this one (the snippet session's linked-field sync is one) moves every offset, and the
+    /// replace then lands in the wrong place and duplicates text rather than recasing it. Both failures are
+    /// silent — the catch above swallows them, and what reaches the screen is mangled typing with nothing
+    /// naming the cause.</para>
+    ///
+    /// <para>Posted at <see cref="DispatcherPriority.Normal"/>, which runs ahead of pending input, so the
+    /// recase still lands before the next keystroke is handled and fast typing cannot outrun it.</para>
+    /// </summary>
+    private void QueueRecase(ITrackingSpan tracking, string expected, string cased)
+    {
+        var dispatcher = _textView.VisualElement?.Dispatcher;
+        if (dispatcher == null)
+            return;
+
+        dispatcher.BeginInvoke(new Action(() => ApplyRecase(tracking, expected, cased)), DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// Re-validates against the snapshot as it is now and replaces only if the word is still there, unchanged.
+    /// Anything else — the user kept typing, an undo ran, a completion replaced the span — means the recase no
+    /// longer applies, and applying it anyway is what corrupts the line.
+    /// </summary>
+    private void ApplyRecase(ITrackingSpan tracking, string expected, string cased)
+    {
+        if (_applying)
+            return;
+
+        try
+        {
+            var snapshot = _buffer.CurrentSnapshot;
+            var span = tracking.GetSpan(snapshot);
+            if (span.Length != expected.Length || !string.Equals(span.GetText(), expected, StringComparison.Ordinal))
+                return;
+
             _applying = true;
             try
             {
                 using var edit = _buffer.CreateEdit();
-                edit.Replace(new Span(tokenStart, len), cased);
+                edit.Replace(span, cased);
                 edit.Apply();
             }
             finally

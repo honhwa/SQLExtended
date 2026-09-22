@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -90,9 +90,12 @@ public partial class SchemaValidationControl : UserControl
             if (ServerCombo.SelectedIndex < 0 && ServerCombo.Items.Count > 0)
                 ServerCombo.SelectedIndex = 0;
 
-            // SelectionChanged is suppressed while loading, so trigger the DB load ourselves when we
-            // either have a single server or a pending target whose database we want to pre-select.
-            if (ServerCombo.Items.Count == 1 || !string.IsNullOrEmpty(_pendingTargetDatabase))
+            // SelectionChanged is suppressed while loading, so whatever we just selected has to load its
+            // databases here - unconditionally. Gating this on a single server or a pending target left the
+            // ordinary first open (two or more connected servers, no Object Explorer target) with a server
+            // named in the combo and an empty database list, and reselecting the same item fires nothing:
+            // the only way out was to pick another server and come back.
+            if (ServerCombo.SelectedIndex >= 0)
                 LoadDatabasesForSelectedServer();
         }
         finally

@@ -51,9 +51,14 @@ internal sealed class SqlCompletionItemManager : IAsyncCompletionItemManager
     {
         string typedText = session.ApplicableToSpan.GetText(data.Snapshot) ?? string.Empty;
 
+        // Read once per update, not per item. This runs on a worker thread, where
+        // SQLExtendedSettings.Current must not be faulted in (Diagnostics/CLAUDE.md) - it cannot be here,
+        // because SqlCompletionSource.InitializeCompletion read it on the UI thread to open this session.
+        bool camelCase = Settings.SQLExtendedSettings.Current.CamelCaseMatching;
+
         // Score every item against the typed text
         var scored = data.InitialSortedItemList
-            .Select(item => new { Item = item, Score = Score(item, typedText) })
+            .Select(item => new { Item = item, Score = Score(item, typedText, camelCase) })
             .Where(x => x.Score.Matched)
             .ToList();
 
@@ -106,9 +111,9 @@ internal sealed class SqlCompletionItemManager : IAsyncCompletionItemManager
 
     /// <summary>
     /// Ranks an item against typed text. Lower rank wins.
-    /// Exact name match beats prefix match beats substring match.
+    /// Exact name match beats prefix match beats substring match beats a camelCase hump match.
     /// </summary>
-    private static MatchScore Score(CompletionItem item, string typed)
+    private static MatchScore Score(CompletionItem item, string typed, bool camelCase)
     {
         // Empty query — everything matches, keep original sort order
         if (string.IsNullOrEmpty(typed))
@@ -146,6 +151,14 @@ internal sealed class SqlCompletionItemManager : IAsyncCompletionItemManager
         // 5: substring anywhere in filter text
         if (filter.IndexOf(typed, StringComparison.OrdinalIgnoreCase) >= 0)
             return new MatchScore { Matched = true, Rank = 5 };
+
+        // 6: camelCase hump match ("OD" -> "OrderDetails", "od" -> "order_details"). Last, and only when the
+        // setting is on: it is the loosest rule here, and every item it admits is one the five rules above
+        // already rejected, so it can only ever add to the bottom of the list. Off, a typed string matching
+        // nothing still dismisses the session - the pre-existing behaviour, which must not change for anyone
+        // who did not ask for hump matching.
+        if (camelCase && SqlCompletionContext.IsCamelCaseMatch(typed, primaryName))
+            return new MatchScore { Matched = true, Rank = 6 };
 
         return new MatchScore { Matched = false };
     }

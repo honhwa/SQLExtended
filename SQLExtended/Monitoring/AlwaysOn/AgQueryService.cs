@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -70,17 +70,22 @@ internal static class AgQueryService
         {
             await conn.OpenAsync(ct).ConfigureAwait(false);
 
+            // Names the views until the copy section below has run, and the copies afterwards. The sections are
+            // lambdas run in order, so each builds its SQL against whichever the catalog is by the time it runs.
+            var catalog = new AgCatalog();
+
             var plan = new MonitorPlan(progress, snapshot.Warnings.Add)
-                .Add("availability groups", () => ReadGroupsAsync(conn, caps, snapshot, ct), primary: true)
-                .Add("replica states", () => ReadReplicasAsync(conn, caps, snapshot, ct), primary: true)
-                .Add("database replica states", () => ReadDatabasesAsync(conn, caps, snapshot, ct), primary: true)
+                .Add("availability group catalog", () => PrepareCatalogAsync(conn, caps, catalog, ct), primary: true)
+                .Add("availability groups", () => ReadGroupsAsync(conn, caps, catalog, snapshot, ct), primary: true)
+                .Add("replica states", () => ReadReplicasAsync(conn, caps, catalog, snapshot, ct), primary: true)
+                .Add("database replica states", () => ReadDatabasesAsync(conn, caps, catalog, snapshot, ct), primary: true)
                 .AddIf(caps.HasClusterView, "cluster and quorum", () => ReadClusterAsync(conn, caps, snapshot, ct))
-                .AddIf(caps.HasReplicaClusterNodes, "replica cluster nodes", () => ReadClusterNodesAsync(conn, caps, snapshot, ct))
-                .AddIf(caps.HasListeners, "listeners", () => ReadListenersAsync(conn, caps, snapshot, ct))
-                .AddIf(caps.HasReadOnlyRoutingLists, "read-only routing", () => ReadRoutingAsync(conn, caps, snapshot, ct))
+                .AddIf(caps.HasReplicaClusterNodes, "replica cluster nodes", () => ReadClusterNodesAsync(conn, caps, catalog, snapshot, ct))
+                .AddIf(caps.HasListeners, "listeners", () => ReadListenersAsync(conn, caps, catalog, snapshot, ct))
+                .AddIf(caps.HasReadOnlyRoutingLists, "read-only routing", () => ReadRoutingAsync(conn, caps, catalog, snapshot, ct))
                 .Add("throughput counters", () => ReadCountersAsync(conn, counters, thresholds, snapshot, ct))
                 .AddIf(caps.HasPhysicalSeedingStats, "physical seeding stats", () => ReadPhysicalSeedingAsync(conn, snapshot, ct))
-                .AddIf(caps.HasAutomaticSeeding, "automatic seeding", () => ReadAutomaticSeedingAsync(conn, snapshot, ct));
+                .AddIf(caps.HasAutomaticSeeding, "automatic seeding", () => ReadAutomaticSeedingAsync(conn, catalog, snapshot, ct));
 
             await plan.RunAsync(async () =>
             {
@@ -149,6 +154,28 @@ internal static class AgQueryService
     }
 
     // ---------------------------------------------------------------------------------------------
+    // The catalog copies every other section joins against
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Copies the HADR views into per-poll temp tables, so the sections behind this one join heaps rather than
+    /// views — see <see cref="AgCatalog"/> for why that is the difference between a second and a minute on an
+    /// instance with a lot of groups.
+    ///
+    /// <para>The switch is flipped only once the batch has returned. A failure therefore costs a named warning
+    /// and nothing else: every section behind it goes on naming the views, which is slow but is exactly what
+    /// these queries did before the copies existed. That fallback is the reason this can be a section at the
+    /// front of the plan rather than a precondition for having one.</para>
+    /// </summary>
+    private static async Task PrepareCatalogAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, CancellationToken ct)
+    {
+        using (var cmd = new SqlCommand(AgCatalog.PrologueSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+            await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+        catalog.UseCopies();
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Availability groups
     // ---------------------------------------------------------------------------------------------
 
@@ -157,7 +184,7 @@ internal static class AgQueryService
     /// T-SQL the grid was built from — the point of a diagnostic tool is that you can take its query away
     /// and keep digging.
     /// </summary>
-    internal static string GroupsSql(AgCapabilities caps) => $@"
+    internal static string GroupsSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ag.group_id,
     ag.name,
@@ -170,13 +197,13 @@ SELECT
     {AgCapabilities.Column(caps.HasClusterTypeDesc, "ag.cluster_type_desc", "cluster_type_desc")},
     {AgCapabilities.Column(caps.HasRequiredSyncSecondaries, "ag.required_synchronized_secondaries_to_commit", "required_sync_secondaries")},
     {AgCapabilities.Column(caps.HasIsDistributed, "ag.is_distributed", "is_distributed")}
-FROM sys.availability_groups AS ag
-LEFT JOIN sys.dm_hadr_availability_group_states AS ags ON ags.group_id = ag.group_id
+FROM {catalog.Groups} AS ag
+LEFT JOIN {catalog.GroupStates} AS ags ON ags.group_id = ag.group_id
 ORDER BY ag.name;";
 
-    private static async Task ReadGroupsAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadGroupsAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(GroupsSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(GroupsSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -203,7 +230,7 @@ ORDER BY ag.name;";
     // Replicas
     // ---------------------------------------------------------------------------------------------
 
-    internal static string ReplicasSql(AgCapabilities caps) => $@"
+    internal static string ReplicasSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ag.name AS ag_name,
     ar.replica_server_name,
@@ -225,14 +252,14 @@ SELECT
     ars.last_connect_error_description,
     ars.last_connect_error_timestamp,
     {AgCapabilities.Column(caps.HasSeedingModeDesc, "ar.seeding_mode_desc", "seeding_mode_desc")}
-FROM sys.availability_replicas AS ar
-JOIN sys.availability_groups AS ag ON ag.group_id = ar.group_id
-LEFT JOIN sys.dm_hadr_availability_replica_states AS ars ON ars.replica_id = ar.replica_id
+FROM {catalog.Replicas} AS ar
+JOIN {catalog.Groups} AS ag ON ag.group_id = ar.group_id
+LEFT JOIN {catalog.ReplicaStates} AS ars ON ars.replica_id = ar.replica_id
 ORDER BY ag.name, CASE WHEN ars.role_desc = 'PRIMARY' THEN 0 ELSE 1 END, ar.replica_server_name;";
 
-    private static async Task ReadReplicasAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadReplicasAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(ReplicasSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(ReplicasSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -270,7 +297,7 @@ ORDER BY ag.name, CASE WHEN ars.role_desc = 'PRIMARY' THEN 0 ELSE 1 END, ar.repl
 
     // LSNs are numeric(25,0); converting server-side keeps them out of decimal handling on this end, where
     // they are only ever displayed and compared as opaque strings.
-    internal static string DatabasesSql(AgCapabilities caps) => $@"
+    internal static string DatabasesSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ag.name AS ag_name,
     ar.replica_server_name,
@@ -295,16 +322,16 @@ SELECT
     CONVERT(varchar(40), drs.last_hardened_lsn) AS last_hardened_lsn,
     CONVERT(varchar(40), drs.last_redone_lsn)   AS last_redone_lsn,
     {AgCapabilities.Column(caps.HasSecondaryLagSeconds, "drs.secondary_lag_seconds", "secondary_lag_seconds")}
-FROM sys.dm_hadr_database_replica_states AS drs
-JOIN sys.availability_replicas AS ar ON ar.replica_id = drs.replica_id
-JOIN sys.availability_groups AS ag ON ag.group_id = drs.group_id
-LEFT JOIN sys.dm_hadr_database_replica_cluster_states AS dbcs
+FROM {catalog.DatabaseStates} AS drs
+JOIN {catalog.Replicas} AS ar ON ar.replica_id = drs.replica_id
+JOIN {catalog.Groups} AS ag ON ag.group_id = drs.group_id
+LEFT JOIN {catalog.DatabaseClusterStates} AS dbcs
        ON dbcs.replica_id = drs.replica_id AND dbcs.group_database_id = drs.group_database_id
 ORDER BY ag.name, dbcs.database_name, CASE WHEN drs.is_primary_replica = 1 THEN 0 ELSE 1 END, ar.replica_server_name;";
 
-    private static async Task ReadDatabasesAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadDatabasesAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(DatabasesSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(DatabasesSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -426,21 +453,21 @@ ORDER BY member_name, network_subnet_ip;";
 
     // sys.dm_hadr_availability_replica_cluster_nodes joins on the group *name*, not an id — it is a
     // cluster-level view and predates the group existing in sys.availability_groups on every node.
-    internal static string ClusterNodesSql(AgCapabilities caps) => $@"
+    internal static string ClusterNodesSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ISNULL(ag.name, arcn.group_name) AS ag_name,
     arcn.replica_server_name,
     arcn.node_name,
     {AgCapabilities.Column(caps.HasReplicaClusterStates, "arcs.join_state_desc", "join_state_desc")}
-FROM sys.dm_hadr_availability_replica_cluster_nodes AS arcn
-LEFT JOIN sys.availability_groups AS ag ON ag.name = arcn.group_name{(caps.HasReplicaClusterStates ? @"
-LEFT JOIN sys.dm_hadr_availability_replica_cluster_states AS arcs
+FROM {catalog.ReplicaClusterNodes} AS arcn
+LEFT JOIN {catalog.Groups} AS ag ON ag.name = arcn.group_name{(caps.HasReplicaClusterStates ? $@"
+LEFT JOIN {catalog.ReplicaClusterStates} AS arcs
        ON arcs.group_id = ag.group_id AND arcs.replica_server_name = arcn.replica_server_name" : "")}
 ORDER BY ag_name, arcn.replica_server_name, arcn.node_name;";
 
-    private static async Task ReadClusterNodesAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadClusterNodesAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(ClusterNodesSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(ClusterNodesSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -462,7 +489,7 @@ ORDER BY ag_name, arcn.replica_server_name, arcn.node_name;";
 
     // One row per listener IP rather than per listener: a multi-subnet listener's individual IPs go offline
     // independently, and the offline one is the whole finding.
-    internal static string ListenersSql(AgCapabilities caps) => $@"
+    internal static string ListenersSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ag.name AS ag_name,
     agl.dns_name,
@@ -479,13 +506,13 @@ SELECT
     NULL AS network_subnet_ip,
     NULL AS state")}
 FROM sys.availability_group_listeners AS agl
-JOIN sys.availability_groups AS ag ON ag.group_id = agl.group_id{(caps.HasListenerIpAddresses ? @"
+JOIN {catalog.Groups} AS ag ON ag.group_id = agl.group_id{(caps.HasListenerIpAddresses ? @"
 LEFT JOIN sys.availability_group_listener_ip_addresses AS lip ON lip.listener_id = agl.listener_id" : "")}
 ORDER BY ag.name, agl.dns_name{(caps.HasListenerIpAddresses ? ", lip.ip_address" : "")};";
 
-    private static async Task ReadListenersAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadListenersAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(ListenersSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(ListenersSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -509,7 +536,7 @@ ORDER BY ag.name, agl.dns_name{(caps.HasListenerIpAddresses ? ", lip.ip_address"
 
     // The self-join is the shape of the DMV: each row pairs a source replica with one of its routing targets,
     // in priority order. The target's own routing URL comes along because a target without one routes nowhere.
-    internal static string RoutingSql(AgCapabilities caps) => $@"
+    internal static string RoutingSql(AgCapabilities caps, AgCatalog catalog) => $@"
 SELECT
     ag.name AS ag_name,
     src.replica_server_name AS source_replica,
@@ -520,15 +547,15 @@ SELECT
     tgt.read_only_routing_url,
     {AgCapabilities.Column(caps.HasReadWriteRoutingUrl, "tgt.read_write_routing_url", "read_write_routing_url")}
 FROM sys.availability_read_only_routing_lists AS rl
-JOIN sys.availability_replicas AS src ON src.replica_id = rl.replica_id
-JOIN sys.availability_replicas AS tgt ON tgt.replica_id = rl.read_only_replica_id
-JOIN sys.availability_groups AS ag ON ag.group_id = src.group_id
-LEFT JOIN sys.dm_hadr_availability_replica_states AS tgtstate ON tgtstate.replica_id = tgt.replica_id
+JOIN {catalog.Replicas} AS src ON src.replica_id = rl.replica_id
+JOIN {catalog.Replicas} AS tgt ON tgt.replica_id = rl.read_only_replica_id
+JOIN {catalog.Groups} AS ag ON ag.group_id = src.group_id
+LEFT JOIN {catalog.ReplicaStates} AS tgtstate ON tgtstate.replica_id = tgt.replica_id
 ORDER BY ag.name, src.replica_server_name, rl.routing_priority, tgt.replica_server_name;";
 
-    private static async Task ReadRoutingAsync(SqlConnection conn, AgCapabilities caps, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadRoutingAsync(SqlConnection conn, AgCapabilities caps, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(RoutingSql(caps), conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(RoutingSql(caps, catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -797,7 +824,7 @@ ORDER BY ps.start_time_utc DESC;";
 
     // dm_hadr_database_replica_cluster_states is keyed (replica_id, group_database_id), so a plain join would
     // fan a seeding row out once per replica. TOP 1 via OUTER APPLY just resolves the name.
-    internal const string AutoSeedingSql = @"
+    internal static string AutoSeedingSql(AgCatalog catalog) => $@"
 SELECT
     ag.name AS ag_name,
     d.database_name,
@@ -810,17 +837,17 @@ SELECT
     aseed.error_code,
     aseed.number_of_attempts
 FROM sys.dm_hadr_automatic_seeding AS aseed
-LEFT JOIN sys.availability_groups AS ag ON ag.group_id = aseed.ag_id
+LEFT JOIN {catalog.Groups} AS ag ON ag.group_id = aseed.ag_id
 OUTER APPLY (
     SELECT TOP (1) dbcs.database_name
-    FROM sys.dm_hadr_database_replica_cluster_states AS dbcs
+    FROM {catalog.DatabaseClusterStates} AS dbcs
     WHERE dbcs.group_database_id = aseed.ag_db_id
 ) AS d
 ORDER BY aseed.start_time DESC;";
 
-    private static async Task ReadAutomaticSeedingAsync(SqlConnection conn, AgSnapshot snapshot, CancellationToken ct)
+    private static async Task ReadAutomaticSeedingAsync(SqlConnection conn, AgCatalog catalog, AgSnapshot snapshot, CancellationToken ct)
     {
-        using (var cmd = new SqlCommand(AutoSeedingSql, conn) { CommandTimeout = CommandTimeoutSeconds })
+        using (var cmd = new SqlCommand(AutoSeedingSql(catalog), conn) { CommandTimeout = CommandTimeoutSeconds })
         using (var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(ct).ConfigureAwait(false))

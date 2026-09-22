@@ -36,6 +36,7 @@ internal sealed class DatabaseChangeMonitor : IDisposable
         {
             string connStr = null;
             string database = null;
+            bool autoLoad = false;
 
             // Connection extraction requires the UI thread
             ThreadHelper.JoinableTaskFactory.Run(async () =>
@@ -47,6 +48,10 @@ internal sealed class DatabaseChangeMonitor : IDisposable
                 // Keep the snippet resolver's connection-derived placeholders ($dbname$, $server$)
                 // current — it resolves off the UI thread and can't read SSMS state itself.
                 Snippets.SnippetPlaceholderResolver.RefreshConnectionInfoFromSsms();
+
+                // Read on the UI thread with the rest, not on the timer thread below: the settings
+                // singleton must not be faulted in from a worker (Diagnostics/CLAUDE.md).
+                autoLoad = SQLExtendedSettings.Current.AutoLoadOnConnect;
             });
 
             if (string.IsNullOrEmpty(connStr) || string.IsNullOrEmpty(database))
@@ -62,10 +67,21 @@ internal sealed class DatabaseChangeMonitor : IDisposable
                 string connKey = cache.GetConnectionKey(connStr);
                 var cacheState = cache.GetState(connKey, database);
 
+                // "Automatically load cache when connecting to a database". Off, the switch is still
+                // tracked - so the snippet placeholders and the next explicit load see the right database -
+                // but nothing is fetched until something asks for it. The status bar says so rather than
+                // going quiet, or an uncached database reads as a broken cache.
                 if (cacheState == CacheState.NotLoaded || cacheState == CacheState.Error)
                 {
-                    CacheStatusBar.SetText($"Schema: Loading {database}...");
-                    _ = cache.LoadDatabaseAsync(connStr, database);
+                    if (autoLoad)
+                    {
+                        CacheStatusBar.SetText($"Schema: Loading {database}...");
+                        _ = cache.LoadDatabaseAsync(connStr, database);
+                    }
+                    else
+                    {
+                        CacheStatusBar.SetText($"Schema: {database} not cached (auto-load off)");
+                    }
                 }
             }
         }

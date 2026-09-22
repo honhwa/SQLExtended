@@ -186,6 +186,52 @@ public class SqlContextAnalyzerTests
         Assert.Equal(SqlContextAnalyzer.CompletionType.ColumnInContext, result.Type);
     }
 
+    // --- IsJoinTarget: the table position that belongs to a JOIN ---
+
+    [Theory]
+    [InlineData("SELECT * FROM dbo.Orders o JOIN ")]
+    [InlineData("SELECT * FROM dbo.Orders o INNER JOIN ")]
+    [InlineData("SELECT * FROM dbo.Orders o LEFT JOIN ")]
+    [InlineData("SELECT * FROM dbo.Orders o LEFT OUTER JOIN ")]
+    [InlineData("SELECT * FROM dbo.Orders o FULL OUTER JOIN ")]
+    [InlineData("SELECT * FROM dbo.Orders o JOIN Cust")]
+    public void Analyze_JoinTablePosition_SetsIsJoinTarget(string sql)
+    {
+        var result = SqlContextAnalyzer.Analyze(sql, sql.Length);
+        Assert.Equal(SqlContextAnalyzer.CompletionType.TableName, result.Type);
+        Assert.True(result.IsJoinTarget);
+    }
+
+    /// <summary>
+    /// Every other table position has no left-hand table for a predicate to reference, so offering a whole
+    /// join clause there would insert SQL that cannot be completed. CROSS APPLY takes a table but has no ON
+    /// clause at all, which is why the pattern keys on the word JOIN rather than on "expects a table name".
+    /// </summary>
+    [Theory]
+    [InlineData("SELECT * FROM ")]
+    [InlineData("INSERT INTO ")]
+    [InlineData("UPDATE ")]
+    [InlineData("DELETE FROM ")]
+    [InlineData("SELECT * FROM dbo.Orders o CROSS APPLY ")]
+    public void Analyze_NonJoinTablePosition_DoesNotSetIsJoinTarget(string sql)
+    {
+        var result = SqlContextAnalyzer.Analyze(sql, sql.Length);
+        Assert.False(result.IsJoinTarget);
+    }
+
+    /// <summary>
+    /// Once the ON is typed the context is the predicate, not the table - the two join features must not
+    /// both claim the same position.
+    /// </summary>
+    [Fact]
+    public void Analyze_AfterOn_IsNotAJoinTarget()
+    {
+        string sql = "SELECT * FROM dbo.Orders o JOIN dbo.Customers c ON ";
+        var result = SqlContextAnalyzer.Analyze(sql, sql.Length);
+        Assert.Equal(SqlContextAnalyzer.CompletionType.JoinOnCondition, result.Type);
+        Assert.False(result.IsJoinTarget);
+    }
+
     [Fact]
     public void Analyze_InOnClause_ReturnsJoinOnCondition()
     {

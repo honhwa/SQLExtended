@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using SQLExtended.Cache.Models;
@@ -40,6 +40,13 @@ internal interface ISchemaCache
     IReadOnlyList<CachedColumn> GetColumns(string connectionKey, string database, string schema, string tableName);
     IReadOnlyList<CachedIndex> GetIndexes(string connectionKey, string database, string schema, string tableName);
     IReadOnlyList<CachedForeignKey> GetForeignKeys(string connectionKey, string database, string schema, string tableName);
+
+    /// <summary>
+    /// Foreign keys declared on *other* tables that point at the given one — the reverse of
+    /// <see cref="GetForeignKeys"/>. Needed to offer a join to a table that references this one
+    /// (OrderItem → Order), which the outgoing keys alone cannot see.
+    /// </summary>
+    IReadOnlyList<CachedForeignKey> GetReferencingForeignKeys(string connectionKey, string database, string schema, string tableName);
     IReadOnlyList<CachedParameter> GetParameters(string connectionKey, string database, string schema, string objectName);
 
     // --- Search ---

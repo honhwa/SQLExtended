@@ -1,4 +1,4 @@
-using EnvDTE;
+﻿using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Threading;
@@ -1068,7 +1068,9 @@ public partial class AgMonitorControl : UserControl
         var caps = _caps;
         if (caps == null) { StatusText.Text = "Refresh first so the monitor knows what this server supports."; return; }
 
-        string sql = SqlForActiveTab(caps);
+        // Standalone prefixes the #ag_* copy statements when the tab's batch reads them, so what lands in the
+        // query window runs on the first F5 rather than failing on an object nothing created.
+        string sql = AgCatalog.Standalone(SqlForActiveTab(caps), caps);
         if (sql == null) { StatusText.Text = "No query backs this tab."; return; }
 
         OpenTextInNewQueryWindow(sql);
@@ -1076,13 +1078,16 @@ public partial class AgMonitorControl : UserControl
 
     /// <summary>
     /// The exact T-SQL behind the active tab, capability substitutions included, so what the user gets back
-    /// runs on the server they are looking at rather than on the newest one.
+    /// runs on the server they are looking at rather than on the newest one. <see cref="AgCatalog.Copies"/>
+    /// because that is the shape a poll runs — and the shape worth taking away, being the fast one.
     /// </summary>
     private string SqlForActiveTab(AgCapabilities caps)
     {
+        var catalog = AgCatalog.Copies;
+
         switch (Tabs.SelectedIndex)
         {
-            case TabOverview: return AgQueryService.GroupsSql(caps) + Environment.NewLine + AgQueryService.DatabasesSql(caps);
+            case TabOverview: return AgQueryService.GroupsSql(caps, catalog) + Environment.NewLine + AgQueryService.DatabasesSql(caps, catalog);
 
             // The findings are derived in this process, so what the user gets is the state they were derived
             // from — with a header saying so, otherwise the returned batch looks like it should reproduce them.
@@ -1091,16 +1096,16 @@ public partial class AgMonitorControl : UserControl
                      + Environment.NewLine
                      + "-- three queries. There is no server-side query that produces the findings themselves."
                      + Environment.NewLine + Environment.NewLine
-                     + AgQueryService.GroupsSql(caps) + Environment.NewLine
-                     + AgQueryService.ReplicasSql(caps) + Environment.NewLine
-                     + AgQueryService.DatabasesSql(caps);
+                     + AgQueryService.GroupsSql(caps, catalog) + Environment.NewLine
+                     + AgQueryService.ReplicasSql(caps, catalog) + Environment.NewLine
+                     + AgQueryService.DatabasesSql(caps, catalog);
 
-            case TabReplicas: return AgQueryService.ReplicasSql(caps);
-            case TabDatabases: return AgQueryService.DatabasesSql(caps);
+            case TabReplicas: return AgQueryService.ReplicasSql(caps, catalog);
+            case TabDatabases: return AgQueryService.DatabasesSql(caps, catalog);
             case TabThroughput: return AgQueryService.CountersSql;
-            case TabCluster: return AgQueryService.ClusterSql(caps) + Environment.NewLine + AgQueryService.ClusterNodesSql(caps);
-            case TabListeners: return AgQueryService.ListenersSql(caps) + Environment.NewLine + AgQueryService.RoutingSql(caps);
-            case TabSeeding: return AgQueryService.PhysicalSeedingSql + Environment.NewLine + AgQueryService.AutoSeedingSql;
+            case TabCluster: return AgQueryService.ClusterSql(caps) + Environment.NewLine + AgQueryService.ClusterNodesSql(caps, catalog);
+            case TabListeners: return AgQueryService.ListenersSql(caps, catalog) + Environment.NewLine + AgQueryService.RoutingSql(caps, catalog);
+            case TabSeeding: return AgQueryService.PhysicalSeedingSql + Environment.NewLine + AgQueryService.AutoSeedingSql(catalog);
             case TabErrors: return AgQueryService.HealthEventsSql(EventCounts[Math.Max(0, Math.Min(EventCounts.Length - 1, EventCountCombo.SelectedIndex))]);
             default: return null;
         }

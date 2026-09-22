@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
@@ -63,6 +63,13 @@ internal static class SqlContextAnalyzer
         /// table — the table immediately before the ON that owns this join condition.
         /// </summary>
         public string JoinedTableReference { get; set; }
+
+        /// <summary>
+        /// For TableName: the position is a JOIN's target, so whole join clauses built from the foreign
+        /// keys of the tables already in scope are offered above the plain table list. False for FROM,
+        /// INSERT INTO and the rest, where there is no left-hand table for a predicate to reference.
+        /// </summary>
+        public bool IsJoinTarget { get; set; }
 
         /// <summary>
         /// For StarExpansion: length of the "*" or "alias.*" token ending at the cursor —
@@ -243,6 +250,7 @@ internal static class SqlContextAnalyzer
             return new AnalysisResult
             {
                 Type = CompletionType.TableName,
+                IsJoinTarget = JoinTargetPattern.IsMatch(textBeforeIdent),
                 StatementText = statementText
             };
         }
@@ -517,6 +525,13 @@ internal static class SqlContextAnalyzer
     // Groups: tok = the full "*"/"alias.*" token, wp/bp = plain/bracketed alias.
     private static readonly Regex SelectStarPattern = new Regex(
         @"(?i)(?:\bSELECT\s+(?:TOP\s*(?:\(\s*\d+\s*\)|\d+)\s+)?(?:DISTINCT\s+)?|,\s*)(?<tok>(?:(?:\[(?<bp>[^\]]+)\]|(?<wp>[@#]*\w+))\s*\.\s*)?\*)$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // Matches a table position that belongs to a JOIN rather than to FROM/INSERT INTO/UPDATE/... . The
+    // bare "JOIN\s+$" covers every flavour, because INNER, LEFT OUTER, CROSS and the rest all end in the
+    // word JOIN - and CROSS/OUTER APPLY, which take a table but have no ON clause, correctly do not match.
+    private static readonly Regex JoinTargetPattern = new Regex(
+        @"(?i)\bJOIN\s+$",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     // Matches "JOIN [db.][schema.]table [AS] [alias] ON " at the end of (partial-stripped) text.

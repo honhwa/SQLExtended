@@ -183,7 +183,7 @@
                         <CheckBox x:Name="ChkSuppressBuiltIn" Content="Suppress built-in SSMS IntelliSense"
                                   Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
                         <TextBlock Style="{StaticResource DimLabel}"
-                                   Text="Prevents built-in completions from interfering. Disable if you experience issues."/>
+                                   Text="Stops SSMS's own completion list opening for the completion commands (Ctrl+Space, Ctrl+J), so only one list appears. Disable to get SSMS's list back."/>
 
                         <CheckBox x:Name="ChkAutoTrigger" Content="Auto-trigger after keywords (FROM, JOIN, EXEC, etc.)"
                                   Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>

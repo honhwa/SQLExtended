@@ -38,3 +38,37 @@ one shows the step's command with no round trip — the text arrived with the se
 **SSMS's own Job Properties dialog** via `JobDialogLauncher`, the job equivalent of "Open in Schema Viewer".
 That needs `SERVERPROPERTY('ServerName')` rather than the connection string's Data Source (they differ behind
 an AG listener or a CNAME), which is why the probe returns it and the control remembers it.
+
+## SQL Search: the Search tab's defaults
+
+All five settings on the Search tab (`DefaultSearchScope`, the three `DefaultSearch*` "search in" boxes and
+`DefaultMaxSearchResults`) were **never read** — the three checkboxes got their state from `IsChecked="True"`
+in the XAML and the cap was a literal `MaxResults = 500` at both call sites, so the tab read as configuration
+and behaved as decoration. The general case is recorded in `IntelliSense/CLAUDE.md`; what is specific here:
+
+- **They are a starting point, not a policy.** Applied once from `Loaded`, before `LoadServers`; anything
+  changed during a session stays changed, which is what "you can override them per search" in the dialog
+  means. `FindReferences_Click` still forces definitions-only, because that is a different question being
+  asked, not a default being overridden.
+- **A target from the Object Explorer menu beats the default scope**, because it is an explicit answer to the
+  same question. Only when there is no pending target does `ApplyDefaultScope` run.
+- **`CurrentDatabase` falls back to selecting everything when the current database is not in the list** — the
+  normal case when the chosen server is not the one the active query window is on. The literal reading would
+  be an empty selection, and the window would then open unable to search at all, reporting "Select at least
+  one database" for a scope the user never picked per search.
+- **`DefaultMaxSearchResults` is clamped to at least 1.** A hand-edited `0` would otherwise make every search
+  return nothing, which on screen is "no matches" — the same class of silence as the dead setting itself.
+  The cap applies to the object search; job steps take it too, via the same `SearchOptions.MaxResults`.
+
+## SQL Search: loading the database list on open
+
+`LoadServers` suppresses `ServerCombo_SelectionChanged` with `_isLoadingServers` while it clears and refills
+the combo, so **the selection it then makes never raises the event** and the database load has to be called
+explicitly at the end. It used to be called only when there was a single server or a pending Object Explorer
+target — which left the ordinary first open (two or more connected servers, no target) showing a server name
+in the combo above an empty database list. Reselecting the same combo item raises nothing, so the only way
+out was to pick a different server and come back. The trigger is now unconditional on anything being
+selected; the single-server and pending-target cases were always just instances of that.
+
+`Validation/SchemaValidationControl.xaml.cs` is a copy of this server/database block, carried the same bug and
+took the same fix. There is no third copy — but if one is made, it starts with this.

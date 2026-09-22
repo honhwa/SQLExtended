@@ -39,6 +39,8 @@
     <Compile Include="..\SQLExtended\IntelliSense\AliasResolver.cs" Link="IntelliSense\AliasResolver.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\LocalTableScanner.cs" Link="IntelliSense\LocalTableScanner.cs" />
     <Compile Include="..\SQLExtended\Cache\Models\CachedColumn.cs" Link="Cache\Models\CachedColumn.cs" />
+    <Compile Include="..\SQLExtended\Cache\Models\CachedForeignKey.cs" Link="Cache\Models\CachedForeignKey.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\JoinClauseBuilder.cs" Link="IntelliSense\JoinClauseBuilder.cs" />
     <Compile Include="..\SQLExtended\Cache\SystemCatalogSql.cs" Link="Cache\SystemCatalogSql.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlContextAnalyzer.cs" Link="IntelliSense\SqlContextAnalyzer.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlCompletionContext.cs" Link="IntelliSense\SqlCompletionContext.cs" />
@@ -193,6 +195,7 @@
     <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgModels.cs" Link="Monitoring\AlwaysOn\AgModels.cs" />
     <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgCapabilities.cs" Link="Monitoring\AlwaysOn\AgCapabilities.cs" />
     <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgCounterTracker.cs" Link="Monitoring\AlwaysOn\AgCounterTracker.cs" />
+    <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgCatalog.cs" Link="Monitoring\AlwaysOn\AgCatalog.cs" />
     <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgQueryService.cs" Link="Monitoring\AlwaysOn\AgQueryService.cs" />
     <Compile Include="..\SQLExtended\Monitoring\AlwaysOn\AgDiagnostics.cs" Link="Monitoring\AlwaysOn\AgDiagnostics.cs" />
     <Compile Include="..\SQLExtended\Monitoring\Replication\ReplModels.cs" Link="Monitoring\Replication\ReplModels.cs" />

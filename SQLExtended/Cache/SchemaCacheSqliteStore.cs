@@ -23,12 +23,17 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
         _dbPath = Path.Combine(dir, "schema-cache.db");
     }
 
-    public void Initialize()
+    /// <summary>
+    /// Opens the store and purges entries older than <paramref name="maxAgeDays"/>. The age is passed in
+    /// rather than read here: this runs behind <c>SchemaCache.Initialize</c>, and the settings singleton
+    /// must be faulted in from the UI thread (Diagnostics/CLAUDE.md). A non-positive value purges nothing.
+    /// </summary>
+    public void Initialize(int maxAgeDays)
     {
         _conn = new SQLiteConnection($"Data Source={_dbPath};Version=3;Journal Mode=WAL;");
         _conn.Open();
         CreateSchema();
-        PurgeStaleEntries();
+        PurgeStaleEntries(maxAgeDays);
     }
 
     private void CreateSchema()
@@ -151,11 +156,16 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
     }
 
     /// <summary>
-    /// Auto-purge entries older than 7 days.
+    /// Auto-purge entries whose last full refresh is older than <paramref name="maxAgeDays"/> days.
+    /// Zero or less keeps everything - a cache nobody asked to expire is not stale, it is just cold, and
+    /// dropping it costs a full reload of every database on the next completion.
     /// </summary>
-    private void PurgeStaleEntries()
+    private void PurgeStaleEntries(int maxAgeDays)
     {
-        string cutoff = DateTime.UtcNow.AddDays(-7).ToString("o");
+        if (maxAgeDays <= 0)
+            return;
+
+        string cutoff = DateTime.UtcNow.AddDays(-maxAgeDays).ToString("o");
         const string sql = @"
             DELETE FROM cache_objects WHERE connection_key || '|' || database_name IN (
                 SELECT connection_key || '|' || database_name FROM cache_databases

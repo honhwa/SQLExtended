@@ -8,6 +8,26 @@ active query window's connection, forced to `master` — the editor may be sitti
 Needs only `VIEW SERVER STATE`. Live-only: nothing is persisted, and `AgHistory` keeps a 120-sample in-memory
 window per database-per-replica to back the queue sparklines.
 
+**Every section joins temp copies of the HADR views, not the views themselves** (`AgCatalog`). None of these
+views is a table — each is a view over an internal function, with no statistics and a fixed cardinality guess —
+and nothing stops the optimiser putting one on the inner side of a nested loop and calling it again per outer
+row. Reading any one of them is instant; joining four of them on an instance with fifty-odd groups takes
+*minutes*, which is the complaint this came from ([dba.stackexchange.com/q/131621](https://dba.stackexchange.com/questions/131621),
+and KB3173038 is Microsoft's narrower version of it for `sys.dm_hadr_availability_replica_states`). So a section
+at the front of the plan runs one `SELECT * INTO #ag_<view>` per view and everything behind it joins heaps.
+Three things follow that are easy to undo by accident:
+- **`AgCatalog` is a switch, not data.** A poll starts on the views and `UseCopies()` moves it *after* the copy
+  batch has returned; the section lambdas build their SQL when they run, so a failed copy costs one warning and
+  leaves every section naming the views — slow, but exactly what they did before. Flipping the switch earlier
+  would turn one tempdb hiccup into nine "invalid object name" warnings and a blank dashboard.
+- **A section that joins `#ag_x` is broken unless the prologue creates it**, and it parses perfectly either way.
+  `AgSqlTests` pins both directions: every copy a batch reads is created, and the copy shape no longer names any
+  view it copied (paying for the copies and then joining the views anyway is the one outcome worse than before).
+- **The copies are per-poll and die with the connection**, which is also why `AgQueryService` opens one
+  connection for the whole poll. There is nothing to invalidate, and every tab is now built from one consistent
+  read of the state rather than nine staggered ones. "Open as query" passes `AgCatalog.Copies` and
+  `AgCatalog.Standalone` prefixes the copy statements, so what lands in the query window runs on the first F5.
+
 Version-safety is handled by `AgCapabilities`, which probes `sys.all_columns` for the specific optional columns
 (`secondary_lag_seconds`, `cluster_type_desc`, `is_distributed`, `seeding_mode_desc`) instead of branching on
 version numbers, then `AgCapabilities.Column` substitutes `NULL AS <alias>` where a column is absent so the

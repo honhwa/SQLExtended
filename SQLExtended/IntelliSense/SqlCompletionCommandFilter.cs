@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio;
+﻿using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.Language.Intellisense.AsyncCompletion;
 using Microsoft.VisualStudio.Language.Intellisense.AsyncCompletion.Data;
@@ -85,6 +85,18 @@ internal sealed class SqlCompletionCommandFilter : IOleCommandTarget
                 SqlCompletionSource.DebugLog($"[CmdFilter] Intercepted VSStd2K.{cmd}");
                 if (TryTrigger())
                     return VSConstants.S_OK; // we handled it — don't pass through
+
+                // "Suppress built-in SSMS IntelliSense". Our list failing to open is not a reason to hand
+                // the command on - SSMS's own list opens in its place, which is precisely the interference
+                // the setting exists to prevent, and two lists fighting over one keystroke is what it was
+                // added for. Honoured only while our own completion is on: with the master switch off,
+                // swallowing here would leave the editor with no completion at all.
+                var settings = Settings.SQLExtendedSettings.Current;
+                if (settings.IntelliSenseEnabled && settings.SuppressBuiltInIntelliSense)
+                {
+                    SqlCompletionSource.DebugLog($"[CmdFilter] Suppressed built-in VSStd2K.{cmd}");
+                    return VSConstants.S_OK;
+                }
             }
         }
 

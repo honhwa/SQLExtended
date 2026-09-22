@@ -57,6 +57,17 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     // GetCompletionContextAsync for the same trigger. GetText() copies the whole buffer —
     // a large allocation that, repeated per keystroke on a big script, drives GC pauses felt
     // as scroll/typing jank. Cache it by snapshot version so one keystroke copies at most once.
+    /// <summary>
+    /// The display and matching settings for the session being built, captured on the UI thread in
+    /// <see cref="InitializeCompletion"/> and read by the background phases.
+    ///
+    /// <para><c>SQLExtendedSettings.Current</c> faults itself in on first touch and must not do that from a
+    /// worker thread (Diagnostics/CLAUDE.md), and <see cref="GetCompletionContextAsync"/> - where the items
+    /// and their suffixes are actually built - is one. Capturing it per session also means the whole list is
+    /// built from one consistent set of values rather than re-reading a static between items.</para>
+    /// </summary>
+    private Settings.SQLExtendedSettings _sessionSettings = new();
+
     private int _snapshotTextVersion = -1;
     private string _snapshotText;
 
@@ -100,6 +111,15 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     {
         DebugLog($"[Source] InitializeCompletion reason={trigger.Reason} char='{trigger.Character}' pos={triggerLocation.Position}");
 
+        // The master switch. Gated here rather than in the provider because every route into the list -
+        // typing, Ctrl+Space, the command filter and the command handler - arrives through this method,
+        // and because leaving the MEF part composed lets the setting take effect without restarting SSMS.
+        var settings = Settings.SQLExtendedSettings.Current;
+        if (!settings.IntelliSenseEnabled)
+            return default;
+
+        _sessionSettings = settings;
+
         // Don't participate if triggered by deletion
         if (trigger.Reason == CompletionTriggerReason.Backspace ||
             trigger.Reason == CompletionTriggerReason.Deletion)
@@ -126,6 +146,18 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             case SqlContextAnalyzer.CompletionType.CollationName:
                 {
                     var span = FindApplicableSpan(triggerLocation, analysis.Type);
+
+                    // "Auto-trigger after keywords". With nothing typed yet, participating here IS the list
+                    // opening by itself the moment the keyword lands (FROM, JOIN, EXEC, USE, COLLATE ...).
+                    // Off, it waits for a character or for Ctrl+Space, which is what the checkbox promises -
+                    // not that completion stops working. ColumnAfterDot is exempt: that list opened because
+                    // the user typed '.', which is not a keyword trigger and not what the setting names.
+                    if (span.Length == 0 &&
+                        analysis.Type != SqlContextAnalyzer.CompletionType.ColumnAfterDot &&
+                        !IsExplicitInvoke(trigger) &&
+                        !settings.AutoTriggerAfterKeyword)
+                        return default;
+
                     return new CompletionStartData(CompletionParticipation.ProvidesItems, span);
                 }
 
@@ -147,8 +179,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 {
                     // Only on explicit invoke (Ctrl+Space at the star) — popping up while '*'
                     // is typed would risk a later commit char swallowing the star mid-flow.
-                    if (trigger.Reason != CompletionTriggerReason.Invoke &&
-                        trigger.Reason != CompletionTriggerReason.InvokeAndCommitIfUnique)
+                    if (!IsExplicitInvoke(trigger))
                         return default;
                     int starLen = Math.Min(analysis.StarReplaceLength, position);
                     var starSpan = new SnapshotSpan(snapshot, position - starLen, starLen);
@@ -160,9 +191,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                     // For keyword/snippet completion, only participate if user is typing
                     // an identifier (at least 1 char) or explicitly invoked (Ctrl+Space)
                     var span = FindApplicableSpan(triggerLocation, analysis.Type);
-                    bool isExplicitInvoke = trigger.Reason == CompletionTriggerReason.Invoke ||
-                                            trigger.Reason == CompletionTriggerReason.InvokeAndCommitIfUnique;
-                    if (span.Length > 0 || isExplicitInvoke)
+                    if (span.Length > 0 || IsExplicitInvoke(trigger))
                         return new CompletionStartData(CompletionParticipation.ProvidesItems, span);
                     return default;
                 }
@@ -260,7 +289,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             switch (analysis.Type)
             {
                 case SqlContextAnalyzer.CompletionType.TableName:
-                    return BuildTableCompletion(cache, connectionString, connKey, currentDb, triggerLocation, localTables);
+                    return BuildTableCompletion(cache, connectionString, connKey, currentDb, analysis, triggerLocation, localTables);
 
                 case SqlContextAnalyzer.CompletionType.ColumnAfterDot:
                     return BuildColumnCompletionForDot(cache, connectionString, connKey, currentDb, analysis, localTables);
@@ -346,8 +375,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     // --- Table completion (Phase 2 logic) ---
 
     private CompletionContext BuildTableCompletion(
-        ISchemaCache cache, string connectionString, string connKey, string currentDb, SnapshotPoint triggerLocation,
-        IReadOnlyList<LocalTableScanner.LocalTable> localTables)
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, SqlContextAnalyzer.AnalysisResult analysis,
+        SnapshotPoint triggerLocation, IReadOnlyList<LocalTableScanner.LocalTable> localTables)
     {
         // Determine the already-typed qualifier before the cursor:
         //   []                  \u2192 current-db tables/views + server databases
@@ -365,6 +394,11 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             // Bare object position: this window's local temp tables/variables first (they're
             // never schema-qualified), then current-database tables/views with schema in the
             // inserted text, then the databases available on the server.
+            // A JOIN's target: the foreign keys of the tables already in scope name both the table worth
+            // joining and the predicate to join it on, so offer those as whole clauses above the plain list.
+            if (analysis.IsJoinTarget)
+                AppendJoinClauseItems(items, cache, connKey, currentDb, analysis);
+
             AppendLocalTableItems(items, localTables);
             AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: null, qualifyWithSchema: true);
             AppendDatabaseItems(items, connectionString, currentDb);
@@ -439,9 +473,14 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 : quotedName;
             string displayText = $"{obj.SchemaName}.{obj.ObjectName}";
 
-            string suffix = type == "U"
-                ? $"Table \u00B7 {obj.RowCount:N0} rows"
-                : "View";
+            // Row counts are the one part of this suffix that costs something to be wrong about: they are
+            // whatever the cache last loaded, so on a busy table the number is stale by construction. The
+            // setting is for people who would rather see no number than an old one.
+            string suffix = type != "U"
+                ? "View"
+                : _sessionSettings.ShowRowCounts
+                    ? $"Table \u00B7 {obj.RowCount:N0} rows"
+                    : "Table";
 
             var icon = new ImageElement(CompletionIcons.ForObjectType(type).ToImageId());
             var filters = type == "U" ? TableFilter : ViewFilter;
@@ -1151,7 +1190,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 string quoted = SqlIdentifierQuoting.QuoteIfNeeded(col.ColumnName);
                 string insertText = prefix != null ? $"{prefix}.{quoted}" : quoted;
                 string displayText = prefix != null ? $"{prefix}.{col.ColumnName}" : col.ColumnName;
-                string suffix = BuildColumnSuffix(col, isPk, isFk);
+                string suffix = BuildColumnSuffix(col, isPk, isFk, _sessionSettings.ShowColumnTypeInfo);
 
                 var icon = new ImageElement(
                     CompletionIcons.ForColumn(isPk, isFk, col.IsIdentity, col.IsComputed).ToImageId());
@@ -1171,6 +1210,75 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
 
                 items.Add(item);
             }
+        }
+    }
+
+    // --- JOIN <table> completion: whole join clauses from foreign keys ---
+
+    /// <summary>
+    /// Appends a whole join clause - table, alias and ON predicate together - for every foreign key between
+    /// a table already in scope and one of its neighbours, in both directions. "FROM dbo.[Order] o JOIN "
+    /// offers "dbo.Customer c ON c.Id = o.CustomerId" (a key on Order) alongside
+    /// "dbo.OrderItem oi ON oi.OrderId = o.Id" (a key on OrderItem pointing back at it).
+    ///
+    /// <para>These are added <i>before</i> the plain table list rather than instead of it: a join to a table
+    /// with no declared relationship is perfectly ordinary, and a list that silently omitted every unrelated
+    /// table would be worse than no suggestions at all.</para>
+    /// </summary>
+    private void AppendJoinClauseItems(
+        List<CompletionItem> items, ISchemaCache cache, string connKey, string currentDb,
+        SqlContextAnalyzer.AnalysisResult analysis)
+    {
+        var tables = AliasResolver.Resolve(analysis.StatementText);
+        if (tables.Count == 0)
+            return;
+
+        var relations = new List<JoinClauseBuilder.Relation>();
+        foreach (var t in tables)
+        {
+            if (string.IsNullOrEmpty(t.Table))
+                continue;
+
+            string db = t.Database ?? currentDb;
+            string schema = t.Schema ?? "dbo";
+
+            foreach (var fk in cache.GetForeignKeys(connKey, db, schema, t.Table))
+                relations.Add(new JoinClauseBuilder.Relation { ScopeTable = t, Fk = fk, Direction = JoinClauseBuilder.FkDirection.FromScope });
+
+            foreach (var fk in cache.GetReferencingForeignKeys(connKey, db, schema, t.Table))
+                relations.Add(new JoinClauseBuilder.Relation { ScopeTable = t, Fk = fk, Direction = JoinClauseBuilder.FkDirection.ToScope });
+        }
+
+        if (relations.Count == 0)
+            return;
+
+        // Schema-qualified to match the plain table items, which qualify at this position for the same
+        // reason: the completion is committed into a query that may not be running under that schema.
+        var suggestions = JoinClauseBuilder.Build(relations, tables, qualifyWithSchema: true);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int order = 0;
+
+        foreach (var s in suggestions.OrderBy(x => x.Table, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Predicate, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!seen.Add(s.InsertText))
+                continue;
+
+            var icon = new ImageElement(CompletionIcons.ForeignKey.ToImageId());
+            items.Add(new CompletionItem(
+                displayText: s.InsertText,
+                source: this,
+                icon: icon,
+                filters: JoinFilter,
+                // The key's name is what tells two suggestions to the same table apart - BillToAddressId
+                // and ShipToAddressId both read as "dbo.Address a ON ..." until the suffix names the key.
+                suffix: string.IsNullOrEmpty(s.ForeignKeyName) ? "Join" : s.ForeignKeyName,
+                insertText: s.InsertText,
+                sortText: $"!0_{order++:D3}",   // '!' sorts ahead of the alnum table sortTexts
+                // Filterable by the table name on its own, so typing "Cust" after JOIN narrows to the join
+                // clause and the plain "dbo.Customer" item together rather than dropping the clause.
+                filterText: $"{s.Schema}.{s.Table} {s.Table}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
         }
     }
 
@@ -1707,7 +1815,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         {
             string displayText = col.ColumnName;
             string insertText = SqlIdentifierQuoting.QuoteIfNeeded(col.ColumnName);
-            string suffix = BuildColumnSuffix(col, isPk, isFk);
+            string suffix = BuildColumnSuffix(col, isPk, isFk, _sessionSettings.ShowColumnTypeInfo);
 
             var icon = new ImageElement(
                 CompletionIcons.ForColumn(isPk, isFk, col.IsIdentity, col.IsComputed).ToImageId());
@@ -1800,8 +1908,12 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// <summary>
     /// Builds the suffix text shown to the right of a column completion item.
     /// Example: "int NOT NULL (PK)" or "nvarchar(50) NULL"
+    ///
+    /// <para>With <c>ShowColumnTypeInfo</c> off the type, nullability and default are dropped and only the
+    /// key/identity flags remain. The flags are deliberately kept: "(PK)" is not type information, and it is
+    /// the part of this line people scan for.</para>
     /// </summary>
-    private static string BuildColumnSuffix(CachedColumn col, bool isPk, bool isFk)
+    private static string BuildColumnSuffix(CachedColumn col, bool isPk, bool isFk, bool showTypeInfo)
     {
         string typeStr = col.DataType ?? "unknown";
 
@@ -1819,8 +1931,16 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             ? $" = {col.DefaultDefinition}"
             : "";
 
+        if (!showTypeInfo)
+            return flags.Count > 0 ? string.Join(", ", flags) : string.Empty;
+
         return $"{typeStr} {nullability}{flagStr}{defaultStr}";
     }
+
+    /// <summary>Ctrl+Space (or the commit-if-unique form), as opposed to the list opening while typing.</summary>
+    private static bool IsExplicitInvoke(CompletionTrigger trigger)
+        => trigger.Reason == CompletionTriggerReason.Invoke ||
+           trigger.Reason == CompletionTriggerReason.InvokeAndCommitIfUnique;
 
     /// <summary>
     /// Finds the span of the identifier being typed at the trigger location.

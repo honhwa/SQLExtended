@@ -29,6 +29,13 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
 
     private SchemaCacheSqliteStore _store;
     private Timer _periodicRefreshTimer;
+
+    /// <summary>
+    /// <c>DetectDdlChanges</c>, captured whenever the settings are applied. Held as a field rather than read
+    /// in <see cref="OnPeriodicRefresh"/> because that runs on a timer thread, and the settings singleton
+    /// must not be faulted in from one (Diagnostics/CLAUDE.md).
+    /// </summary>
+    private volatile bool _detectDdlChanges = true;
     private readonly ConcurrentDictionary<string, string> _connectionStrings = new(); // connKey → connString (for periodic refresh)
 
     // Limits concurrent SQL Server connections during cache loads to avoid pool exhaustion.
@@ -45,8 +52,10 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
     /// </summary>
     public void Initialize()
     {
+        var settings = Settings.SQLExtendedSettings.Current;
+
         _store = new SchemaCacheSqliteStore();
-        _store.Initialize();
+        _store.Initialize(settings.MaxCacheAgeDays);
 
         // Load previously cached databases from SQLite into memory
         var cached = _store.GetCachedDatabases();
@@ -67,8 +76,35 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
             }
         }
 
-        // Start periodic incremental refresh every 5 minutes
-        _periodicRefreshTimer = new Timer(OnPeriodicRefresh, null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
+        ApplyRefreshSettings();
+        Settings.SQLExtendedSettings.Changed += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged(object sender, EventArgs e) => ApplyRefreshSettings();
+
+    /// <summary>
+    /// Arms (or disarms) the periodic incremental refresh from <c>AutoRefreshIntervalMinutes</c>, and takes a
+    /// copy of <c>DetectDdlChanges</c> for the timer thread to read.
+    ///
+    /// <para>Re-applied on every settings save rather than only at startup, because the dialog does not say
+    /// "applies on the next start" for these two - it says "set to 0 to disable", and a disable that needs an
+    /// SSMS restart to take effect is the same silence this whole pass is about. An interval of 0 disposes
+    /// the timer outright; explicit and connection-triggered refreshes are untouched either way.</para>
+    /// </summary>
+    private void ApplyRefreshSettings()
+    {
+        var settings = Settings.SQLExtendedSettings.Current;
+        _detectDdlChanges = settings.DetectDdlChanges;
+
+        _periodicRefreshTimer?.Dispose();
+        _periodicRefreshTimer = null;
+
+        int minutes = settings.AutoRefreshIntervalMinutes;
+        if (minutes <= 0)
+            return;
+
+        var period = TimeSpan.FromMinutes(minutes);
+        _periodicRefreshTimer = new Timer(OnPeriodicRefresh, null, period, period);
     }
 
     // --- State ---
@@ -326,6 +362,21 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
         return data.ForeignKeys.Where(fk =>
             string.Equals(fk.SchemaName, schema, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(fk.TableName, tableName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    public IReadOnlyList<CachedForeignKey> GetReferencingForeignKeys(string connectionKey, string database, string schema, string tableName)
+    {
+        var data = GetDatabaseData(connectionKey, database);
+        if (data == null) return Array.Empty<CachedForeignKey>();
+
+        // Schema is only compared when both sides name one. A parsed reference usually omits it, and
+        // requiring a match there would drop every incoming key for a table written unqualified - which
+        // on screen is a table that simply has no relationships rather than a lookup that did not apply.
+        return data.ForeignKeys.Where(fk =>
+            string.Equals(fk.ReferencedTable, tableName, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrEmpty(schema) || string.IsNullOrEmpty(fk.ReferencedSchema) ||
+             string.Equals(fk.ReferencedSchema, schema, StringComparison.OrdinalIgnoreCase)))
             .ToList();
     }
 
@@ -595,6 +646,12 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
 
     private void OnPeriodicRefresh(object state)
     {
+        // "Detect DDL changes ... and auto-refresh affected objects" is exactly what an incremental refresh
+        // is - LoadModifiedSince against modify_date - so off, there is nothing for this tick to do. The
+        // timer is left running: the setting can be turned back on without an SSMS restart.
+        if (!_detectDdlChanges)
+            return;
+
         foreach (var kvp in _connectionStrings)
         {
             try
@@ -620,6 +677,7 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
 
     public void Dispose()
     {
+        Settings.SQLExtendedSettings.Changed -= OnSettingsChanged;
         _periodicRefreshTimer?.Dispose();
         _store?.Dispose();
     }

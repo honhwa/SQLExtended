@@ -80,6 +80,7 @@ load automatically when a file in that folder is opened, but not while merely pl
 | Schema export (SMO scripter, folder-compare shape) | `SQLExtended/Export/CLAUDE.md` |
 | Encrypted modules (DAC, the XOR technique) | `SQLExtended/Decryption/CLAUDE.md` |
 | SQL Search, including Agent job steps | `SQLExtended/Search/CLAUDE.md` |
+| Schema cache — the refresh timer, the purge, and the four Schema Cache settings | `SQLExtended/Cache/CLAUDE.md` |
 | IntelliSense — identifier bracketing, the `sys.` catalog cache (`Cache/SystemCatalogCache.cs`) | `SQLExtended/IntelliSense/CLAUDE.md` |
 | Rainbow parentheses — the depth scanner, the editor tagger, `SQLExtendedSettings.Changed` | `SQLExtended/Rainbow/CLAUDE.md` |
 | Comment tags and banner headers — the scanner, the five colour schemes, the Fonts and Colors writer | `SQLExtended/Comments/CLAUDE.md` |
