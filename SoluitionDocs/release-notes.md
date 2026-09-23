@@ -1,4 +1,4 @@
-DataByte for SSMS (unreleased)
+DataByte for SSMS 2026.9.23.1425
 
 Changed
 - The SQLExtended menu is reorganised into groups that read from the query editor outwards: editor actions (View Schema, Format SQL, Parse Statistics), tool windows (SQL Search, SQL History, Script Library, Validate Schema References), results grid (Find in Results, Grid Aggregates, Script Results as INSERT), monitoring (Performance Monitor, Agent Jobs, Always On Monitor, Replication Monitor), schema cache, servers (Environment Tabs, Regroup Servers Now), and settings (Settings, Formatter, Snippets, Check for Updates). Previously the results-grid commands and Parse Statistics sat among the tool windows, Regroup Servers Now sat in the cache group, and Formatter and Snippets — both settings dialogs — sat beside Format SQL.
