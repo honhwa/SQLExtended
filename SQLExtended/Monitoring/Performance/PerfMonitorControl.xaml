@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mon="clr-namespace:SQLExtended.Monitoring"
-             Background="#1E1E1E">
+             Background="{DynamicResource SqlxSurface}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -16,8 +16,8 @@
                 a couple carry a second value (CPU's "other", memory's target).
             -->
             <Style x:Key="TileBorder" TargetType="Border">
-                <Setter Property="Background" Value="#252526"/>
-                <Setter Property="BorderBrush" Value="#3F3F46"/>
+                <Setter Property="Background" Value="{DynamicResource SqlxSurfaceAlt}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorder}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="CornerRadius" Value="3"/>
                 <Setter Property="Padding" Value="12,9"/>
@@ -26,26 +26,26 @@
             </Style>
 
             <Style x:Key="TileCaption" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#808080"/>
+                <Setter Property="Foreground" Value="{DynamicResource SqlxTextMuted}"/>
                 <Setter Property="FontSize" Value="10"/>
                 <Setter Property="Margin" Value="0,0,0,3"/>
             </Style>
 
             <Style x:Key="TileValue" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#FFFFFF"/>
+                <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
                 <Setter Property="FontSize" Value="21"/>
                 <Setter Property="FontWeight" Value="Light"/>
             </Style>
 
             <Style x:Key="TileUnit" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#808080"/>
+                <Setter Property="Foreground" Value="{DynamicResource SqlxTextMuted}"/>
                 <Setter Property="FontSize" Value="11"/>
                 <Setter Property="Margin" Value="4,0,0,3"/>
                 <Setter Property="VerticalAlignment" Value="Bottom"/>
             </Style>
 
             <Style x:Key="TileSub" TargetType="TextBlock">
-                <Setter Property="Foreground" Value="#9CDCFE"/>
+                <Setter Property="Foreground" Value="{DynamicResource SqlxSynIdentifier}"/>
                 <Setter Property="FontSize" Value="10"/>
                 <Setter Property="Margin" Value="0,3,0,0"/>
             </Style>
@@ -76,7 +76,7 @@
                           ToolTip="Poll on a timer. Rate columns cover the interval between polls."/>
                 <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
                           SelectionChanged="Interval_Changed" ToolTip="How often to poll while Auto is on"/>
-                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Border Width="1" Background="{DynamicResource SqlxControlHover}" Margin="10,2,10,2"/>
                 <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
                         ToolTip="Copy the active tab's grid as tab-separated text"/>
                 <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
@@ -86,21 +86,21 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
-                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                <TextBlock x:Name="ServerText" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                <TextBlock x:Name="LoginText" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="7,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Grid>
 
         <!-- Row 1: collection warnings -->
-        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="{DynamicResource SqlxWarnSurface}" BorderBrush="{DynamicResource SqlxWarnBorder}" BorderThickness="1"
                 CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
-            <TextBlock x:Name="NoticeText" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"/>
+            <TextBlock x:Name="NoticeText" Foreground="{DynamicResource SqlxWarn}" FontSize="11" TextWrapping="Wrap"/>
         </Border>
 
         <!-- Row 2: tabs -->
-        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="{DynamicResource SqlxSurface}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="0,1,0,0"
                     Padding="0,6,0,0">
             <TabControl.ItemContainerStyle>
                 <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
@@ -119,7 +119,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding CpuSqlPercent, Converter={StaticResource Pct}}" Style="{StaticResource TileValue}"/>
                                     </StackPanel>
-                                    <mon:Sparkline Samples="{Binding CpuHistory}" LineBrush="#569CD6" Height="26" Margin="0,5,0,0"
+                                    <mon:Sparkline Samples="{Binding CpuHistory}" LineBrush="{DynamicResource SqlxHeading}" Height="26" Margin="0,5,0,0"
                                                    ToolTip="Per-minute CPU from the scheduler-monitor ring buffer, oldest to newest"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="other processes"/>
@@ -139,7 +139,7 @@
                                         <TextBlock Text="{Binding BatchRequestsPerSec, Converter={StaticResource Num}}" Style="{StaticResource TileValue}"/>
                                         <TextBlock Text="/sec" Style="{StaticResource TileUnit}"/>
                                     </StackPanel>
-                                    <mon:Sparkline Samples="{Binding BatchHistory}" LineBrush="#4EC9B0" Height="26" Margin="0,5,0,0"/>
+                                    <mon:Sparkline Samples="{Binding BatchHistory}" LineBrush="{DynamicResource SqlxGood}" Height="26" Margin="0,5,0,0"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="compiles"/>
                                         <Run Text="{Binding CompilationsPerSec, Converter={StaticResource PerSec}, Mode=OneWay}"/>
@@ -161,7 +161,7 @@
                                             <Run Text="sessions"/>
                                         </TextBlock>
                                     </StackPanel>
-                                    <mon:Sparkline Samples="{Binding ActiveHistory}" LineBrush="#DCDCAA" Height="26" Margin="0,5,0,0"/>
+                                    <mon:Sparkline Samples="{Binding ActiveHistory}" LineBrush="{DynamicResource SqlxSynFunction}" Height="26" Margin="0,5,0,0"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="longest running"/>
                                         <Run Text="{Binding LongestRunningSeconds, Converter={StaticResource Secs}, Mode=OneWay}"/>
@@ -176,16 +176,16 @@
                                     <TextBlock Text="{Binding BlockedRequests}" FontSize="21" FontWeight="Light">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#F48771"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource SqlxBad}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding BlockedRequests}" Value="0">
-                                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <mon:Sparkline Samples="{Binding BlockedHistory}" LineBrush="#F48771" Height="26" Margin="0,5,0,0"/>
+                                    <mon:Sparkline Samples="{Binding BlockedHistory}" LineBrush="{DynamicResource SqlxBad}" Height="26" Margin="0,5,0,0"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="{Binding ActiveTransactions, Mode=OneWay}"/>
                                         <Run Text="open transactions · lock waits"/>
@@ -201,7 +201,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding PageLifeExpectancy, Converter={StaticResource Secs}}" Style="{StaticResource TileValue}"/>
                                     </StackPanel>
-                                    <mon:Sparkline Samples="{Binding PleHistory}" LineBrush="#C586C0" Height="26" Margin="0,5,0,0"/>
+                                    <mon:Sparkline Samples="{Binding PleHistory}" LineBrush="{DynamicResource SqlxSynPurple}" Height="26" Margin="0,5,0,0"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="buffer pool"/>
                                         <Run Text="{Binding TotalServerMemoryKb, Converter={StaticResource Kb}, Mode=OneWay}"/>
@@ -222,7 +222,7 @@
                                             <Run Text="{Binding TempdbTotalMb, StringFormat={}{0:N0} MB, Mode=OneWay}"/>
                                         </TextBlock>
                                     </StackPanel>
-                                    <mon:Sparkline Samples="{Binding TempdbHistory}" LineBrush="#D7BA7D" Height="26" Margin="0,5,0,0"/>
+                                    <mon:Sparkline Samples="{Binding TempdbHistory}" LineBrush="{DynamicResource SqlxWarn}" Height="26" Margin="0,5,0,0"/>
                                     <TextBlock Style="{StaticResource TileSub}">
                                         <Run Text="{Binding TempdbUserObjectMb, StringFormat={}user {0:N0} MB, Mode=OneWay}"/>
                                         <Run Text="{Binding TempdbInternalObjectMb, StringFormat={}· internal {0:N0} MB, Mode=OneWay}"/>
@@ -233,7 +233,7 @@
                         </WrapPanel>
 
                         <TextBlock Text="Slowest files this interval" Style="{StaticResource SectionHeading}"/>
-                        <TextBlock x:Name="TopFilesEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                        <TextBlock x:Name="TopFilesEmpty" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,0,0,6"
                                    Text="No file I/O recorded in the sample window."/>
                         <DataGrid x:Name="TopFilesGrid" Style="{StaticResource MonitorGrid}" MaxHeight="200" Visibility="Collapsed">
                             <DataGrid.Columns>
@@ -253,7 +253,7 @@
                         </DataGrid>
 
                         <TextBlock Text="Top waits this interval" Style="{StaticResource SectionHeading}"/>
-                        <TextBlock x:Name="TopWaitsEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                        <TextBlock x:Name="TopWaitsEmpty" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,0,0,6"
                                    Text="No waits recorded in the sample window."/>
                         <DataGrid x:Name="TopWaitsGrid" Style="{StaticResource MonitorGrid}" MaxHeight="200" Visibility="Collapsed">
                             <DataGrid.Columns>
@@ -286,7 +286,7 @@
                         <CheckBox x:Name="ActiveOnlyCheck" Content="Running only" Style="{StaticResource ToolCheck}"
                                   Checked="ActivityFilter_Changed" Unchecked="ActivityFilter_Changed"
                                   ToolTip="Hide idle sessions that are only listed because they hold an open transaction"/>
-                        <TextBlock x:Name="ActivityHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock x:Name="ActivityHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Text="Idle sessions holding an open transaction are included — they never appear in sys.dm_exec_requests but are a common head blocker."/>
                     </StackPanel>
 
@@ -335,7 +335,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock x:Name="BlockingEmpty" Grid.Row="0" Foreground="#4EC9B0" FontSize="11" Margin="0,6,0,6"
+                    <TextBlock x:Name="BlockingEmpty" Grid.Row="0" Foreground="{DynamicResource SqlxGood}" FontSize="11" Margin="0,6,0,6"
                                Text="Nothing is blocked."/>
 
                     <DataGrid x:Name="BlockingGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}" Visibility="Collapsed">
@@ -386,7 +386,7 @@
                         <CheckBox x:Name="BenignWaitsCheck" Content="Include benign waits" Style="{StaticResource ToolCheck}"
                                   Checked="BenignWaits_Changed" Unchecked="BenignWaits_Changed"
                                   ToolTip="Show the idle and background waits that are filtered out by default"/>
-                        <TextBlock x:Name="WaitsHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock x:Name="WaitsHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Text="Deltas over the sample window, not totals since the instance started."/>
                     </StackPanel>
 
@@ -423,12 +423,12 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,4,0,6">
-                        <TextBlock Text="Rank by" Foreground="#CCCCCC" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="Rank by" Foreground="{DynamicResource SqlxTextChrome}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox x:Name="MetricCombo" Style="{StaticResource ToolCombo}" Width="165"
                                   SelectionChanged="QueryOption_Changed"/>
                         <ComboBox x:Name="TopCountCombo" Style="{StaticResource ToolCombo}" Width="80" Margin="6,0,0,0"
                                   SelectionChanged="QueryOption_Changed"/>
-                        <TextBlock Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Text="Aggregates from the plan cache since each plan was compiled — not limited to the sample window."/>
                     </StackPanel>
 
@@ -468,7 +468,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Foreground="#808080" FontSize="11" Margin="0,6,0,6"
+                    <TextBlock Grid.Row="0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,6,0,6"
                                Text="Latency over the sample window. Amber from 20 ms, red from 50 ms; files with no I/O this interval are omitted rather than shown as zero."/>
 
                     <DataGrid x:Name="FilesGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
@@ -513,7 +513,7 @@
                                     <TextBlock Text="VERSION" Style="{StaticResource TileCaption}"/>
                                     <TextBlock x:Name="InfoReleaseText" Style="{StaticResource TileValue}" Text="—" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock x:Name="InfoEditionText" Style="{StaticResource TileSub}" TextWrapping="Wrap"/>
-                                    <TextBlock x:Name="InfoVersionText" Style="{StaticResource TileSub}" Foreground="#808080"/>
+                                    <TextBlock x:Name="InfoVersionText" Style="{StaticResource TileSub}" Foreground="{DynamicResource SqlxTextMuted}"/>
                                 </StackPanel>
                             </Border>
 
@@ -522,7 +522,7 @@
                                     <TextBlock Text="SERVICING LEVEL" Style="{StaticResource TileCaption}"/>
                                     <TextBlock x:Name="InfoPatchText" Style="{StaticResource TileValue}" Text="—" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock x:Name="InfoPatchStatusText" Style="{StaticResource TileSub}" TextWrapping="Wrap"/>
-                                    <TextBlock x:Name="InfoLatestText" Style="{StaticResource TileSub}" Foreground="#808080" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="InfoLatestText" Style="{StaticResource TileSub}" Foreground="{DynamicResource SqlxTextMuted}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
 
@@ -545,10 +545,10 @@
 
                         <!-- Provenance, not decoration: the build list is a snapshot and every verdict above is
                              only as current as it is. -->
-                        <TextBlock Foreground="#808080" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap">
+                        <TextBlock Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap">
                             <Run x:Name="InfoSourceRun" Text="Build list snapshot"/>
                             <Hyperlink RequestNavigate="InfoSource_Navigate"
-                                       NavigateUri="https://sqlserverbuilds.blogspot.com/" Foreground="#569CD6">
+                                       NavigateUri="https://sqlserverbuilds.blogspot.com/" Foreground="{DynamicResource SqlxHeading}">
                                 <Run Text="sqlserverbuilds.blogspot.com"/>
                             </Hyperlink>
                         </TextBlock>
@@ -570,7 +570,7 @@
                         </DataGrid>
 
                         <TextBlock Text="Updates released since this build" Style="{StaticResource SectionHeading}"/>
-                        <TextBlock x:Name="NewerBuildsEmpty" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                        <TextBlock x:Name="NewerBuildsEmpty" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,0,0,6"
                                    Text="Nothing to show until the server information has been collected."/>
                         <DataGrid x:Name="NewerBuildsGrid" Style="{StaticResource MonitorGrid}" MaxHeight="300" Visibility="Collapsed">
                             <DataGrid.Columns>
@@ -593,10 +593,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        Text="Open a query window connected to the server you want to watch, then press Refresh."/>
-            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="11" Margin="8,0,2,0"
                        VerticalAlignment="Center"/>
         </Grid>
     </Grid>

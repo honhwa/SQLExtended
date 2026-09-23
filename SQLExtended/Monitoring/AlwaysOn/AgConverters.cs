@@ -12,16 +12,9 @@ namespace SQLExtended.Monitoring.AlwaysOn;
 /// </summary>
 internal sealed class AgSeverityBrushConverter : IValueConverter
 {
-    private static readonly Brush Critical = Freeze(Color.FromRgb(0xF4, 0x87, 0x71));
-    private static readonly Brush Warning = Freeze(Color.FromRgb(0xD7, 0xBA, 0x7D));
-    private static readonly Brush Information = Freeze(Color.FromRgb(0x4E, 0xC9, 0xB0));
-
-    private static Brush Freeze(Color color)
-    {
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
+    private static Brush Critical => Theme.ThemeManager.Get("SqlxBad");
+    private static Brush Warning => Theme.ThemeManager.Get("SqlxWarn");
+    private static Brush Information => Theme.ThemeManager.Get("SqlxGood");
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {

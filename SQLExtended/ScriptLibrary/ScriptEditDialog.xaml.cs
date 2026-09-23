@@ -1,9 +1,6 @@
-using ICSharpCode.AvalonEdit.Highlighting;
-using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using SQLExtended.ScriptLibrary.Models;
 using System.Windows;
 using System.Windows.Input;
-using System.Xml;
 
 namespace SQLExtended.ScriptLibrary;
 
@@ -33,15 +30,8 @@ public partial class ScriptEditDialog : Window
 
     private void InitializeSyntaxHighlighting()
     {
-        try
-        {
-            var assembly = typeof(ScriptEditDialog).Assembly;
-            using var stream = assembly.GetManifestResourceStream("SQLExtended.Search.TsqlDarkHighlighting.xshd");
-            if (stream == null) return;
-            using var reader = new XmlTextReader(stream);
-            BodyEditor.SyntaxHighlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-        }
-        catch { }
+        // The embedded T-SQL definition, recoloured for a light theme and re-applied on a switch.
+        Theme.TsqlHighlighting.Attach(BodyEditor);
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)

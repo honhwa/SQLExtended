@@ -29,6 +29,11 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.3" />
   </ItemGroup>
 
+  <!-- The WPF palette is pure data; ThemePaletteTests checks it against every key the XAML asks for. -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Theme\ThemePalette.cs" Link="Theme\ThemePalette.cs" />
+  </ItemGroup>
+
   <!-- Include formatting source files directly to avoid VSIX dependencies -->
   <ItemGroup>
     <Compile Include="..\SQLExtended\Formatting\*.cs" Link="Formatting\%(Filename)%(Extension)" />

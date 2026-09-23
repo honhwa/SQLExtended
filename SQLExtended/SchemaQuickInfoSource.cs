@@ -268,8 +268,8 @@ internal sealed class SchemaQuickInfoSource : IAsyncQuickInfoSource
 
         var border = new Border
         {
-            Background = new SolidColorBrush(ColorFromHex("#252526")),
-            BorderBrush = new SolidColorBrush(ColorFromHex("#007ACC")),
+            Background = Theme.ThemeManager.Get("SqlxSurfaceAlt"),
+            BorderBrush = Theme.ThemeManager.Get("SqlxAccent"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(3),
             Padding = new Thickness(10, 8, 10, 8),
@@ -280,7 +280,7 @@ internal sealed class SchemaQuickInfoSource : IAsyncQuickInfoSource
         var nameText = new TextBlock
         {
             Text = $"\U0001F4CB {info.QualifiedName}",
-            Foreground = new SolidColorBrush(ColorFromHex("#569CD6")),
+            Foreground = Theme.ThemeManager.Get("SqlxHeading"),
             FontWeight = FontWeights.Bold,
             FontSize = 13,
             FontFamily = new FontFamily("Cascadia Code, Consolas, Courier New"),
@@ -298,7 +298,7 @@ internal sealed class SchemaQuickInfoSource : IAsyncQuickInfoSource
         var detailsText = new TextBlock
         {
             Text = details,
-            Foreground = new SolidColorBrush(ColorFromHex("#CCCCCC")),
+            Foreground = Theme.ThemeManager.Get("SqlxTextChrome"),
             FontSize = 12,
             Margin = new Thickness(0, 0, 0, 6)
         };
@@ -312,7 +312,7 @@ internal sealed class SchemaQuickInfoSource : IAsyncQuickInfoSource
         };
         var hyperlink = new Run("Click for full schema...")
         {
-            Foreground = new SolidColorBrush(ColorFromHex("#007ACC")),
+            Foreground = Theme.ThemeManager.Get("SqlxAccent"),
         };
         hyperlink.TextDecorations = TextDecorations.Underline;
         linkText.Inlines.Add(hyperlink);
@@ -376,15 +376,6 @@ internal sealed class SchemaQuickInfoSource : IAsyncQuickInfoSource
             }
             catch { }
         });
-    }
-
-    private static Color ColorFromHex(string hex)
-    {
-        hex = hex.TrimStart('#');
-        byte r = Convert.ToByte(hex.Substring(0, 2), 16);
-        byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-        byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-        return Color.FromRgb(r, g, b);
     }
 
     private static void Log(string message) => SchemaQuickInfoSourceProvider.DebugLog(message);

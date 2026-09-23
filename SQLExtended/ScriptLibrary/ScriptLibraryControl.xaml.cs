@@ -1,7 +1,5 @@
 using EnvDTE;
 using EnvDTE80;
-using ICSharpCode.AvalonEdit.Highlighting;
-using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.VisualStudio.Shell;
 using SQLExtended.ScriptLibrary.Models;
 using System;
@@ -10,7 +8,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
-using System.Xml;
 
 namespace SQLExtended.ScriptLibrary;
 
@@ -44,16 +41,8 @@ public partial class ScriptLibraryControl : UserControl
 
     private void InitializeSyntaxHighlighting()
     {
-        try
-        {
-            // Reuse the T-SQL highlighting file embedded by the Search feature.
-            var assembly = typeof(ScriptLibraryControl).Assembly;
-            using var stream = assembly.GetManifestResourceStream("SQLExtended.Search.TsqlDarkHighlighting.xshd");
-            if (stream == null) return;
-            using var reader = new XmlTextReader(stream);
-            PreviewEditor.SyntaxHighlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-        }
-        catch { }
+        // The embedded T-SQL definition, recoloured for a light theme and re-applied on a switch.
+        Theme.TsqlHighlighting.Attach(PreviewEditor);
     }
 
     // --- Loading + filtering ---

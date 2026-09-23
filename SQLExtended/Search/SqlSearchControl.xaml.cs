@@ -6,13 +6,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Xml;
 using SQLExtended.Cache;
 using SQLExtended.Cache.Models;
 using SQLExtended.Monitoring.Jobs;
 using SQLExtended.Settings;
-using ICSharpCode.AvalonEdit.Highlighting;
-using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -503,23 +500,8 @@ public partial class SqlSearchControl : UserControl
 
     private void InitializeSyntaxHighlighting()
     {
-        try
-        {
-            var assembly = typeof(SqlSearchControl).Assembly;
-            using (var stream = assembly.GetManifestResourceStream("SQLExtended.Search.TsqlDarkHighlighting.xshd"))
-            {
-                if (stream != null)
-                {
-                    using (var reader = new XmlTextReader(stream))
-                    {
-                        var highlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-                        PreviewEditor.SyntaxHighlighting = highlighting;
-                        TempTableEditor.SyntaxHighlighting = highlighting;
-                    }
-                }
-            }
-        }
-        catch { }
+        // The embedded T-SQL definition, recoloured for a light theme and re-applied on a switch.
+        Theme.TsqlHighlighting.Attach(PreviewEditor, TempTableEditor);
     }
 
     // --- Schema preview ---
@@ -548,8 +530,7 @@ public partial class SqlSearchControl : UserControl
 
         string dbPrefix = !string.IsNullOrEmpty(vm.DatabaseName) ? $"{vm.DatabaseName}." : "";
         PreviewHeader.Text = $"{dbPrefix}{vm.SchemaName}.{vm.DisplayName} \u2014 loading...";
-        PreviewHeader.Foreground = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x56, 0x9C, 0xD6));
+        PreviewHeader.SetResourceReference(ForegroundProperty, "SqlxHeading");
         PreviewEditor.Text = "";
         TempTableEditor.Text = "";
 
@@ -626,8 +607,7 @@ public partial class SqlSearchControl : UserControl
         sb.Append(step.Command ?? "-- (this step has no command text)");
 
         PreviewHeader.Text = $"{step.JobName} — {vm.StepDisplay}";
-        PreviewHeader.Foreground = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x56, 0x9C, 0xD6));
+        PreviewHeader.SetResourceReference(ForegroundProperty, "SqlxHeading");
 
         _searchHighlighter.SearchTerm = SearchTextBox.Text?.Trim();
         PreviewEditor.Text = sb.ToString();
@@ -644,10 +624,7 @@ public partial class SqlSearchControl : UserControl
                 : $"{dbPrefix}{vm.SchemaName}.{vm.DisplayName}";
 
             PreviewHeader.Text = headerName;
-            PreviewHeader.Foreground = new System.Windows.Media.SolidColorBrush(
-                isError
-                    ? System.Windows.Media.Color.FromRgb(0xF1, 0x4C, 0x4C)
-                    : System.Windows.Media.Color.FromRgb(0x56, 0x9C, 0xD6));
+            PreviewHeader.SetResourceReference(ForegroundProperty, isError ? "SqlxError" : "SqlxHeading");
 
             _searchHighlighter.SearchTerm = isError ? null : SearchTextBox.Text?.Trim();
             PreviewEditor.Text = text;
@@ -657,8 +634,7 @@ public partial class SqlSearchControl : UserControl
     private void ClearPreview()
     {
         PreviewHeader.Text = "Select a result to view schema";
-        PreviewHeader.Foreground = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+        PreviewHeader.SetResourceReference(ForegroundProperty, "SqlxTextMuted");
         _searchHighlighter.SearchTerm = null;
         _tempTableHighlighter.SearchTerm = null;
         PreviewEditor.Text = "";

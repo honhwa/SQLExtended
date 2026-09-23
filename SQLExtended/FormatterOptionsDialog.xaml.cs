@@ -312,14 +312,13 @@ public partial class FormatterOptionsDialog : Window
             {
                 PreviewOutput.Text = result.FormattedSql;
                 TxtPreviewStatus.Text = "";
-                TxtPreviewStatus.Foreground = System.Windows.Media.Brushes.Gray;
+                TxtPreviewStatus.SetResourceReference(ForegroundProperty, "SqlxTextMuted");
             }
             else
             {
                 PreviewOutput.Text = PreviewInput.Text;
                 TxtPreviewStatus.Text = "Parse error";
-                TxtPreviewStatus.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(0xF1, 0x4C, 0x4C));
+                TxtPreviewStatus.SetResourceReference(ForegroundProperty, "SqlxError");
                 TxtPreviewStatus.ToolTip = result.ErrorMessage;
             }
         }
@@ -327,8 +326,7 @@ public partial class FormatterOptionsDialog : Window
         {
             PreviewOutput.Text = $"-- Error: {ex.Message}";
             TxtPreviewStatus.Text = "Error";
-            TxtPreviewStatus.Foreground = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0xF1, 0x4C, 0x4C));
+            TxtPreviewStatus.SetResourceReference(ForegroundProperty, "SqlxError");
         }
     }
 
@@ -356,15 +354,13 @@ public partial class FormatterOptionsDialog : Window
             {
                 PreviewInput.Text = _currentDocumentSql;
                 PreviewInput.IsReadOnly = true;
-                PreviewInput.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(0x1E, 0x1E, 0x1E));
+                PreviewInput.SetResourceReference(BackgroundProperty, "SqlxSurface");
             }
             else
             {
                 PreviewInput.Text = DefaultSampleSql;
                 PreviewInput.IsReadOnly = false;
-                PreviewInput.Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(0x25, 0x25, 0x26));
+                PreviewInput.SetResourceReference(BackgroundProperty, "SqlxSurfaceAlt");
             }
         }
         finally
@@ -498,8 +494,6 @@ public partial class FormatterOptionsDialog : Window
             Width = 400,
             Height = 160,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0x1E, 0x1E, 0x1E)),
             ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false,
         };
@@ -509,7 +503,6 @@ public partial class FormatterOptionsDialog : Window
         var label = new System.Windows.Controls.TextBlock
         {
             Text = prompt,
-            Foreground = System.Windows.Media.Brushes.LightGray,
             FontSize = 12,
             Margin = new Thickness(0, 0, 0, 8)
         };
@@ -517,14 +510,14 @@ public partial class FormatterOptionsDialog : Window
         var textBox = new System.Windows.Controls.TextBox
         {
             Text = defaultValue,
-            Background = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x37)),
-            Foreground = System.Windows.Media.Brushes.White,
-            BorderBrush = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)),
             Padding = new Thickness(6, 4, 6, 4),
             FontSize = 12
         };
+        dlg.SetResourceReference(BackgroundProperty, "SqlxSurface");
+        label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "SqlxTextChrome");
+        textBox.SetResourceReference(BackgroundProperty, "SqlxControl");
+        textBox.SetResourceReference(ForegroundProperty, "SqlxTextStrong");
+        textBox.SetResourceReference(BorderBrushProperty, "SqlxBorderStrong");
         textBox.SelectAll();
 
         var buttonPanel = new System.Windows.Controls.StackPanel

@@ -5,7 +5,7 @@
         Width="1100" Height="700"
         MinWidth="900" MinHeight="550"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E"
+        Background="{DynamicResource SqlxSurface}"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="False"
         KeyDown="Window_KeyDown">
@@ -18,9 +18,9 @@
 
         <!-- Reusable dark theme button style -->
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontSize" Value="12"/>
@@ -37,11 +37,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -52,7 +52,7 @@
         <!-- Small toolbar button style -->
         <Style x:Key="ToolbarButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextSubtle}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="8,3"/>
             <Setter Property="FontSize" Value="11"/>
@@ -69,12 +69,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -84,7 +84,7 @@
 
         <!-- Toggle button style for preview source selector -->
         <Style x:Key="SourceToggle" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextSubtle}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -93,23 +93,23 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Border" Background="{TemplateBinding Background}"
-                                BorderBrush="#444444" BorderThickness="1" CornerRadius="2"
+                                BorderBrush="{DynamicResource SqlxBorderStrong}" BorderThickness="1" CornerRadius="2"
                                 Padding="8,3">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#007ACC"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource SqlxAccent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxOnAccent}"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                     <Condition Property="IsChecked" Value="False"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Border" Property="Background" Value="#3F3F46"/>
-                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -126,7 +126,7 @@
 
         <!-- Label style -->
         <Style x:Key="OptionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,0,12,0"/>
@@ -134,7 +134,7 @@
 
         <!-- Section header style -->
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#569CD6"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxHeading}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,12,0,8"/>
@@ -142,16 +142,16 @@
 
         <!-- CheckBox style -->
         <Style x:Key="DarkCheckBox" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,4"/>
         </Style>
 
         <!-- TextBox style for numeric inputs -->
         <Style x:Key="NumericInput" TargetType="TextBox">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Width" Value="60"/>
@@ -160,27 +160,27 @@
 
         <!-- TabControl style -->
         <Style TargetType="TabControl">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="BorderBrush" Value="#333337"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurface}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderSubtle}"/>
         </Style>
 
         <Style TargetType="TabItem">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceRaised}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="Border" Background="#2D2D30" BorderBrush="#333337" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="12,6">
+                        <Border x:Name="Border" Background="{DynamicResource SqlxSurfaceRaised}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1,1,1,0" CornerRadius="3,3,0,0" Padding="12,6">
                             <ContentPresenter ContentSource="Header"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#1E1E1E"/>
-                                <Setter Property="Foreground" Value="#569CD6"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource SqlxSurface}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxHeading}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#3F3F46"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource SqlxControlHover}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -198,9 +198,9 @@
         </Grid.RowDefinitions>
 
         <!-- Profile selector bar -->
-        <Border Grid.Row="0" Background="#252526" BorderBrush="#333337" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,8">
+        <Border Grid.Row="0" Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,8">
             <DockPanel>
-                <TextBlock Text="Profile:" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                <TextBlock Text="Profile:" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold"
                            VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,8,0"/>
                 <ComboBox x:Name="CboProfile" Style="{StaticResource DarkComboBox}" MinWidth="200"
                           SelectionChanged="Profile_Changed" DockPanel.Dock="Left" Margin="0,0,8,0"/>
@@ -211,7 +211,7 @@
                 <Button x:Name="BtnDeleteProfile" Content="Delete" Style="{StaticResource ToolbarButton}" Click="DeleteProfile_Click"
                         DockPanel.Dock="Left" Margin="0,0,0,0"/>
                 <TextBlock x:Name="TxtProfileStatus" DockPanel.Dock="Right" HorizontalAlignment="Right"
-                           VerticalAlignment="Center" FontSize="11" Foreground="#4EC9B0" Margin="8,0,0,0"/>
+                           VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SqlxGood}" Margin="8,0,0,0"/>
             </DockPanel>
         </Border>
 
@@ -398,7 +398,7 @@
 
             <!-- Splitter -->
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                          Background="#333337" Cursor="SizeWE" Margin="2,0"/>
+                          Background="{DynamicResource SqlxControl}" Cursor="SizeWE" Margin="2,0"/>
 
             <!-- Right: Always-visible preview panel -->
             <Grid Grid.Column="2">
@@ -410,9 +410,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- Preview source toolbar -->
-                <Border Grid.Row="0" Background="#252526" BorderBrush="#333337" BorderThickness="1,1,1,0" Padding="6,4">
+                <Border Grid.Row="0" Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1,1,1,0" Padding="6,4">
                     <DockPanel>
-                        <TextBlock Text="Preview" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="Preview" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold"
                                    VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,12,0"/>
 
                         <!-- Source toggle buttons -->
@@ -427,7 +427,7 @@
 
                         <!-- Error indicator (right-aligned) -->
                         <TextBlock x:Name="TxtPreviewStatus" DockPanel.Dock="Right" HorizontalAlignment="Right"
-                                   VerticalAlignment="Center" FontSize="11" Foreground="#666666"/>
+                                   VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SqlxTextDisabled}"/>
                     </DockPanel>
                 </Border>
 
@@ -441,21 +441,21 @@
                          HorizontalScrollBarVisibility="Auto"
                          FontFamily="Cascadia Code, Consolas, Courier New"
                          FontSize="11.5"
-                         Background="#252526"
-                         Foreground="#D4D4D4"
-                         BorderBrush="#333337"
+                         Background="{DynamicResource SqlxSurfaceAlt}"
+                         Foreground="{DynamicResource SqlxText}"
+                         BorderBrush="{DynamicResource SqlxBorderSubtle}"
                          BorderThickness="1,0,1,1"
                          Padding="8,4"
                          TextChanged="PreviewInput_TextChanged"/>
 
                 <!-- Horizontal splitter between input and output -->
                 <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                              Background="#333337" Cursor="SizeNS" ResizeDirection="Rows"/>
+                              Background="{DynamicResource SqlxControl}" Cursor="SizeNS" ResizeDirection="Rows"/>
 
                 <!-- Formatted output: header + textbox in a single star-sized row -->
                 <DockPanel Grid.Row="3">
-                    <Border DockPanel.Dock="Top" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="1,1,1,0" Padding="6,3">
-                        <TextBlock Text="Formatted Output" Foreground="#4EC9B0" FontSize="11" FontWeight="SemiBold"/>
+                    <Border DockPanel.Dock="Top" Background="{DynamicResource SqlxSurface}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1,1,1,0" Padding="6,3">
+                        <TextBlock Text="Formatted Output" Foreground="{DynamicResource SqlxGood}" FontSize="11" FontWeight="SemiBold"/>
                     </Border>
                     <TextBox x:Name="PreviewOutput"
                              IsReadOnly="True"
@@ -465,9 +465,9 @@
                              HorizontalScrollBarVisibility="Auto"
                              FontFamily="Cascadia Code, Consolas, Courier New"
                              FontSize="11.5"
-                             Background="#1E1E1E"
-                             Foreground="#D4D4D4"
-                             BorderBrush="#333337"
+                             Background="{DynamicResource SqlxSurface}"
+                             Foreground="{DynamicResource SqlxText}"
+                             BorderBrush="{DynamicResource SqlxBorderSubtle}"
                              BorderThickness="1,0,1,1"
                              Padding="8,4"/>
                 </DockPanel>

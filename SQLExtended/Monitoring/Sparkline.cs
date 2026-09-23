@@ -39,15 +39,10 @@ internal sealed class Sparkline : FrameworkElement
         set => SetValue(LineBrushProperty, value);
     }
 
-    private static readonly Brush LabelBrush = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
-    private static readonly Brush FlatBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+    // Read at render time, so the next repaint after a theme switch picks up the other variant.
+    private static Brush LabelBrush => Theme.ThemeManager.Get("SqlxTextMuted");
+    private static Brush FlatBrush => Theme.ThemeManager.Get("SqlxBorderStrong");
     private static readonly Typeface LabelTypeface = new Typeface("Segoe UI");
-
-    static Sparkline()
-    {
-        LabelBrush.Freeze();
-        FlatBrush.Freeze();
-    }
 
     /// <summary>
     /// FrameworkElement's default measure reports zero, which inside a DataGrid cell can collapse the element

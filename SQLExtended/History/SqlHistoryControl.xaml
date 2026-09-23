@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
-             Background="#1E1E1E">
+             Background="{DynamicResource SqlxSurface}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -11,9 +11,9 @@
         </ResourceDictionary.MergedDictionaries>
 
         <Style x:Key="ToolButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12"/>
@@ -30,11 +30,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -46,9 +46,9 @@
 
         <Style x:Key="HistoryItem" TargetType="ListBoxItem">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxText}"/>
             <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="#2D2D30"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderSubtle}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Template">
@@ -62,10 +62,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#2A2D2E"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxRowHover}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="#094771"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxSelection}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -93,10 +93,10 @@
 
             <TextBox x:Name="SearchTextBox"
                      Grid.Column="0"
-                     Background="#333337"
-                     Foreground="#D4D4D4"
-                     CaretBrush="#D4D4D4"
-                     BorderBrush="#555555"
+                     Background="{DynamicResource SqlxControl}"
+                     Foreground="{DynamicResource SqlxText}"
+                     CaretBrush="{DynamicResource SqlxText}"
+                     BorderBrush="{DynamicResource SqlxBorderStrong}"
                      BorderThickness="1"
                      Padding="6,4"
                      FontSize="13"
@@ -124,7 +124,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Show:" Foreground="#999999" FontSize="12"
+            <TextBlock Grid.Column="0" Text="Show:" Foreground="{DynamicResource SqlxTextSubtle}" FontSize="12"
                        VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="DateFilterCombo" Grid.Column="1" Style="{StaticResource DarkCombo}"
                       SelectionChanged="DateFilterCombo_SelectionChanged">
@@ -135,7 +135,7 @@
             </ComboBox>
 
             <TextBlock x:Name="CountText" Grid.Column="2"
-                       Foreground="#999999" FontSize="11"
+                       Foreground="{DynamicResource SqlxTextSubtle}" FontSize="11"
                        VerticalAlignment="Center" Margin="8,0,0,0"/>
         </Grid>
 
@@ -149,15 +149,15 @@
 
             <ListBox x:Name="ResultsList"
                      Grid.Row="0"
-                     Background="#1E1E1E"
-                     BorderBrush="#333337"
+                     Background="{DynamicResource SqlxSurface}"
+                     BorderBrush="{DynamicResource SqlxBorderSubtle}"
                      BorderThickness="1"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ItemContainerStyle="{StaticResource HistoryItem}"
                      SelectionChanged="ResultsList_SelectionChanged"
                      MouseDoubleClick="ResultsList_MouseDoubleClick">
                 <ListBox.ContextMenu>
-                    <ContextMenu Background="#2D2D30" Foreground="#D4D4D4" BorderBrush="#555555">
+                    <ContextMenu Background="{DynamicResource SqlxSurfaceRaised}" Foreground="{DynamicResource SqlxText}" BorderBrush="{DynamicResource SqlxBorderStrong}">
                         <MenuItem Header="Open in new query window" Click="OpenInNewWindow_Click"/>
                         <MenuItem Header="Copy to clipboard" Click="CopyText_Click"/>
                         <Separator/>
@@ -179,24 +179,24 @@
 
                             <TextBlock Grid.Row="0" Grid.Column="0"
                                        Text="{Binding TimeDisplay}"
-                                       Foreground="#569CD6" FontSize="11"
+                                       Foreground="{DynamicResource SqlxHeading}" FontSize="11"
                                        FontFamily="Cascadia Code, Consolas, Courier New"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
 
                             <TextBlock Grid.Row="0" Grid.Column="1"
                                        Text="{Binding DocumentTitle}"
-                                       Foreground="#D4D4D4" FontSize="12"
+                                       Foreground="{DynamicResource SqlxText}" FontSize="12"
                                        FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis"/>
 
                             <TextBlock Grid.Row="0" Grid.Column="2"
                                        Text="{Binding LengthDisplay}"
-                                       Foreground="#6A9955" FontSize="11"
+                                       Foreground="{DynamicResource SqlxSynComment}" FontSize="11"
                                        Margin="8,0,0,0" VerticalAlignment="Center"/>
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
                                        Text="{Binding PreviewLine}"
-                                       Foreground="#808080" FontSize="11"
+                                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                                        FontFamily="Cascadia Code, Consolas, Courier New"
                                        Margin="0,2,0,0"
                                        TextTrimming="CharacterEllipsis"/>
@@ -208,7 +208,7 @@
             <GridSplitter Grid.Row="1"
                           Height="5"
                           HorizontalAlignment="Stretch"
-                          Background="#2D2D30"
+                          Background="{DynamicResource SqlxSurfaceRaised}"
                           Cursor="SizeNS"
                           ResizeBehavior="PreviousAndNext"
                           ShowsPreview="True"/>
@@ -219,7 +219,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Background="#252526">
+                <Grid Grid.Row="0" Background="{DynamicResource SqlxSurfaceAlt}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -228,7 +228,7 @@
                     <TextBlock x:Name="PreviewHeader"
                                Grid.Column="0"
                                Text="Select a snapshot to view"
-                               Foreground="#808080"
+                               Foreground="{DynamicResource SqlxTextMuted}"
                                FontSize="11"
                                Padding="6,4"
                                VerticalAlignment="Center"
@@ -250,11 +250,11 @@
                                        WordWrap="False"
                                        FontFamily="Cascadia Code, Consolas, Courier New"
                                        FontSize="12"
-                                       Background="#1E1E1E"
-                                       Foreground="#D4D4D4"
-                                       LineNumbersForeground="#555555"
+                                       Background="{DynamicResource SqlxSurface}"
+                                       Foreground="{DynamicResource SqlxText}"
+                                       LineNumbersForeground="{DynamicResource SqlxLineNumber}"
                                        BorderThickness="0,1,0,0"
-                                       BorderBrush="#333337"
+                                       BorderBrush="{DynamicResource SqlxBorderSubtle}"
                                        Padding="4"
                                        HorizontalScrollBarVisibility="Auto"
                                        VerticalScrollBarVisibility="Auto"/>
@@ -265,7 +265,7 @@
         <TextBlock x:Name="StatusText"
                    Grid.Row="3"
                    Text="Ready"
-                   Foreground="#808080"
+                   Foreground="{DynamicResource SqlxTextMuted}"
                    FontSize="11"
                    VerticalAlignment="Center"
                    Margin="0,4,0,0"/>

@@ -1,7 +1,5 @@
 using EnvDTE;
 using EnvDTE80;
-using ICSharpCode.AvalonEdit.Highlighting;
-using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.VisualStudio.Shell;
 using SQLExtended.History.Models;
 using System;
@@ -10,7 +8,6 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Xml;
 
 namespace SQLExtended.History;
 
@@ -47,17 +44,8 @@ public partial class SqlHistoryControl : UserControl
 
     private void InitializeSyntaxHighlighting()
     {
-        try
-        {
-            // Reuse the syntax file already embedded by the Search feature.
-            var assembly = typeof(SqlHistoryControl).Assembly;
-            using var stream = assembly.GetManifestResourceStream("SQLExtended.Search.TsqlDarkHighlighting.xshd");
-            if (stream == null) return;
-            using var reader = new XmlTextReader(stream);
-            var highlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-            PreviewEditor.SyntaxHighlighting = highlighting;
-        }
-        catch { }
+        // The embedded T-SQL definition, recoloured for a light theme and re-applied on a switch.
+        Theme.TsqlHighlighting.Attach(PreviewEditor);
     }
 
     // --- Loading + filtering ---

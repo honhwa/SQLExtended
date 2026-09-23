@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:SQLExtended.Monitoring.AlwaysOn"
              xmlns:mon="clr-namespace:SQLExtended.Monitoring"
-             Background="#1E1E1E">
+             Background="{DynamicResource SqlxSurface}">
 
     <UserControl.Resources>
         <!-- Shared monitoring chrome: buttons, tabs, grid styling and converters. -->
@@ -18,7 +18,7 @@
 
         <!-- Overview card for a single availability group -->
         <DataTemplate x:Key="GroupCard">
-            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+            <Border Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1" CornerRadius="3"
                     Padding="12,9" Margin="0,0,8,8" MinWidth="310">
                 <StackPanel>
                     <Grid Margin="0,0,0,8">
@@ -26,9 +26,9 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="#FFFFFF" FontSize="14"
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="{DynamicResource SqlxTextStrong}" FontSize="14"
                                    FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                        <Border Grid.Column="1" CornerRadius="2" Padding="5,1" Margin="6,0,0,0" Background="#33000000">
+                        <Border Grid.Column="1" CornerRadius="2" Padding="5,1" Margin="6,0,0,0" Background="{DynamicResource SqlxOverlay}">
                             <TextBlock Text="{Binding SynchronizationHealth, Converter={StaticResource Dash}}"
                                        Foreground="{Binding SynchronizationHealth, Converter={StaticResource Health}}"
                                        FontSize="10" FontWeight="SemiBold"/>
@@ -59,11 +59,11 @@
                                 <TextBlock.Style>
                                     <!-- Amber and bold while anything is degraded; a quiet grey zero otherwise. -->
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#D7BA7D"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource SqlxWarn}"/>
                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding WarningCount}" Value="0">
-                                                <Setter Property="Foreground" Value="#6E6E6E"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextMuted}"/>
                                                 <Setter Property="FontWeight" Value="Normal"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -77,11 +77,11 @@
                                 <TextBlock.Style>
                                     <!-- Red and bold whenever anything is unhealthy; a plain green zero otherwise. -->
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#F48771"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource SqlxBad}"/>
                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding UnhealthyCount}" Value="0">
-                                                <Setter Property="Foreground" Value="#4EC9B0"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource SqlxGood}"/>
                                                 <Setter Property="FontWeight" Value="Normal"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -91,7 +91,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="#2A2A2C" Height="1" Margin="0,2,0,7"/>
+                    <Border Background="{DynamicResource SqlxDivider}" Height="1" Margin="0,2,0,7"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -160,7 +160,7 @@
                 <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
                           SelectionChanged="Interval_Changed"
                           ToolTip="How often to poll while Auto is on"/>
-                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Border Width="1" Background="{DynamicResource SqlxControlHover}" Margin="10,2,10,2"/>
                 <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
                         ToolTip="Copy the active tab's grid as tab-separated text"/>
                 <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
@@ -169,21 +169,21 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
-                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                <TextBlock x:Name="ServerText" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                <TextBlock x:Name="LoginText" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="7,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Grid>
 
         <!-- Row 1: banner for HADR-unavailable and per-section collection warnings -->
-        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="{DynamicResource SqlxWarnSurface}" BorderBrush="{DynamicResource SqlxWarnBorder}" BorderThickness="1"
                 CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
-            <TextBlock x:Name="NoticeText" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"/>
+            <TextBlock x:Name="NoticeText" Foreground="{DynamicResource SqlxWarn}" FontSize="11" TextWrapping="Wrap"/>
         </Border>
 
         <!-- Row 2: tabs -->
-        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="{DynamicResource SqlxSurface}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="0,1,0,0"
                     Padding="0,6,0,0">
             <TabControl.ItemContainerStyle>
                 <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
@@ -198,7 +198,7 @@
                             window was opened to answer — is anything wrong — and names the cluster whose quorum
                             every group on this instance depends on.
                         -->
-                        <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                        <Border Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1" CornerRadius="3"
                                 Padding="12,8" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -209,13 +209,13 @@
 
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="STATUS" Style="{StaticResource CardLabel}"/>
-                                    <TextBlock x:Name="VerdictText" FontSize="15" FontWeight="SemiBold" Foreground="#4EC9B0"
+                                    <TextBlock x:Name="VerdictText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource SqlxGood}"
                                                Text="Not collected yet"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="VerdictDetailText" Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap"/>
-                                    <TextBlock x:Name="ClusterSummaryText" Foreground="#808080" FontSize="11" Margin="0,3,0,0"
+                                    <TextBlock x:Name="VerdictDetailText" Foreground="{DynamicResource SqlxTextChrome}" FontSize="11" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ClusterSummaryText" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,3,0,0"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
 
@@ -235,7 +235,7 @@
 
                         <TextBlock Text="Databases needing attention" Style="{StaticResource SectionHeading}"/>
                         <TextBlock x:Name="AttentionEmpty" Text="All synchronised databases are healthy."
-                                   Foreground="#4EC9B0" FontSize="11" Margin="0,0,0,6"/>
+                                   Foreground="{DynamicResource SqlxGood}" FontSize="11" Margin="0,0,0,6"/>
                         <DataGrid x:Name="AttentionGrid" Style="{StaticResource MonitorGrid}" MaxHeight="240"
                                   Visibility="Collapsed">
                             <DataGrid.Columns>
@@ -274,7 +274,7 @@
                         <CheckBox x:Name="IssuesOnlyCheck" Content="Problems only" Style="{StaticResource ToolCheck}"
                                   Checked="IssuesOnly_Changed" Unchecked="IssuesOnly_Changed"
                                   ToolTip="Hide the informational rows and show only warnings and critical findings"/>
-                        <TextBlock x:Name="IssuesHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock x:Name="IssuesHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Text="Evaluated from the current snapshot — nothing here costs an extra round trip."/>
                     </StackPanel>
 
@@ -404,7 +404,7 @@
                         <DataGridTemplateColumn Header="Send trend" Width="110" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <mon:Sparkline Samples="{Binding SendQueueHistory}" LineBrush="#569CD6" Height="16"
+                                    <mon:Sparkline Samples="{Binding SendQueueHistory}" LineBrush="{DynamicResource SqlxHeading}" Height="16"
                                                      HorizontalAlignment="Stretch"
                                                      ToolTip="Log send queue over the polling window; the label is the window peak"/>
                                 </DataTemplate>
@@ -420,7 +420,7 @@
                         <DataGridTemplateColumn Header="Redo trend" Width="110" CanUserSort="False">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <mon:Sparkline Samples="{Binding RedoQueueHistory}" LineBrush="#C586C0" Height="16"
+                                    <mon:Sparkline Samples="{Binding RedoQueueHistory}" LineBrush="{DynamicResource SqlxSynPurple}" Height="16"
                                                      HorizontalAlignment="Stretch"
                                                      ToolTip="Redo queue over the polling window; the label is the window peak"/>
                                 </DataTemplate>
@@ -464,7 +464,7 @@
 
                     <StackPanel Grid.Row="0" Margin="0,2,0,4">
                         <TextBlock Text="Per database — local replica" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
-                        <TextBlock x:Name="ThroughputHint" Foreground="#808080" FontSize="11"
+                        <TextBlock x:Name="ThroughputHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                                    Text="The Database Replica counter object only reports databases on this instance, so this describes the replica you are connected to."/>
                     </StackPanel>
 
@@ -498,7 +498,7 @@
 
                     <StackPanel Grid.Row="2" Margin="0,8,0,4">
                         <TextBlock Text="Transport — per replica" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
-                        <TextBlock Foreground="#808080" FontSize="11"
+                        <TextBlock Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                                    Text="Flow control is the metric that matters here: time spent throttled, and messages resent, both mean the link rather than the workload is setting the pace."/>
                     </StackPanel>
 
@@ -544,7 +544,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                    <Border Grid.Row="0" Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1" CornerRadius="3"
                             Padding="12,9" Margin="0,4,0,8">
                         <UniformGrid Rows="1" Columns="3">
                             <StackPanel>
@@ -623,7 +623,7 @@
 
                     <StackPanel Grid.Row="0" Margin="0,2,0,4">
                         <TextBlock Text="Listeners" Style="{StaticResource SectionHeading}" Margin="0,2,0,2"/>
-                        <TextBlock x:Name="ListenerHint" Foreground="#808080" FontSize="11"
+                        <TextBlock x:Name="ListenerHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                                    Text="One row per listener IP. In a multi-subnet listener only the IP in the current primary's subnet is expected to be online."/>
                     </StackPanel>
 
@@ -680,13 +680,13 @@
 
                     <TextBlock Grid.Row="0" Text="In-flight physical seeding" Style="{StaticResource SectionHeading}" Margin="0,2,0,4"/>
 
-                    <TextBlock x:Name="SeedingEmpty" Grid.Row="1" Foreground="#808080" FontSize="11" Margin="0,0,0,6"
+                    <TextBlock x:Name="SeedingEmpty" Grid.Row="1" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="0,0,0,6"
                                Text="No seeding is currently in progress. sys.dm_hadr_physical_seeding_stats only reports active transfers."/>
 
                     <ItemsControl x:Name="SeedingCards" Grid.Row="2" Margin="0,0,0,4">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3"
+                                <Border Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1" CornerRadius="3"
                                         Padding="12,9" Margin="0,0,0,6">
                                     <Grid>
                                         <Grid.RowDefinitions>
@@ -698,25 +698,25 @@
 
                                         <!-- Heading: database → remote machine, with role and state -->
                                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,7">
-                                            <TextBlock Text="{Binding LocalDatabaseName}" Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold"/>
-                                            <TextBlock Text="→" Foreground="#808080" FontSize="13" Margin="7,0"/>
-                                            <TextBlock Text="{Binding RemoteMachineName, Converter={StaticResource Dash}}" Foreground="#9CDCFE" FontSize="13"/>
-                                            <Border Background="#33000000" CornerRadius="2" Padding="5,1" Margin="10,0,0,0">
-                                                <TextBlock Text="{Binding Role, Converter={StaticResource Dash}}" Foreground="#D7BA7D" FontSize="10"/>
+                                            <TextBlock Text="{Binding LocalDatabaseName}" Foreground="{DynamicResource SqlxTextStrong}" FontSize="13" FontWeight="SemiBold"/>
+                                            <TextBlock Text="→" Foreground="{DynamicResource SqlxTextMuted}" FontSize="13" Margin="7,0"/>
+                                            <TextBlock Text="{Binding RemoteMachineName, Converter={StaticResource Dash}}" Foreground="{DynamicResource SqlxSynIdentifier}" FontSize="13"/>
+                                            <Border Background="{DynamicResource SqlxOverlay}" CornerRadius="2" Padding="5,1" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding Role, Converter={StaticResource Dash}}" Foreground="{DynamicResource SqlxWarn}" FontSize="10"/>
                                             </Border>
-                                            <Border Background="#33000000" CornerRadius="2" Padding="5,1" Margin="4,0,0,0">
-                                                <TextBlock Text="{Binding InternalState, Converter={StaticResource Dash}}" Foreground="#CCCCCC" FontSize="10"/>
+                                            <Border Background="{DynamicResource SqlxOverlay}" CornerRadius="2" Padding="5,1" Margin="4,0,0,0">
+                                                <TextBlock Text="{Binding InternalState, Converter={StaticResource Dash}}" Foreground="{DynamicResource SqlxTextChrome}" FontSize="10"/>
                                             </Border>
-                                            <TextBlock Text="compressed" Foreground="#4EC9B0" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
+                                            <TextBlock Text="compressed" Foreground="{DynamicResource SqlxGood}" FontSize="10" Margin="6,0,0,0" VerticalAlignment="Center"
                                                        Visibility="{Binding IsCompressionEnabled, Converter={StaticResource BoolVis}}"/>
                                         </StackPanel>
 
                                         <!-- Progress bar with the percentage overlaid -->
                                         <Grid Grid.Row="1" Height="20" Margin="0,0,0,7">
-                                            <Border Background="#1A1A1A" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="2"/>
+                                            <Border Background="{DynamicResource SqlxSurfaceSunken}" BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1" CornerRadius="2"/>
                                             <ProgressBar Value="{Binding PercentComplete, Mode=OneWay}" Maximum="100" Background="Transparent"
-                                                         Foreground="#0E639C" BorderThickness="0" Margin="1"/>
-                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#FFFFFF"
+                                                         Foreground="{DynamicResource SqlxProgress}" BorderThickness="0" Margin="1"/>
+                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource SqlxTextStrong}"
                                                        FontSize="11" FontWeight="SemiBold"
                                                        Text="{Binding PercentComplete, StringFormat={}{0:N1}%}"/>
                                         </Grid>
@@ -734,12 +734,12 @@
                                             <StackPanel>
                                                 <TextBlock Text="TRANSFER RATE" Style="{StaticResource CardLabel}"/>
                                                 <TextBlock Text="{Binding TransferRateBytesPerSecond, Converter={StaticResource ByteRate}}"
-                                                           Foreground="#4EC9B0" FontSize="12" Margin="0,0,0,6"/>
+                                                           Foreground="{DynamicResource SqlxGood}" FontSize="12" Margin="0,0,0,6"/>
                                             </StackPanel>
                                             <StackPanel>
                                                 <TextBlock Text="REMAINING" Style="{StaticResource CardLabel}"/>
                                                 <TextBlock Text="{Binding EstimatedSecondsRemaining, Converter={StaticResource Secs}}"
-                                                           Foreground="#DCDCAA" FontSize="12" Margin="0,0,0,6"/>
+                                                           Foreground="{DynamicResource SqlxSynFunction}" FontSize="12" Margin="0,0,0,6"/>
                                             </StackPanel>
                                             <StackPanel>
                                                 <TextBlock Text="STARTED (UTC)" Style="{StaticResource CardLabel}"/>
@@ -749,11 +749,11 @@
 
                                         <!-- Waits and failure: where seeding actually goes wrong -->
                                         <StackPanel Grid.Row="3" Orientation="Horizontal">
-                                            <TextBlock Foreground="#808080" FontSize="10" VerticalAlignment="Center"
+                                            <TextBlock Foreground="{DynamicResource SqlxTextMuted}" FontSize="10" VerticalAlignment="Center"
                                                        Text="{Binding TotalNetworkWaitMs, StringFormat=network wait {0:N0} ms}"/>
-                                            <TextBlock Foreground="#808080" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
+                                            <TextBlock Foreground="{DynamicResource SqlxTextMuted}" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
                                                        Text="{Binding TotalDiskIoWaitMs, StringFormat=disk I/O wait {0:N0} ms}"/>
-                                            <TextBlock Foreground="#F48771" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
+                                            <TextBlock Foreground="{DynamicResource SqlxBad}" FontSize="10" Margin="12,0,0,0" VerticalAlignment="Center"
                                                        TextWrapping="Wrap" Text="{Binding FailureMessage}"/>
                                         </StackPanel>
                                     </Grid>
@@ -807,7 +807,7 @@
                         <CheckBox x:Name="ErrorsOnlyCheck" Content="Errors only" Style="{StaticResource ToolCheck}" Margin="10,0,0,0"
                                   Checked="ErrorsOnly_Changed" Unchecked="ErrorsOnly_Changed"
                                   ToolTip="Hide informational state-change events and show only severity 16+ and lease/error events"/>
-                        <TextBlock x:Name="EventsHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock x:Name="EventsHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Text="Loads on demand — parsing the event file is too expensive to sit on the refresh timer."/>
                     </StackPanel>
 
@@ -835,10 +835,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        Text="Open a query window connected to a replica, then press Refresh."/>
-            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="11" Margin="8,0,2,0"
                        VerticalAlignment="Center"/>
         </Grid>
     </Grid>

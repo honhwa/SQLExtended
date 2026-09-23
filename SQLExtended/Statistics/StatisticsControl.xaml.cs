@@ -85,16 +85,16 @@ public partial class StatisticsControl : UserControl
                     AddIoGroupBlock(g, ++statementNumber, lang, nfi);
                     break;
                 case RowsAffectedRow ra:
-                    AddPlainLine(ra.Count.ToString("N0", nfi) + " " + ra.Label, "#9CDCFE");
+                    AddPlainLine(ra.Count.ToString("N0", nfi) + " " + ra.Label, "SqlxSynIdentifier");
                     break;
                 case ErrorRow er:
-                    AddPlainLine(er.Text, "#F14C4C");
+                    AddPlainLine(er.Text, "SqlxError");
                     break;
                 case CompletionTimeRow ct:
-                    AddPlainLine(CompletionTimeFormatter.Format(ct, convertToLocalTime: false), "#808080");
+                    AddPlainLine(CompletionTimeFormatter.Format(ct, convertToLocalTime: false), "SqlxTextMuted");
                     break;
                 case InfoRow ir:
-                    AddPlainLine(ir.Text, "#808080");
+                    AddPlainLine(ir.Text, "SqlxTextMuted");
                     break;
             }
         }
@@ -185,7 +185,7 @@ public partial class StatisticsControl : UserControl
         var rows = times.Select(t => TimeDisplayRow.FromRow(t, LabelFor(t.RowType, lang))).ToList();
         BlocksPanel.Children.Add(BuildTimeGrid(rows, lang));
         if (!string.IsNullOrEmpty(note))
-            AddPlainLine(note, "#808080");
+            AddPlainLine(note, "SqlxTextMuted");
     }
 
     private static string LabelFor(RowType rowType, ParserLanguage lang) => rowType switch
@@ -197,22 +197,23 @@ public partial class StatisticsControl : UserControl
     private void AddHeading(string text) =>
         BlocksPanel.Children.Add(new TextBlock { Text = text, Style = (Style)FindResource("BlockHeading") });
 
-    private void AddPlainLine(string text, string hexColor)
+    /// <param name="colorKey">A <see cref="Theme.ThemePalette"/> key, held as a reference so the line follows a theme switch.</param>
+    private void AddPlainLine(string text, string colorKey)
     {
         var block = new TextBlock { Text = text, Style = (Style)FindResource("PlainLine") };
-        block.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(hexColor);
+        block.SetResourceReference(TextBlock.ForegroundProperty, colorKey);
         BlocksPanel.Children.Add(block);
     }
 
     // --- Grid construction ---
 
     /// <summary>
-    /// Builds the shared dark-themed grid chrome. Each block gets its own grid (rather than one grid for the whole
+    /// Builds the shared themed grid chrome. Each block gets its own grid (rather than one grid for the whole
     /// report) because the statements don't share a column set.
     /// </summary>
     private DataGrid NewGrid()
     {
-        return new DataGrid
+        var grid = new DataGrid
         {
             AutoGenerateColumns = false,
             IsReadOnly = true,
@@ -223,13 +224,8 @@ public partial class StatisticsControl : UserControl
             SelectionMode = DataGridSelectionMode.Extended,
             ClipboardCopyMode = DataGridClipboardCopyMode.IncludeHeader,
             GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
-            HorizontalGridLinesBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#2D2D30"),
-            Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1E1E1E"),
-            BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#333337"),
             BorderThickness = new Thickness(1),
-            RowBackground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1E1E1E"),
             AlternationCount = 2,
-            Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#D4D4D4"),
             FontFamily = new System.Windows.Media.FontFamily("Cascadia Code, Consolas, Courier New"),
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 4),
@@ -237,6 +233,15 @@ public partial class StatisticsControl : UserControl
             RowStyle = (Style)FindResource("DarkGridRow"),
             CellStyle = (Style)FindResource("DarkGridCell")
         };
+
+        // References, not values, so a grid already on screen follows a theme switch.
+        grid.SetResourceReference(DataGrid.HorizontalGridLinesBrushProperty, "SqlxSurfaceRaised");
+        grid.SetResourceReference(BackgroundProperty, "SqlxSurface");
+        grid.SetResourceReference(BorderBrushProperty, "SqlxBorderSubtle");
+        grid.SetResourceReference(DataGrid.RowBackgroundProperty, "SqlxSurface");
+        grid.SetResourceReference(ForegroundProperty, "SqlxText");
+
+        return grid;
     }
 
     private DataGrid BuildIoGrid(IList<IoColumn> columns, IList<IoDisplayRow> rows, ParserLanguage lang, bool includeRowNum)

@@ -6,7 +6,7 @@
         Width="750" Height="600"
         MinWidth="500" MinHeight="400"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E"
+        Background="{DynamicResource SqlxSurface}"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="False"
         KeyDown="Window_KeyDown">
@@ -14,9 +14,9 @@
     <Window.Resources>
         <!-- Button style matching SSMS dark theme -->
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontSize" Value="12"/>
@@ -33,11 +33,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -47,9 +47,9 @@
 
         <!-- Dark theme TabItem style -->
         <Style TargetType="TabItem">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#999999"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceRaised}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextSubtle}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorder}"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
@@ -65,13 +65,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#1E1E1E"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SqlxSurface}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#333337"/>
-                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SqlxControl}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -90,7 +90,7 @@
         <!-- Header: Object name -->
         <TextBlock Grid.Row="0"
                    x:Name="ObjectNameHeader"
-                   Foreground="#569CD6"
+                   Foreground="{DynamicResource SqlxHeading}"
                    FontFamily="Cascadia Code, Consolas, Courier New"
                    FontSize="16"
                    FontWeight="SemiBold"
@@ -98,8 +98,8 @@
 
         <!-- Tabbed schema view: Schema and Temp Table (tables only) -->
         <TabControl Grid.Row="1" x:Name="SchemaTabs"
-                    Background="#1E1E1E"
-                    BorderBrush="#333337"
+                    Background="{DynamicResource SqlxSurface}"
+                    BorderBrush="{DynamicResource SqlxBorderSubtle}"
                     Margin="4">
             <TabItem Header="Schema" x:Name="SchemaTab">
                 <avalonedit:TextEditor x:Name="SchemaTextBox"
@@ -108,9 +108,9 @@
                          WordWrap="False"
                          FontFamily="Cascadia Code, Consolas, Courier New"
                          FontSize="13"
-                         Background="#1E1E1E"
-                         Foreground="#D4D4D4"
-                         LineNumbersForeground="#555555"
+                         Background="{DynamicResource SqlxSurface}"
+                         Foreground="{DynamicResource SqlxText}"
+                         LineNumbersForeground="{DynamicResource SqlxLineNumber}"
                          BorderThickness="0"
                          Padding="4"
                          HorizontalScrollBarVisibility="Auto"
@@ -123,9 +123,9 @@
                          WordWrap="False"
                          FontFamily="Cascadia Code, Consolas, Courier New"
                          FontSize="13"
-                         Background="#1E1E1E"
-                         Foreground="#D4D4D4"
-                         LineNumbersForeground="#555555"
+                         Background="{DynamicResource SqlxSurface}"
+                         Foreground="{DynamicResource SqlxText}"
+                         LineNumbersForeground="{DynamicResource SqlxLineNumber}"
                          BorderThickness="0"
                          Padding="4"
                          HorizontalScrollBarVisibility="Auto"

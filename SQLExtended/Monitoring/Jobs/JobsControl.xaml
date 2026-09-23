@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:SQLExtended.Monitoring.Jobs"
              xmlns:mon="clr-namespace:SQLExtended.Monitoring"
-             Background="#1E1E1E">
+             Background="{DynamicResource SqlxSurface}">
 
     <UserControl.Resources>
         <!-- Shared monitoring chrome: buttons, tabs, grid styling and converters. -->
@@ -18,8 +18,8 @@
             <!-- Flat buttons for the notice banner: they must not compete with the message for attention. -->
             <Style x:Key="NoticeButton" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="#D7BA7D"/>
-                <Setter Property="BorderBrush" Value="#6B5836"/>
+                <Setter Property="Foreground" Value="{DynamicResource SqlxWarn}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource SqlxWarnBorder}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="7,1"/>
                 <Setter Property="FontSize" Value="11"/>
@@ -35,8 +35,8 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#4A3B28"/>
-                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="Background" Value="{DynamicResource SqlxWarnSurfaceStrong}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -71,15 +71,15 @@
                 <ComboBox x:Name="IntervalCombo" Style="{StaticResource ToolCombo}" Margin="6,0,0,0" Width="72"
                           SelectionChanged="Interval_Changed"
                           ToolTip="How often to poll while Auto is on"/>
-                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
+                <Border Width="1" Background="{DynamicResource SqlxControlHover}" Margin="10,2,10,2"/>
                 <Button x:Name="CopyButton" Content="Copy tab" Style="{StaticResource ToolButton}" Click="CopyTab_Click"
                         ToolTip="Copy the active tab's grid as tab-separated text"/>
                 <Button x:Name="ScriptButton" Content="Open as query" Style="{StaticResource ToolButton}" Margin="4,0,0,0"
                         Click="OpenAsQuery_Click"
                         ToolTip="Open the T-SQL behind the active tab in a new query window"/>
-                <Border Width="1" Background="#3F3F46" Margin="10,2,10,2"/>
-                <TextBlock Text="Filter" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                <TextBox x:Name="FilterBox" Width="160" Background="#333337" Foreground="#CCCCCC" BorderBrush="#555555"
+                <Border Width="1" Background="{DynamicResource SqlxControlHover}" Margin="10,2,10,2"/>
+                <TextBlock Text="Filter" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                <TextBox x:Name="FilterBox" Width="160" Background="{DynamicResource SqlxControl}" Foreground="{DynamicResource SqlxTextChrome}" BorderBrush="{DynamicResource SqlxBorderStrong}"
                          FontSize="12" Padding="4,2" VerticalAlignment="Center" TextChanged="Filter_Changed"
                          ToolTip="Substring match on job name, category and owner"/>
                 <CheckBox x:Name="ShowHiddenCheck" Content="Show hidden categories" Style="{StaticResource ToolCheck}" Margin="10,0,0,0"
@@ -88,15 +88,15 @@
             </StackPanel>
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,4,0">
-                <TextBlock x:Name="ServerText" Foreground="#569CD6" FontSize="12" FontWeight="SemiBold"
+                <TextBlock x:Name="ServerText" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="LoginText" Foreground="#808080" FontSize="11" Margin="7,0,0,0"
+                <TextBlock x:Name="LoginText" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="7,0,0,0"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Grid>
 
         <!-- Row 1: banner for Agent-unavailable, permission notes and per-section collection warnings -->
-        <Border x:Name="NoticeBorder" Grid.Row="1" Background="#3A2F24" BorderBrush="#6B5836" BorderThickness="1"
+        <Border x:Name="NoticeBorder" Grid.Row="1" Background="{DynamicResource SqlxWarnSurface}" BorderBrush="{DynamicResource SqlxWarnBorder}" BorderThickness="1"
                 CornerRadius="2" Padding="9,6" Margin="0,0,0,6" Visibility="Collapsed">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -105,7 +105,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="NoticeText" Grid.Column="0" Foreground="#D7BA7D" FontSize="11" TextWrapping="Wrap"
+                <TextBlock x:Name="NoticeText" Grid.Column="0" Foreground="{DynamicResource SqlxWarn}" FontSize="11" TextWrapping="Wrap"
                            VerticalAlignment="Center"/>
 
                 <!-- Copy takes the whole detail, stack trace included — the message alone is rarely enough to act on. -->
@@ -118,7 +118,7 @@
         </Border>
 
         <!-- Row 2: tabs -->
-        <TabControl x:Name="Tabs" Grid.Row="2" Background="#1E1E1E" BorderBrush="#333337" BorderThickness="0,1,0,0"
+        <TabControl x:Name="Tabs" Grid.Row="2" Background="{DynamicResource SqlxSurface}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="0,1,0,0"
                     Padding="0,6,0,0" SelectionChanged="Tabs_Changed">
             <TabControl.ItemContainerStyle>
                 <Style TargetType="TabItem" BasedOn="{StaticResource TabHeader}"/>
@@ -137,7 +137,7 @@
                             under the cursor is easy to misclick. The inapplicable one is disabled, not hidden, so
                             the menu does not reflow between right-clicks.
                         -->
-                        <ContextMenu Background="#252526" Foreground="#CCCCCC" Opened="JobContextMenu_Opened">
+                        <ContextMenu Background="{DynamicResource SqlxSurfaceAlt}" Foreground="{DynamicResource SqlxTextChrome}" Opened="JobContextMenu_Opened">
                             <MenuItem x:Name="RunNowItem" Header="Run Now" Click="RunNow_Click"
                                       ToolTip="EXEC msdb.dbo.sp_start_job — Agent starts the job asynchronously"/>
                             <MenuItem x:Name="StopItem" Header="Stop" Click="Stop_Click"
@@ -219,7 +219,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock x:Name="StepsHint" Grid.Row="0" Foreground="#808080" FontSize="11" Margin="2,2,2,6"
+                    <TextBlock x:Name="StepsHint" Grid.Row="0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="2,2,2,6"
                                TextTrimming="CharacterEllipsis"
                                Text="Select a job on the Jobs tab — steps load on demand rather than on the refresh timer."/>
 
@@ -265,7 +265,7 @@
                         <CheckBox x:Name="JobOutcomesOnlyCheck" Content="Job outcomes only" Style="{StaticResource ToolCheck}"
                                   Checked="JobOutcomesOnly_Changed" Unchecked="JobOutcomesOnly_Changed"
                                   ToolTip="Show only the job-level summary row Agent writes after the last step, hiding the per-step rows"/>
-                        <TextBlock x:Name="HistoryHint" Foreground="#808080" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <TextBlock x:Name="HistoryHint" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Text="Select a job on the Jobs tab — history loads on demand; sysjobhistory is too large to sit on the refresh timer."/>
                     </StackPanel>
@@ -302,10 +302,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#808080" FontSize="11"
+            <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                        Text="Open a query window connected to the server whose Agent jobs you want, then press Refresh."/>
-            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="#569CD6" FontSize="11" Margin="8,0,2,0"
+            <TextBlock x:Name="TimingText" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="11" Margin="8,0,2,0"
                        VerticalAlignment="Center"/>
         </Grid>
     </Grid>

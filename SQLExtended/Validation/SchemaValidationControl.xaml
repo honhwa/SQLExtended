@@ -1,7 +1,7 @@
 ﻿<UserControl x:Class="SQLExtended.Validation.SchemaValidationControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="#1E1E1E">
+             Background="{DynamicResource SqlxSurface}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -11,9 +11,9 @@
 
             <!-- Dark theme button style matching the other SQLExtended tool windows -->
         <Style x:Key="ToolButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12"/>
@@ -30,11 +30,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -46,16 +46,16 @@
 
         <!-- Dark theme CheckBox style -->
         <Style x:Key="DarkCheck" TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
         <!-- Dark DataGrid: header, cell, and row styling for SSMS dark theme -->
         <Style x:Key="DarkGridHeader" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceRaised}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorder}"/>
             <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="Padding" Value="8,5"/>
             <Setter Property="FontSize" Value="11"/>
@@ -64,18 +64,18 @@
         </Style>
 
         <Style x:Key="DarkGridRow" TargetType="DataGridRow">
-            <Setter Property="Background" Value="#1E1E1E"/>
-            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxText}"/>
             <Style.Triggers>
                 <Trigger Property="AlternationIndex" Value="1">
-                    <Setter Property="Background" Value="#242425"/>
+                    <Setter Property="Background" Value="{DynamicResource SqlxRowAlt}"/>
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#094771"/>
-                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                    <Setter Property="Background" Value="{DynamicResource SqlxSelection}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SqlxSelectionText}"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A2D2E"/>
+                    <Setter Property="Background" Value="{DynamicResource SqlxRowHover}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -98,10 +98,10 @@
         <!-- Severity cell text: red for errors, muted green for info -->
         <Style x:Key="SeverityCellText" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#6A9955"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxSynComment}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SeverityText}" Value="Error">
-                    <Setter Property="Foreground" Value="#F14C4C"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SqlxError}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -130,7 +130,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Server:" Foreground="#999999" FontSize="12"
+            <TextBlock Grid.Column="0" Text="Server:" Foreground="{DynamicResource SqlxTextSubtle}" FontSize="12"
                        VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="ServerCombo" Grid.Column="1" Style="{StaticResource DarkCombo}"
                       SelectionChanged="ServerCombo_SelectionChanged"/>
@@ -158,7 +158,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Databases:" Foreground="#999999" FontSize="11"
+                    <TextBlock Grid.Column="0" Text="Databases:" Foreground="{DynamicResource SqlxTextSubtle}" FontSize="11"
                                VerticalAlignment="Center" Margin="0,0,6,2"/>
                     <Button Grid.Column="1" Content="All" Style="{StaticResource ToolButton}"
                             Click="SelectAllDatabases_Click" FontSize="10" Padding="4,1" Margin="0,0,2,2"/>
@@ -166,14 +166,14 @@
                             Click="SelectNoDatabases_Click" FontSize="10" Padding="4,1" Margin="0,0,0,2"/>
                 </Grid>
                 <ListBox x:Name="DatabaseList" Grid.Row="1"
-                         Background="#252526" BorderBrush="#333337" BorderThickness="1"
+                         Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1"
                          MinHeight="20" VerticalAlignment="Stretch"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          SelectionMode="Multiple">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="Foreground" Value="#CCCCCC"/>
+                            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
                             <Setter Property="Padding" Value="4,2"/>
                             <Setter Property="FontSize" Value="11"/>
                             <Setter Property="Template">
@@ -183,13 +183,13 @@
                                                 Padding="{TemplateBinding Padding}">
                                             <StackPanel Orientation="Horizontal">
                                                 <CheckBox IsChecked="{Binding IsSelected, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                                          Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                          Foreground="{DynamicResource SqlxTextChrome}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                                 <ContentPresenter VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#2A2D2E"/>
+                                                <Setter Property="Background" Value="{DynamicResource SqlxRowHover}"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -220,7 +220,7 @@
                       Height="5"
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Center"
-                      Background="#333337"
+                      Background="{DynamicResource SqlxControl}"
                       ResizeDirection="Rows"
                       ResizeBehavior="PreviousAndNext"
                       ShowsPreview="True"
@@ -237,13 +237,13 @@
                   SelectionMode="Extended"
                   ClipboardCopyMode="IncludeHeader"
                   GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="#2D2D30"
-                  Background="#1E1E1E"
-                  BorderBrush="#333337"
+                  HorizontalGridLinesBrush="{DynamicResource SqlxBorderSubtle}"
+                  Background="{DynamicResource SqlxSurface}"
+                  BorderBrush="{DynamicResource SqlxBorderSubtle}"
                   BorderThickness="1"
-                  RowBackground="#1E1E1E"
+                  RowBackground="{DynamicResource SqlxSurface}"
                   AlternationCount="2"
-                  Foreground="#D4D4D4"
+                  Foreground="{DynamicResource SqlxText}"
                   FontFamily="Cascadia Code, Consolas, Courier New"
                   EnableRowVirtualization="True"
                   ColumnHeaderStyle="{StaticResource DarkGridHeader}"
@@ -251,7 +251,7 @@
                   CellStyle="{StaticResource DarkGridCell}"
                   MouseDoubleClick="ResultsGrid_MouseDoubleClick">
             <DataGrid.ContextMenu>
-                <ContextMenu Background="#2D2D30" Foreground="#D4D4D4" BorderBrush="#555555">
+                <ContextMenu Background="{DynamicResource SqlxSurfaceRaised}" Foreground="{DynamicResource SqlxText}" BorderBrush="{DynamicResource SqlxBorderStrong}">
                     <MenuItem Header="Open Referencing Object" Click="OpenReferencing_Click"/>
                     <MenuItem Header="Reveal in Object Explorer" Click="RevealInObjectExplorer_Click"/>
                     <MenuItem Header="Copy Selected Rows" Click="CopyRows_Click" InputGestureText="Ctrl+C"/>
@@ -296,19 +296,19 @@
                          Margin="0,0,8,0"
                          Minimum="0" Maximum="1" Value="0"
                          Visibility="Collapsed"
-                         Background="#2D2D30" BorderBrush="#3F3F46" Foreground="#0E70C0"
+                         Background="{DynamicResource SqlxSurfaceRaised}" BorderBrush="{DynamicResource SqlxBorder}" Foreground="{DynamicResource SqlxProgress}"
                          VerticalAlignment="Center"/>
 
             <TextBlock x:Name="StatusText"
                        Grid.Column="1"
                        Text="Select database(s) and click Validate"
-                       Foreground="#808080"
+                       Foreground="{DynamicResource SqlxTextMuted}"
                        FontSize="11"
                        VerticalAlignment="Center"/>
 
             <TextBlock x:Name="ConnectionText"
                        Grid.Column="2"
-                       Foreground="#569CD6"
+                       Foreground="{DynamicResource SqlxHeading}"
                        FontSize="11"
                        VerticalAlignment="Center"/>
         </Grid>

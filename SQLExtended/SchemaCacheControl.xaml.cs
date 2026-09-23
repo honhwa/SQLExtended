@@ -29,11 +29,11 @@ namespace SQLExtended;
 public partial class SchemaCacheControl : UserControl
 {
     // State colors keyed by CacheState (frozen so they can cross threads / be shared).
-    private static readonly Brush ReadyBrush = Freeze(0x4E, 0xC9, 0xB0);
-    private static readonly Brush StaleBrush = Freeze(0xD7, 0xBA, 0x7D);
-    private static readonly Brush LoadingBrush = Freeze(0x56, 0x9C, 0xD6);
-    private static readonly Brush ErrorBrush = Freeze(0xF1, 0x4C, 0x4C);
-    private static readonly Brush NotLoadedBrush = Freeze(0x80, 0x80, 0x80);
+    private static Brush ReadyBrush => Theme.ThemeManager.Get("SqlxGood");
+    private static Brush StaleBrush => Theme.ThemeManager.Get("SqlxWarn");
+    private static Brush LoadingBrush => Theme.ThemeManager.Get("SqlxHeading");
+    private static Brush ErrorBrush => Theme.ThemeManager.Get("SqlxError");
+    private static Brush NotLoadedBrush => Theme.ThemeManager.Get("SqlxTextMuted");
 
     private readonly DispatcherTimer _timer;
     private readonly HashSet<string> _collapsedServers = new(StringComparer.OrdinalIgnoreCase);
@@ -627,13 +627,6 @@ public partial class SchemaCacheControl : UserControl
         while (source != null && source is not T)
             source = VisualTreeHelper.GetParent(source);
         return source as T;
-    }
-
-    private static Brush Freeze(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
     }
 
     private static string RelativeTime(DateTime utc)

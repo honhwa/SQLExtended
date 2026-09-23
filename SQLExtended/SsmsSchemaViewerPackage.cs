@@ -77,6 +77,11 @@ public sealed class SsmsSchemaViewerPackage : AsyncPackage
         }
         catch { /* the logger is not allowed to break the package it reports on */ }
 
+        // Installs the dark or light palette every WPF window of the extension paints with, and follows
+        // theme switches. Before the commands, so nothing can open a window that resolves no colours.
+        try { Theme.ThemeManager.Initialize(); }
+        catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "Theme init failed", ex); }
+
         // Writes the chosen comment colour scheme into Fonts and Colors, but only when it is not already
         // the one in force — so hand-tuned entries are not overwritten on every start. Also starts
         // listening for a dark/light theme switch, which needs the other variant of the same scheme.

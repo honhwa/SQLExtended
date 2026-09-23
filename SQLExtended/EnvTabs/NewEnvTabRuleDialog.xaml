@@ -5,7 +5,7 @@
         Width="520" SizeToContent="Height"
         MinWidth="460"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E1E"
+        Background="{DynamicResource SqlxSurface}"
         ResizeMode="NoResize"
         ShowInTaskbar="False">
 
@@ -16,35 +16,35 @@
         </ResourceDictionary.MergedDictionaries>
 
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,5"/>
             <Setter Property="MinWidth" Value="90"/>
             <Setter Property="Margin" Value="6,0,0,0"/>
         </Style>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
         </Style>
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
         </Style>
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#252526"/>
-            <Setter Property="Foreground" Value="#DDDDDD"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceAlt}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="Padding" Value="3,2"/>
         </Style>
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
         </Style>
         </ResourceDictionary>
     </Window.Resources>
 
     <StackPanel Margin="16">
         <TextBlock x:Name="HeadingText" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap"/>
-        <TextBlock x:Name="SubheadingText" Margin="0,6,0,0" Foreground="#9A9A9A" TextWrapping="Wrap"/>
+        <TextBlock x:Name="SubheadingText" Margin="0,6,0,0" Foreground="{DynamicResource SqlxTextSubtle}" TextWrapping="Wrap"/>
 
         <Grid Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
@@ -73,7 +73,7 @@
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal">
                             <Border Width="26" Height="12" CornerRadius="2" Margin="0,0,8,0"
-                                    Background="{Binding Hex}" BorderBrush="#666666" BorderThickness="1"/>
+                                    Background="{Binding Hex}" BorderBrush="{DynamicResource SqlxBorderStrong}" BorderThickness="1"/>
                             <!-- Foreground left to this window's implicit TextBlock style (#CCCCCC). It was
                                  hardcoded near-black for the stock white popup, which is invisible on the dark one. -->
                             <TextBlock Text="{Binding Name}"/>
@@ -83,7 +83,7 @@
             </ComboBox>
         </Grid>
 
-        <TextBlock Margin="0,14,0,0" Foreground="#9A9A9A" TextWrapping="Wrap"
+        <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource SqlxTextSubtle}" TextWrapping="Wrap"
                    Text="Server and database accept * and ? wildcards. Leave the database blank to match every database on this server."/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">

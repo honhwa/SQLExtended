@@ -584,11 +584,11 @@ public partial class PerfMonitorControl : UserControl
     // Server info
     // -------------------------------------------------------------------------------------------------
 
-    private static readonly System.Windows.Media.Brush Neutral = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0xFF));
-    private static readonly System.Windows.Media.Brush Good = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0xB0));
-    private static readonly System.Windows.Media.Brush Warn = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD7, 0xBA, 0x7D));
-    private static readonly System.Windows.Media.Brush Bad = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF4, 0x87, 0x71));
-    private static readonly System.Windows.Media.Brush Muted = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+    private static System.Windows.Media.Brush Neutral => Theme.ThemeManager.Get("SqlxTextStrong");
+    private static System.Windows.Media.Brush Good => Theme.ThemeManager.Get("SqlxGood");
+    private static System.Windows.Media.Brush Warn => Theme.ThemeManager.Get("SqlxWarn");
+    private static System.Windows.Media.Brush Bad => Theme.ThemeManager.Get("SqlxBad");
+    private static System.Windows.Media.Brush Muted => Theme.ThemeManager.Get("SqlxTextMuted");
 
     private void ClearServerInfo()
     {

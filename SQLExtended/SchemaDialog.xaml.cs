@@ -2,11 +2,8 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Xml;
 using SQLExtended.Search;
 using SQLExtended.Settings;
-using ICSharpCode.AvalonEdit.Highlighting;
-using ICSharpCode.AvalonEdit.Highlighting.Xshd;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -133,23 +130,8 @@ public partial class SchemaDialog : Window
 
     private void InitializeSyntaxHighlighting()
     {
-        try
-        {
-            var assembly = typeof(SchemaDialog).Assembly;
-            using (var stream = assembly.GetManifestResourceStream("SQLExtended.Search.TsqlDarkHighlighting.xshd"))
-            {
-                if (stream != null)
-                {
-                    using (var reader = new XmlTextReader(stream))
-                    {
-                        var highlighting = HighlightingLoader.Load(reader, HighlightingManager.Instance);
-                        SchemaTextBox.SyntaxHighlighting = highlighting;
-                        TempTableTextBox.SyntaxHighlighting = highlighting;
-                    }
-                }
-            }
-        }
-        catch { }
+        // The embedded T-SQL definition, recoloured for a light theme and re-applied on a switch.
+        Theme.TsqlHighlighting.Attach(SchemaTextBox, TempTableTextBox);
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e)

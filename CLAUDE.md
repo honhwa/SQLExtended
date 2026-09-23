@@ -75,6 +75,7 @@ load automatically when a file in that folder is opened, but not while merely pl
 
 | Area | Notes |
 |------|-------|
+| Dark/light palette for every WPF window (`{DynamicResource Sqlx…}`, no colour literals) | `SQLExtended/Theme/CLAUDE.md` |
 | Formatting (`PostProcessor`, alias/CASE/comment passes) | `SQLExtended/Formatting/CLAUDE.md` |
 | The session log, and what the soft catches swallow | `SQLExtended/Diagnostics/CLAUDE.md` |
 | Schema export (SMO scripter, folder-compare shape) | `SQLExtended/Export/CLAUDE.md` |

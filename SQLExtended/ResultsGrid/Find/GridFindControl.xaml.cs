@@ -210,9 +210,7 @@ public partial class GridFindControl : UserControl, IGridFindHost
             return;
 
         StatusText.Text = status.Text ?? string.Empty;
-        StatusText.Foreground = status.IsError
-            ? new SolidColorBrush(Color.FromRgb(0xF0, 0xC6, 0x74))
-            : new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
+        StatusText.SetResourceReference(ForegroundProperty, status.IsError ? "SqlxHighlight" : "SqlxTextMuted");
 
         NextButton.IsEnabled = status.CanStep;
         PrevButton.IsEnabled = status.CanStep;

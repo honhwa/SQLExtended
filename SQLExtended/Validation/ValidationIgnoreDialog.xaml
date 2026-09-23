@@ -5,15 +5,15 @@
         Width="460" Height="420"
         MinWidth="360" MinHeight="280"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E1E"
+        Background="{DynamicResource SqlxSurface}"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="False">
 
     <Window.Resources>
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,5"/>
             <Setter Property="FontSize" Value="12"/>
@@ -31,11 +31,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3F3F46"/>
-                                <Setter Property="BorderBrush" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#007ACC"/>
+                                <Setter Property="Background" Value="{DynamicResource SqlxControlPressed}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -53,15 +53,15 @@
 
         <TextBlock Grid.Row="0"
                    Text="References hidden from validation results. Select an entry and Remove to start showing it again."
-                   Foreground="#999999" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                   Foreground="{DynamicResource SqlxTextSubtle}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
         <ListBox x:Name="EntryList" Grid.Row="1"
-                 Background="#252526" BorderBrush="#333337" BorderThickness="1"
-                 Foreground="#D4D4D4" FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12">
+                 Background="{DynamicResource SqlxSurfaceAlt}" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1"
+                 Foreground="{DynamicResource SqlxText}" FontFamily="Cascadia Code, Consolas, Courier New" FontSize="12">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Background" Value="Transparent"/>
-                    <Setter Property="Foreground" Value="#D4D4D4"/>
+                    <Setter Property="Foreground" Value="{DynamicResource SqlxText}"/>
                     <Setter Property="Padding" Value="6,4"/>
                     <Setter Property="Template">
                         <Setter.Value>
@@ -71,10 +71,10 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#2A2D2E"/>
+                                        <Setter Property="Background" Value="{DynamicResource SqlxRowHover}"/>
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#094771"/>
+                                        <Setter Property="Background" Value="{DynamicResource SqlxSelection}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -93,7 +93,7 @@
             </Grid.ColumnDefinitions>
 
             <TextBlock x:Name="EmptyLabel" Grid.Column="0" Text="Nothing ignored."
-                       Foreground="#808080" FontSize="11" VerticalAlignment="Center"/>
+                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" VerticalAlignment="Center"/>
 
             <Button Grid.Column="1" Content="Remove" Style="{StaticResource ActionButton}" Click="Remove_Click"/>
             <Button Grid.Column="2" Content="Clear All" Style="{StaticResource ActionButton}" Click="ClearAll_Click"/>

@@ -5,7 +5,7 @@
         Width="900" Height="640"
         MinWidth="720" MinHeight="520"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E"
+        Background="{DynamicResource SqlxSurface}"
         ResizeMode="CanResizeWithGrip"
         ShowInTaskbar="False">
 
@@ -16,30 +16,30 @@
         </ResourceDictionary.MergedDictionaries>
 
         <Style x:Key="ActionButton" TargetType="Button">
-            <Setter Property="Background" Value="#333337"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxControl}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,4"/>
             <Setter Property="MinWidth" Value="84"/>
             <Setter Property="Margin" Value="0,0,6,0"/>
         </Style>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
         </Style>
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#252526"/>
-            <Setter Property="Foreground" Value="#DDDDDD"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceAlt}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorderStrong}"/>
             <Setter Property="Padding" Value="3,2"/>
         </Style>
         <Style TargetType="GroupBox">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorder}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="Padding" Value="10"/>
         </Style>
@@ -55,7 +55,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="#9A9A9A" Margin="0,0,0,10"
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="{DynamicResource SqlxTextSubtle}" Margin="0,0,0,10"
                    Text="Colours and renames query tabs by the server and database they are connected to. Rules are evaluated top to bottom and the first match wins."/>
 
         <GroupBox Grid.Row="1" Header="Behaviour">
@@ -68,7 +68,7 @@
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <TextBlock Text="Caption" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="TemplateBox" Width="200" VerticalAlignment="Center"/>
-                        <TextBlock Foreground="#9A9A9A" VerticalAlignment="Center" Margin="10,0,0,0"
+                        <TextBlock Foreground="{DynamicResource SqlxTextSubtle}" VerticalAlignment="Center" Margin="10,0,0,0"
                                    Text="{}Tokens: {label} {server} {database} {n}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -92,9 +92,9 @@
                 <DataGrid x:Name="RulesGrid" Grid.Column="0"
                           AutoGenerateColumns="False" CanUserAddRows="False" CanUserReorderColumns="False"
                           HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                          Background="#252526" Foreground="#DDDDDD" RowBackground="#252526"
-                          AlternatingRowBackground="#2A2A2C" BorderBrush="#3F3F46"
-                          HorizontalGridLinesBrush="#3F3F46" SelectionMode="Single">
+                          Background="{DynamicResource SqlxSurfaceAlt}" Foreground="{DynamicResource SqlxTextChrome}" RowBackground="{DynamicResource SqlxSurfaceAlt}"
+                          AlternatingRowBackground="{DynamicResource SqlxDivider}" BorderBrush="{DynamicResource SqlxBorder}"
+                          HorizontalGridLinesBrush="{DynamicResource SqlxBorder}" SelectionMode="Single">
                     <DataGrid.Columns>
                         <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
                         <DataGridTextColumn Header="Name" Binding="{Binding Label, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
@@ -107,7 +107,7 @@
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Border Width="22" Height="11" CornerRadius="2" Margin="2,0,6,0"
-                                                Background="{Binding ColorHex}" BorderBrush="#666666" BorderThickness="1"/>
+                                                Background="{Binding ColorHex}" BorderBrush="{DynamicResource SqlxBorderStrong}" BorderThickness="1"/>
                                         <TextBlock Text="{Binding ColorName}"/>
                                     </StackPanel>
                                 </DataTemplate>
@@ -126,14 +126,14 @@
             </Grid>
         </GroupBox>
 
-        <Expander Grid.Row="3" Header="Diagnostics" Foreground="#CCCCCC" Margin="0,0,0,10">
+        <Expander Grid.Row="3" Header="Diagnostics" Foreground="{DynamicResource SqlxTextChrome}" Margin="0,0,0,10">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="110"/>
                 </Grid.RowDefinitions>
-                <TextBlock x:Name="StatusText" Grid.Row="0" Foreground="#9A9A9A" TextWrapping="Wrap" Margin="0,4,0,6"/>
-                <ListBox x:Name="DiagnosticsList" Grid.Row="1" Background="#252526" Foreground="#BBBBBB" BorderBrush="#3F3F46"/>
+                <TextBlock x:Name="StatusText" Grid.Row="0" Foreground="{DynamicResource SqlxTextSubtle}" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                <ListBox x:Name="DiagnosticsList" Grid.Row="1" Background="{DynamicResource SqlxSurfaceAlt}" Foreground="{DynamicResource SqlxTextChrome}" BorderBrush="{DynamicResource SqlxBorder}"/>
             </Grid>
         </Expander>
 
