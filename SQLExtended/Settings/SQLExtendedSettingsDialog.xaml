@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="SQLExtended for SSMS Settings"
-        Width="820" Height="620"
-        MinWidth="700" MinHeight="500"
+        Width="920" Height="640"
+        MinWidth="780" MinHeight="500"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource SqlxSurface}"
         ResizeMode="CanResizeWithGrip"
@@ -75,7 +75,7 @@
         </Style>
 
         <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource SqlxAccent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxHeading}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Margin" Value="0,12,0,6"/>
@@ -89,38 +89,66 @@
         </Style>
 
         <Style x:Key="DimLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource SqlxTextMuted}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextSubtle}"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
 
-        <!-- Tab item style for dark theme -->
+        <!-- Settings pages as a vertical nav list on the left. Fifteen tabs across the top wrapped into rows
+             that WPF reshuffles on every click, and the dim header text was hard to pick out. -->
+        <Style x:Key="NavTabs" TargetType="TabControl">
+            <Setter Property="TabStripPlacement" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Border BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" MinWidth="170"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="{DynamicResource SqlxSurfaceAlt}"
+                                        BorderBrush="{DynamicResource SqlxBorder}" BorderThickness="0,0,1,0">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                        <StackPanel IsItemsHost="True" Margin="0,6" KeyboardNavigation.TabNavigation="Once"
+                                                    KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                                    </ScrollViewer>
+                                </Border>
+                                <ContentPresenter Grid.Column="1" ContentSource="SelectedContent"/>
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TabItem">
-            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceRaised}"/>
-            <Setter Property="Foreground" Value="{DynamicResource SqlxTextSubtle}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource SqlxBorder}"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1,1,1,0"
-                                Padding="{TemplateBinding Padding}"
-                                Margin="0,0,2,0">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                        <Border x:Name="NavItem" Background="Transparent" Padding="{TemplateBinding Padding}" Margin="0,1">
+                            <Grid>
+                                <!-- Accent bar marking the current page -->
+                                <Border x:Name="Marker" Width="3" Margin="-14,-7,0,-7" HorizontalAlignment="Left"
+                                        Background="{DynamicResource SqlxAccent}" Visibility="Collapsed"/>
+                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SqlxSurface}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
-                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SqlxControl}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextChrome}"/>
+                                <Setter TargetName="NavItem" Property="Background" Value="{DynamicResource SqlxControlHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxTextStrong}"/>
+                            </Trigger>
+                            <!-- After IsMouseOver so hovering the current page doesn't hide that it is selected -->
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="NavItem" Property="Background" Value="{DynamicResource SqlxSelection}"/>
+                                <Setter TargetName="Marker" Property="Visibility" Value="Visible"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxSelectionText}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -167,7 +195,7 @@
         </Grid.RowDefinitions>
 
         <!-- Tab control -->
-        <TabControl x:Name="Tabs" Grid.Row="0" Background="{DynamicResource SqlxSurface}" BorderBrush="{DynamicResource SqlxBorder}">
+        <TabControl x:Name="Tabs" Grid.Row="0" Style="{StaticResource NavTabs}">
 
             <!-- ===== IntelliSense Tab ===== -->
             <TabItem Header="IntelliSense">

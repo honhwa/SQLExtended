@@ -26,48 +26,40 @@
     </Menus>
 
     <Groups>
-      <!-- Group inside the SQLExtended menu -->
+      <!-- SQLExtended menu groups, in display order. MainMenuService.Items builds the menu SSMS 22
+           actually shows; keep the two in the same order. -->
+      <!-- Query editor actions -->
       <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" priority="0x0100">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Cache operations group inside the SQLExtended menu (separator between format and cache) -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" priority="0x0200">
+      <!-- Tool windows -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" priority="0x0200">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Search group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" priority="0x0300">
+      <!-- Results grid -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup" priority="0x0300">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Validation group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedValidationGroup" priority="0x0340">
+      <!-- Monitoring dashboards -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" priority="0x0400">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- History group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedHistoryGroup" priority="0x0350">
+      <!-- Schema cache -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" priority="0x0500">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Script Library group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedScriptLibraryGroup" priority="0x0360">
+      <!-- Servers and connections -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedServersGroup" priority="0x0600">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Statistics group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedStatisticsGroup" priority="0x0370">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
-      </Group>
-
-      <!-- Monitoring group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" priority="0x0375">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
-      </Group>
-
-      <!-- Settings group inside the SQLExtended menu -->
-      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" priority="0x0400">
+      <!-- Settings -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" priority="0x0700">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
@@ -106,7 +98,7 @@
       </Button>
 
       <!-- Format SQL command — formats selected text or entire document -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="FormatSqlCommandId" priority="0x0200" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="FormatSqlCommandId" priority="0x0110" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
         <Strings>
           <ButtonText>Format SQL</ButtonText>
@@ -115,8 +107,8 @@
       </Button>
 
       <!-- Formatter command — opens the formatter settings dialog -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="FormatOptionsCommandId" priority="0x0210" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="FormatOptionsCommandId" priority="0x0110" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
         <Strings>
           <ButtonText>Formatter...</ButtonText>
           <ToolTipText>Configure SQL formatting options</ToolTipText>
@@ -124,8 +116,8 @@
       </Button>
 
       <!-- Snippets command — opens SQLExtended Settings on the Snippets tab -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SnippetsCommandId" priority="0x0220" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SnippetsCommandId" priority="0x0120" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
         <Strings>
           <ButtonText>Snippets...</ButtonText>
           <ToolTipText>Manage SQL code snippets</ToolTipText>
@@ -133,7 +125,7 @@
       </Button>
 
       <!-- Refresh Cache command — refreshes schema cache for the current database -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="RefreshCacheCommandId" priority="0x0300" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="RefreshCacheCommandId" priority="0x0110" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" />
         <Strings>
           <ButtonText>Refresh Schema Cache</ButtonText>
@@ -142,7 +134,7 @@
       </Button>
 
       <!-- Refresh All Databases cache -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="RefreshAllCacheCommandId" priority="0x0310" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="RefreshAllCacheCommandId" priority="0x0120" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" />
         <Strings>
           <ButtonText>Refresh All Databases</ButtonText>
@@ -151,7 +143,7 @@
       </Button>
 
       <!-- Clear Cache command -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="ClearCacheCommandId" priority="0x0320" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="ClearCacheCommandId" priority="0x0130" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" />
         <Strings>
           <ButtonText>Clear Schema Cache</ButtonText>
@@ -160,7 +152,7 @@
       </Button>
 
       <!-- Schema Cache command — opens the dockable cache inspector tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SchemaCacheCommandId" priority="0x0330" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SchemaCacheCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedCacheGroup" />
         <Strings>
           <ButtonText>Schema Cache...</ButtonText>
@@ -169,7 +161,7 @@
       </Button>
 
       <!-- SQL Search command — opens the dockable search tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SqlSearchCommandId" priority="0x0400" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SqlSearchCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" />
         <Strings>
           <ButtonText>SQL Search</ButtonText>
@@ -178,8 +170,8 @@
       </Button>
 
       <!-- Validate Schema References command — opens the dockable validation tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SchemaValidateCommandId" priority="0x0440" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedValidationGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SchemaValidateCommandId" priority="0x0130" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" />
         <Strings>
           <ButtonText>Validate Schema References</ButtonText>
           <ToolTipText>Find broken object, cross-database, and linked-server references (Ctrl+Alt+V)</ToolTipText>
@@ -187,8 +179,8 @@
       </Button>
 
       <!-- SQL History command — opens the dockable history tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SqlHistoryCommandId" priority="0x0450" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedHistoryGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SqlHistoryCommandId" priority="0x0110" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" />
         <Strings>
           <ButtonText>SQL History</ButtonText>
           <ToolTipText>Browse captured snapshots of recently edited SQL tabs (Ctrl+Alt+H)</ToolTipText>
@@ -196,8 +188,8 @@
       </Button>
 
       <!-- Script Library command — opens the dockable script library tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="ScriptLibraryCommandId" priority="0x0460" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedScriptLibraryGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="ScriptLibraryCommandId" priority="0x0120" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSearchGroup" />
         <Strings>
           <ButtonText>Script Library</ButtonText>
           <ToolTipText>Browse and run curated and personal T-SQL scripts (Ctrl+Alt+L)</ToolTipText>
@@ -205,8 +197,8 @@
       </Button>
 
       <!-- Parse Statistics command — parses the Messages pane into the Statistics tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0470" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedStatisticsGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0120" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
         <Strings>
           <ButtonText>Parse Statistics</ButtonText>
           <ToolTipText>Parse the Messages pane's STATISTICS IO/TIME output into sortable tables (Ctrl+K, Ctrl+G)</ToolTipText>
@@ -214,7 +206,7 @@
       </Button>
 
       <!-- Performance Monitor — opens the dockable live performance dashboard -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="PerfMonitorCommandId" priority="0x0475" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="PerfMonitorCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" />
         <Strings>
           <ButtonText>Performance Monitor</ButtonText>
@@ -223,7 +215,7 @@
       </Button>
 
       <!-- Always On Monitor — opens the dockable availability-group monitor tool window -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="AgMonitorCommandId" priority="0x0480" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="AgMonitorCommandId" priority="0x0120" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" />
         <Strings>
           <ButtonText>Always On Monitor</ButtonText>
@@ -232,7 +224,7 @@
       </Button>
 
       <!-- Agent Jobs — opens the dockable SQL Server Agent jobs dashboard -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="JobsMonitorCommandId" priority="0x0485" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="JobsMonitorCommandId" priority="0x0110" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" />
         <Strings>
           <ButtonText>Agent Jobs</ButtonText>
@@ -241,7 +233,7 @@
       </Button>
 
       <!-- Replication Monitor — opens the dockable replication dashboard -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="ReplMonitorCommandId" priority="0x0490" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="ReplMonitorCommandId" priority="0x0130" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMonitoringGroup" />
         <Strings>
           <ButtonText>Replication Monitor</ButtonText>
@@ -250,7 +242,7 @@
       </Button>
 
       <!-- SQLExtended Settings command — opens unified settings dialog -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsCommandId" priority="0x0500" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsCommandId" priority="0x0100" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
         <Strings>
           <ButtonText>SQLExtended Settings...</ButtonText>
@@ -259,8 +251,8 @@
       </Button>
 
       <!-- Environment Tabs command — colour and rename query tabs by connection -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="EnvTabsCommandId" priority="0x0505" type="Button">
-        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="EnvTabsCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedServersGroup" />
         <Strings>
           <ButtonText>Environment Tabs...</ButtonText>
           <ToolTipText>Colour and rename query tabs by the server and database they are connected to</ToolTipText>
@@ -268,7 +260,7 @@
       </Button>
 
       <!-- Check for Updates command -->
-      <Button guid="guidSsmsSchemaViewerCmdSet" id="CheckForUpdatesCommandId" priority="0x0510" type="Button">
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="CheckForUpdatesCommandId" priority="0x0130" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
         <Strings>
           <ButtonText>Check for Updates...</ButtonText>
@@ -319,6 +311,17 @@
 
   <!-- Place commands in the editor context menu and toolbar -->
   <CommandPlacements>
+    <!-- Results grid commands also appear in the SQLExtended menu -->
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="GridFindCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="GridAggregatesCommandId" priority="0x0110">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="ScriptResultsInsertCommandId" priority="0x0120">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
+    </CommandPlacement>
+
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SchemaViewerCommandId" priority="0x0100">
       <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
     </CommandPlacement>
@@ -475,11 +478,9 @@
       <IDSymbol name="EditorContextMenuGroup" value="0x1030" />
       <IDSymbol name="SQLExtendedSearchGroup" value="0x1040" />
       <IDSymbol name="SQLExtendedSettingsGroup" value="0x1050" />
-      <IDSymbol name="SQLExtendedHistoryGroup" value="0x1055" />
-      <IDSymbol name="SQLExtendedValidationGroup" value="0x1056" />
-      <IDSymbol name="SQLExtendedScriptLibraryGroup" value="0x1058" />
-      <IDSymbol name="SQLExtendedStatisticsGroup" value="0x1059" />
       <IDSymbol name="SQLExtendedMonitoringGroup" value="0x105A" />
+      <IDSymbol name="SQLExtendedGridGroup" value="0x105B" />
+      <IDSymbol name="SQLExtendedServersGroup" value="0x105C" />
 
       <!-- Toolbar groups -->
       <IDSymbol name="ToolbarCacheGroup" value="0x1060" />

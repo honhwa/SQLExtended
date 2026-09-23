@@ -36,34 +36,47 @@ internal static class MainMenuService
     private static OleMenuCommandService _commandService;
     private static bool _built;
 
-    // Items in display order. A null caption inserts a separator before the next item.
+    // Items in display order. A null caption inserts a separator before the next item. Groups run from the
+    // query editor outwards: editor actions, tool windows, results grid, monitoring, cache, servers, settings.
+    // Keep SsmsSchemaViewerPackage.vsct's SQLExtended menu groups in the same order.
     private static readonly (string Caption, int CommandId)[] Items =
     {
+        // Query editor
         ("View Schema", 0x0100),
         ("Format SQL", 0x0200),
-        ("Formatter...", 0x0210),
-        ("Snippets...", 0x0220),
-        (null, 0),
-        ("Refresh Schema Cache", 0x0300),
-        ("Schema Cache...", 0x0330),
-        ("Regroup Servers Now", 0x0b00),
-        (null, 0),
-        ("SQL Search", 0x0400),
-        ("Validate Schema References", 0x0a00),
-        ("SQL History", 0x0700),
-        ("Script Library", 0x0900),
-        ("Script Results as INSERT", 0x0c00),
-        ("Grid Aggregates", 0x0c10),
-        ("Find in Results", 0x0c20),
         ("Parse Statistics", 0x0d00),
         (null, 0),
+        // Tool windows
+        ("SQL Search", 0x0400),
+        ("SQL History", 0x0700),
+        ("Script Library", 0x0900),
+        ("Validate Schema References", 0x0a00),
+        (null, 0),
+        // Results grid
+        ("Find in Results", 0x0c20),
+        ("Grid Aggregates", 0x0c10),
+        ("Script Results as INSERT", 0x0c00),
+        (null, 0),
+        // Monitoring dashboards
         ("Performance Monitor", 0x0f00),
-        ("Always On Monitor", 0x0e00),
         ("Agent Jobs", 0x0f10),
+        ("Always On Monitor", 0x0e00),
         ("Replication Monitor", 0x0f20),
         (null, 0),
-        ("SQLExtended Settings...", 0x0500),
+        // Schema cache
+        ("Schema Cache...", 0x0330),
+        ("Refresh Schema Cache", 0x0300),
+        ("Refresh All Databases", 0x0310),
+        ("Clear Schema Cache", 0x0320),
+        (null, 0),
+        // Servers and connections
         ("Environment Tabs...", 0x0505),
+        ("Regroup Servers Now", 0x0b00),
+        (null, 0),
+        // Settings
+        ("SQLExtended Settings...", 0x0500),
+        ("Formatter...", 0x0210),
+        ("Snippets...", 0x0220),
         ("Check for Updates...", 0x0800),
     };
 
