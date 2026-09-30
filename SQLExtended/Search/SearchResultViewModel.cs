@@ -82,11 +82,21 @@ internal sealed class SearchResultViewModel
 
     // --- Shared display ---
 
+    /// <summary>
+    /// The name the row stands for — the column itself on a column match. What Copy Name copies and Find
+    /// References searches for; the name line shows <see cref="ObjectName"/> instead (see <see cref="ColumnSuffix"/>).
+    /// </summary>
     public string DisplayName => IsJobStep
         ? _jobStep.StepName
         : (MatchLocation == "ColumnName" ? _result.MatchDetail : _result.ObjectName);
 
-    public string ColumnSuffix => !IsJobStep && MatchLocation == "ColumnName" ? $".{_result.MatchDetail}" : "";
+    /// <summary>
+    /// ". column" after the table on a column match, so the name line reads db . schema . table . column. It
+    /// used to show the column in the table's slot and then again as the suffix ("dbo . minimum .minimum"),
+    /// which left the table named only in the small match line underneath — and a column search is mostly a
+    /// list of the same few names on different tables. Separated by a space, like the other dots on the line.
+    /// </summary>
+    public string ColumnSuffix => !IsJobStep && MatchLocation == "ColumnName" ? $". {_result.MatchDetail}" : "";
 
     public string QualifiedName => IsJobStep
         ? $"{_jobStep.JobName} — {StepDisplay}"
@@ -106,7 +116,12 @@ internal sealed class SearchResultViewModel
         _ => "□"             // generic square
     };
 
-    public string TypeLabel => ObjectType switch
+    /// <summary>"TABLE", "VIEW", … — and "COLUMN · VIEW" on a column match whose parent type is known.</summary>
+    public string TypeLabel => ObjectType == "Column" && !string.IsNullOrWhiteSpace(_result?.ParentObjectType)
+        ? $"COLUMN · {LabelFor(_result.ParentObjectType.Trim())}"
+        : LabelFor(ObjectType);
+
+    private static string LabelFor(string objectType) => objectType switch
     {
         "U" => "TABLE",
         "V" => "VIEW",
@@ -118,13 +133,13 @@ internal sealed class SearchResultViewModel
         "TT" => "TABLE TYPE",
         "Column" => "COLUMN",
         "JobStep" => "AGENT JOB STEP",
-        _ => ObjectType
+        _ => objectType
     };
 
     public string MatchDescription => MatchLocation switch
     {
         "ObjectName" => "Matched: object name",
-        "ColumnName" => $"Matched: column in {_result.SchemaName}.{_result.ObjectName}",
+        "ColumnName" => "Matched: column name",   // the table is on the name line now
         "Definition" => string.IsNullOrEmpty(_result.MatchDetail)
             ? "Matched: definition"
             : $"Matched: definition — {_result.MatchDetail.Trim()}",

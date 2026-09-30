@@ -529,14 +529,15 @@ public partial class SqlSearchControl : UserControl
             PreviewTabs.SelectedItem = SchemaTab;
 
         string dbPrefix = !string.IsNullOrEmpty(vm.DatabaseName) ? $"{vm.DatabaseName}." : "";
-        PreviewHeader.Text = $"{dbPrefix}{vm.SchemaName}.{vm.DisplayName} \u2014 loading...";
-        PreviewHeader.SetResourceReference(ForegroundProperty, "SqlxHeading");
-        PreviewEditor.Text = "";
-        TempTableEditor.Text = "";
-
         string objectName = vm.MatchLocation == "ColumnName"
             ? $"{dbPrefix}{vm.SchemaName}.{vm.ObjectName}"
             : $"{dbPrefix}{vm.SchemaName}.{vm.DisplayName}";
+
+        // The object being loaded - on a column match that is the table, not the column (DisplayName).
+        PreviewHeader.Text = $"{objectName} \u2014 loading...";
+        PreviewHeader.SetResourceReference(ForegroundProperty, "SqlxHeading");
+        PreviewEditor.Text = "";
+        TempTableEditor.Text = "";
 
         string targetConnStr = ConnectionHelper.GetConnectionStringForDatabase(vm.ConnectionString, vm.DatabaseName);
 

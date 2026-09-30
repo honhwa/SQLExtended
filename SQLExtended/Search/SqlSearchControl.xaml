@@ -327,7 +327,7 @@
                                 <Run Text="." Foreground="{DynamicResource SqlxTextSubtle}"/>
                                 <Run Text="{Binding SchemaName, Mode=OneTime}" Foreground="{DynamicResource SqlxTextSubtle}"/>
                                 <Run Text="." Foreground="{DynamicResource SqlxTextSubtle}"/>
-                                <Run Text="{Binding DisplayName, Mode=OneTime}" Foreground="{DynamicResource SqlxText}" FontWeight="SemiBold"/>
+                                <Run Text="{Binding ObjectName, Mode=OneTime}" Foreground="{DynamicResource SqlxText}" FontWeight="SemiBold"/>
                                 <Run Text="{Binding ColumnSuffix, Mode=OneTime}" Foreground="{DynamicResource SqlxHeading}"/>
                             </TextBlock>
 

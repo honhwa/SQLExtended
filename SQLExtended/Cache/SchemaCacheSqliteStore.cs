@@ -665,12 +665,19 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                 ? ""
                 : BuildTypeFilterClause(options.TypeFilter, "o.object_type").clause;
 
+            // Both forms read the parent's object_type for the "COLUMN · VIEW" label; the join is a primary-key
+            // lookup. Unfiltered it is a LEFT JOIN, so a column whose parent row is missing is still found (the
+            // label then just says COLUMN) — an INNER JOIN would quietly drop it, which reads as "no matches".
             string colSql = string.IsNullOrEmpty(colTypeClause)
-                ? @"SELECT c.schema_name, c.table_name, c.column_name FROM cache_columns c
+                ? @"SELECT c.schema_name, c.table_name, c.column_name, o.object_type FROM cache_columns c
+                    LEFT JOIN cache_objects o ON o.connection_key = c.connection_key
+                      AND o.database_name = c.database_name
+                      AND o.schema_name = c.schema_name
+                      AND o.object_name = c.table_name
                     WHERE c.connection_key = @ck AND c.database_name = @db
                       AND c.column_name LIKE @pattern COLLATE NOCASE
                     LIMIT @limit"
-                : $@"SELECT c.schema_name, c.table_name, c.column_name FROM cache_columns c
+                : $@"SELECT c.schema_name, c.table_name, c.column_name, o.object_type FROM cache_columns c
                     INNER JOIN cache_objects o ON o.connection_key = c.connection_key
                       AND o.database_name = c.database_name
                       AND o.schema_name = c.schema_name
@@ -695,7 +702,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                     ObjectName = reader.GetString(1),
                     ObjectType = "Column",
                     MatchLocation = "ColumnName",
-                    MatchDetail = reader.GetString(2)
+                    MatchDetail = reader.GetString(2),
+                    ParentObjectType = reader.IsDBNull(3) ? null : reader.GetString(3)
                 });
             }
         }

@@ -11,4 +11,7 @@ internal sealed class SearchResult
 
     /// <summary>The specific matched text (column name, or definition snippet).</summary>
     public string MatchDetail { get; set; }
+
+    /// <summary>On a column match, the type of the table or view the column belongs to (U, V, …); null if unknown.</summary>
+    public string ParentObjectType { get; set; }
 }

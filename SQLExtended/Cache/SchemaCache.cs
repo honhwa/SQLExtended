@@ -436,24 +436,23 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
 
             if (options.SearchColumnNames)
             {
-                // Build a lookup of parent object types for column filtering
+                // Parent object types - for the type filter and for the "COLUMN · VIEW" label. Built on the first
+                // matching column rather than up front, so a search that matches no column pays nothing for it.
                 Dictionary<(string schema, string name), string> objectTypes = null;
-                if (typeFilters != null)
-                {
-                    objectTypes = new Dictionary<(string, string), string>(
-                        data.Objects.Count,
-                        EqualityComparer<(string, string)>.Default);
-                    foreach (var obj in data.Objects)
-                        objectTypes[(obj.SchemaName, obj.ObjectName)] = obj.ObjectType;
-                }
 
                 foreach (var col in data.Columns)
                 {
                     if (col.ColumnName.IndexOf(searchTerm, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        if (objectTypes != null &&
-                            objectTypes.TryGetValue((col.SchemaName, col.TableName), out var parentType) &&
-                            !typeFilters.Contains(parentType))
+                        if (objectTypes == null)
+                        {
+                            objectTypes = new Dictionary<(string, string), string>(data.Objects.Count, EqualityComparer<(string, string)>.Default);
+                            foreach (var obj in data.Objects)
+                                objectTypes[(obj.SchemaName, obj.ObjectName)] = obj.ObjectType;
+                        }
+
+                        objectTypes.TryGetValue((col.SchemaName, col.TableName), out var parentType);
+                        if (typeFilters != null && parentType != null && !typeFilters.Contains(parentType))
                             continue;
 
                         results.Add(new SearchResult
@@ -462,7 +461,8 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
                             ObjectName = col.TableName,
                             ObjectType = "Column",
                             MatchLocation = "ColumnName",
-                            MatchDetail = col.ColumnName
+                            MatchDetail = col.ColumnName,
+                            ParentObjectType = parentType
                         });
                         if (results.Count >= options.MaxResults) return results;
                     }
