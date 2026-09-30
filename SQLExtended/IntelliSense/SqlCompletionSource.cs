@@ -142,6 +142,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             case SqlContextAnalyzer.CompletionType.JoinOnCondition:
             case SqlContextAnalyzer.CompletionType.ProcedureName:
             case SqlContextAnalyzer.CompletionType.InsertColumnTemplate:
+            case SqlContextAnalyzer.CompletionType.IndexColumn:
+            case SqlContextAnalyzer.CompletionType.IndexHintName:
             case SqlContextAnalyzer.CompletionType.DatabaseName:
             case SqlContextAnalyzer.CompletionType.CollationName:
                 {
@@ -167,6 +169,9 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             case SqlContextAnalyzer.CompletionType.AlterTableAction:
             case SqlContextAnalyzer.CompletionType.AlterIndexAction:
             case SqlContextAnalyzer.CompletionType.AlterIndexName:
+            case SqlContextAnalyzer.CompletionType.QueryHint:
+            case SqlContextAnalyzer.CompletionType.UseHintName:
+            case SqlContextAnalyzer.CompletionType.TableHint:
                 {
                     // Argument value suggestions (data types, dateparts), DBCC command
                     // names, and ALTER clauses need no DB and should appear immediately —
@@ -234,6 +239,14 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 return BuildAlterClauseCompletion(SqlAlterCommands.IndexActions, "ALTER INDEX action");
             if (analysis.Type == SqlContextAnalyzer.CompletionType.AlterIndexName)
                 return BuildAlterClauseCompletion(SqlAlterCommands.IndexNameHints, "index");
+
+            // OPTION ( … ) query hints and USE HINT names need no connection either
+            if (analysis.Type == SqlContextAnalyzer.CompletionType.QueryHint)
+                return BuildAlterClauseCompletion(SqlQueryHints.Hints, "query hint");
+            if (analysis.Type == SqlContextAnalyzer.CompletionType.UseHintName)
+                return BuildUseHintNameCompletion();
+            if (analysis.Type == SqlContextAnalyzer.CompletionType.TableHint)
+                return BuildAlterClauseCompletion(SqlQueryHints.TableHints, "table hint");
 
             // All other completions need a connection + cache
             string connectionString = null;
@@ -305,6 +318,12 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
 
                 case SqlContextAnalyzer.CompletionType.InsertColumnTemplate:
                     return BuildInsertTemplateCompletion(cache, connectionString, connKey, currentDb, analysis);
+
+                case SqlContextAnalyzer.CompletionType.IndexColumn:
+                    return BuildIndexColumnCompletion(cache, connectionString, connKey, currentDb, analysis, localTables);
+
+                case SqlContextAnalyzer.CompletionType.IndexHintName:
+                    return BuildIndexHintNameCompletion(cache, connectionString, connKey, currentDb, analysis);
 
                 case SqlContextAnalyzer.CompletionType.StarExpansion:
                     return BuildStarExpansionCompletion(cache, connectionString, connKey, currentDb, analysis, localTables);
@@ -493,8 +512,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 suffix: suffix,
                 insertText: insertText,
                 sortText: displayText,
-                // The quoted form is in the filter text too, so a user who starts with "[" � how you reach
-                // a name with a space in it � still matches the item.
+                // The quoted form is in the filter text too, so a user who starts with "[" — how you reach
+                // a name with a space in it — still matches the item.
                 filterText: quotedName == obj.ObjectName
                     ? $"{obj.SchemaName}.{obj.ObjectName} {obj.ObjectName}"
                     : $"{obj.SchemaName}.{obj.ObjectName} {obj.ObjectName} {quotedName}",
@@ -1421,16 +1440,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         if (connectionString != null)
             EnsureDatabaseLoaded(cache, connectionString, connKey, database);
 
-        // Resolve schema: if not given, find it in the cache (default to dbo).
-        string schema = analysis.TargetSchema;
-        if (string.IsNullOrEmpty(schema))
-        {
-            var objects = cache.GetObjects(connKey, database);
-            var match = objects?.FirstOrDefault(o =>
-                string.Equals(o.ObjectName, table, StringComparison.OrdinalIgnoreCase) &&
-                (o.ObjectType?.Trim() == "U" || o.ObjectType?.Trim() == "V"));
-            schema = match?.SchemaName ?? "dbo";
-        }
+        string schema = ResolveTableSchema(cache, connKey, database, analysis.TargetSchema, table);
 
         var columns = cache.GetColumns(connKey, database, schema, table);
         if (columns == null || columns.Count == 0)
@@ -1466,6 +1476,120 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             filterText: "all columns insert template select assign");
 
         return new CompletionContext(ImmutableArray.Create(valuesItem, selectItem));
+    }
+
+    /// <summary>The given schema, or - when the reference left it out - the schema the cache finds the table or view in (default dbo).</summary>
+    private static string ResolveTableSchema(ISchemaCache cache, string connKey, string database, string schema, string table)
+    {
+        if (!string.IsNullOrEmpty(schema))
+            return schema;
+
+        var objects = cache.GetObjects(connKey, database);
+        var match = objects?.FirstOrDefault(o =>
+            string.Equals(o.ObjectName, table, StringComparison.OrdinalIgnoreCase) &&
+            (o.ObjectType?.Trim() == "U" || o.ObjectType?.Trim() == "V"));
+        return match?.SchemaName ?? "dbo";
+    }
+
+    // --- CREATE INDEX column lists ---
+
+    /// <summary>
+    /// Builds completion for a column slot in "CREATE INDEX ix ON dbo.Orders (" - the key list, the INCLUDE
+    /// list or a filtered index's WHERE - from the columns of the table the index is being created on. Columns
+    /// already named in either list are left out: a column cannot be both a key and an included column, nor
+    /// appear twice in one list. (The analyzer excludes nothing in a filter, where repeating a column is normal.)
+    /// </summary>
+    private CompletionContext BuildIndexColumnCompletion(
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, SqlContextAnalyzer.AnalysisResult analysis,
+        IReadOnlyList<LocalTableScanner.LocalTable> localTables)
+    {
+        string table = analysis.TargetTable;
+        if (string.IsNullOrEmpty(table))
+            return CompletionContext.Empty;
+
+        string database = analysis.TargetDatabase ?? currentDb;
+        string schema = ResolveTableSchema(cache, connKey, database, analysis.TargetSchema, table);
+        var existing = analysis.ExistingColumns ?? Array.Empty<string>();
+
+        var items = new List<CompletionItem>();
+        foreach (var (col, isPk, isFk) in GetColumnsWithFlags(cache, connectionString, connKey, database, schema, table, localTables))
+        {
+            if (existing.Contains(col.ColumnName, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            string quoted = SqlIdentifierQuoting.QuoteIfNeeded(col.ColumnName);
+            var icon = new ImageElement(CompletionIcons.ForColumn(isPk, isFk, col.IsIdentity, col.IsComputed).ToImageId());
+
+            items.Add(new CompletionItem(
+                displayText: col.ColumnName,
+                source: this,
+                icon: icon,
+                filters: ColumnFilter,
+                suffix: BuildColumnSuffix(col, isPk, isFk, _sessionSettings.ShowColumnTypeInfo),
+                insertText: quoted,
+                sortText: $"{col.Ordinal:D4}",
+                // The quoted form is in the filter text too, so starting with "[" still matches the item.
+                filterText: quoted == col.ColumnName ? col.ColumnName : $"{col.ColumnName} {quoted}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+
+        return items.Count == 0 ? CompletionContext.Empty : new CompletionContext(items.ToImmutableArray());
+    }
+
+    // --- WITH (INDEX ( … )) index names ---
+
+    /// <summary>
+    /// Builds the index names of the hinted table for "FROM dbo.Orders o WITH (INDEX (" and "WITH (FORCESEEK (".
+    /// The reference before WITH is normally the table itself, but "UPDATE o WITH (" names an alias declared in
+    /// the FROM clause, so an unqualified name that is an alias in this statement is resolved through it first.
+    /// </summary>
+    private CompletionContext BuildIndexHintNameCompletion(
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, SqlContextAnalyzer.AnalysisResult analysis)
+    {
+        string table = analysis.TargetTable;
+        if (string.IsNullOrEmpty(table))
+            return CompletionContext.Empty;
+
+        string database = analysis.TargetDatabase;
+        string schema = analysis.TargetSchema;
+        if (schema == null)
+        {
+            var aliased = AliasResolver.Resolve(analysis.StatementText)
+                .FirstOrDefault(t => t.Alias != null && string.Equals(t.Alias, table, StringComparison.OrdinalIgnoreCase));
+            if (aliased != null)
+                (database, schema, table) = (aliased.Database, aliased.Schema, aliased.Table);
+        }
+
+        database ??= currentDb;
+        if (connectionString != null)
+            EnsureDatabaseLoaded(cache, connectionString, connKey, database);
+        schema = ResolveTableSchema(cache, connKey, database, schema, table);
+
+        var items = new List<CompletionItem>();
+        foreach (var ix in cache.GetIndexes(connKey, database, schema, table))
+        {
+            if (string.IsNullOrEmpty(ix.IndexName))
+                continue;
+
+            string quoted = SqlIdentifierQuoting.QuoteIfNeeded(ix.IndexName);
+            string kind = ix.IsPrimaryKey ? $"{ix.IndexType} PK" : ix.IsUnique ? $"UNIQUE {ix.IndexType}" : ix.IndexType;
+            string suffix = string.IsNullOrEmpty(ix.KeyColumns) ? kind?.ToLowerInvariant() : $"{kind?.ToLowerInvariant()} ({ix.KeyColumns})";
+            var icon = new ImageElement((ix.IsPrimaryKey ? CompletionIcons.PrimaryKey : CompletionIcons.Index).ToImageId());
+
+            items.Add(new CompletionItem(
+                displayText: ix.IndexName,
+                source: this,
+                icon: icon,
+                filters: ImmutableArray<CompletionFilter>.Empty,
+                suffix: suffix ?? string.Empty,
+                insertText: quoted,
+                // The clustered index / primary key first - it is the one most often forced - then by name.
+                sortText: $"{(ix.IsPrimaryKey || ix.IndexType == "CLUSTERED" ? 0 : 1)}_{ix.IndexName}",
+                filterText: quoted == ix.IndexName ? ix.IndexName : $"{ix.IndexName} {quoted}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+
+        return items.Count == 0 ? CompletionContext.Empty : new CompletionContext(items.ToImmutableArray());
     }
 
     // --- SELECT * expansion ---
@@ -1879,11 +2003,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         var indexes = cache.GetIndexes(connKey, database, schema, tableName);
         foreach (var idx in indexes)
         {
-            if (idx.IsPrimaryKey && !string.IsNullOrEmpty(idx.KeyColumns))
-            {
-                foreach (var col in idx.KeyColumns.Split(','))
-                    pkColumns.Add(col.Trim());
-            }
+            if (idx.IsPrimaryKey)
+                pkColumns.UnionWith(idx.KeyColumnNames());   // "OrderDate DESC" is the column OrderDate
         }
 
         // Build FK column set from foreign keys
@@ -1985,6 +2106,11 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 else
                     break;
             }
+
+            // A USE HINT name is inserted with its own quotes, so an opening quote already typed is replaced
+            // along with the name - otherwise "('DISA" commits as "(''DISABLE_...'".
+            if (contextType == SqlContextAnalyzer.CompletionType.UseHintName && start > 0 && snapshot[start - 1] == '\'')
+                start--;
         }
 
         return new SnapshotSpan(snapshot, start, end - start);
@@ -2232,6 +2358,34 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         return items.Count > 0
             ? new CompletionContext(items.ToImmutableArray())
             : CompletionContext.Empty;
+    }
+
+    /// <summary>
+    /// Builds the hint names for USE HINT ( … ). Each is inserted as a quoted string literal and in upper case
+    /// whatever the keyword-casing setting says - it is a string value, not a keyword.
+    /// </summary>
+    private CompletionContext BuildUseHintNameCompletion()
+    {
+        var items = new List<CompletionItem>(SqlQueryHints.UseHintNames.Count);
+        foreach (var h in SqlQueryHints.UseHintNames)
+        {
+            var item = new CompletionItem(
+                displayText: h.Keyword,
+                source: this,
+                icon: AlterClauseIcon,
+                filters: KeywordFilter,
+                suffix: "USE HINT",
+                insertText: $"'{h.Keyword}'",
+                sortText: h.Keyword,
+                // With the quote too, so typing "'" first still matches (the quote is part of the replaced span).
+                filterText: $"{h.Keyword} '{h.Keyword}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty);
+
+            item.Properties.AddProperty(ClauseDescriptionKey, h.Description);
+            items.Add(item);
+        }
+
+        return new CompletionContext(items.ToImmutableArray());
     }
 
     // [Conditional("DEBUG")] removes every call site (and its string-interpolation argument)

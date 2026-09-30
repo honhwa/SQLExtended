@@ -47,6 +47,10 @@ internal static class CompletionIcons
     public static ImageMoniker Identity => KnownMonikers.Counter;
     public static ImageMoniker ComputedColumn => KnownMonikers.Property;
 
+    // Index name icon (WITH (INDEX ( … )) completion). The catalog has no plain or nonclustered index
+    // moniker - ClusteredIndex is the only index glyph - so it stands for every kind.
+    public static ImageMoniker Index => KnownMonikers.ClusteredIndex;
+
     /// <summary>
     /// Returns the appropriate icon for a SQL Server object type code.
     /// </summary>

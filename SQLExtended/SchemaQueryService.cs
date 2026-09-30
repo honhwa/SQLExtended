@@ -217,9 +217,7 @@ internal static class SchemaQueryService
         IReadOnlyList<CachedColumn> columns, IReadOnlyList<CachedIndex> indexes)
     {
         var pkIndex = indexes.FirstOrDefault(i => i.IsPrimaryKey);
-        var pkColumns = pkIndex?.KeyColumns?.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(c => c.Trim().Split(' ')[0]) // Remove DESC/ASC suffix
-            .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new HashSet<string>();
+        var pkColumns = pkIndex?.KeyColumnNames().ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new HashSet<string>();
 
         var sb = new StringBuilder();
         sb.AppendLine($"CREATE TABLE [{schema}].[{tableName}]");

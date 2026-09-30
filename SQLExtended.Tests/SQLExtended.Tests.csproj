@@ -45,6 +45,7 @@
     <Compile Include="..\SQLExtended\IntelliSense\LocalTableScanner.cs" Link="IntelliSense\LocalTableScanner.cs" />
     <Compile Include="..\SQLExtended\Cache\Models\CachedColumn.cs" Link="Cache\Models\CachedColumn.cs" />
     <Compile Include="..\SQLExtended\Cache\Models\CachedForeignKey.cs" Link="Cache\Models\CachedForeignKey.cs" />
+    <Compile Include="..\SQLExtended\Cache\Models\CachedIndex.cs" Link="Cache\Models\CachedIndex.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\JoinClauseBuilder.cs" Link="IntelliSense\JoinClauseBuilder.cs" />
     <Compile Include="..\SQLExtended\Cache\SystemCatalogSql.cs" Link="Cache\SystemCatalogSql.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlContextAnalyzer.cs" Link="IntelliSense\SqlContextAnalyzer.cs" />
@@ -55,6 +56,7 @@
     <Compile Include="..\SQLExtended\IntelliSense\SqlBuiltInFunctions.cs" Link="IntelliSense\SqlBuiltInFunctions.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlDbccCommands.cs" Link="IntelliSense\SqlDbccCommands.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlAlterCommands.cs" Link="IntelliSense\SqlAlterCommands.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlQueryHints.cs" Link="IntelliSense\SqlQueryHints.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetManager.cs" Link="Snippets\SnippetManager.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetPlaceholderResolver.cs" Link="Snippets\SnippetPlaceholderResolver.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetXmlBuilder.cs" Link="Snippets\SnippetXmlBuilder.cs" />

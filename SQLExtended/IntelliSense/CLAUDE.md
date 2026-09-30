@@ -167,6 +167,18 @@ and re-validated against the snapshot as it is then: the replace happens only if
 resolves to the same word, unchanged. Anything else (the user kept typing, an undo ran, a completion
 replaced the span) means the recase no longer applies, and applying it anyway is what corrupts the line.
 
+**The word set and the recaser must split words the same way.** `SqlKeywords.BuildKeywordWordSet` used to
+split entries into runs of letters, while `IsWordChar` treats `_` and digits as part of a word. So
+`IDENTITY_INSERT`, `SQL_VARIANT` and `DATETIME2` were looked up whole and never matched, while their pieces
+(`STATUS` from `@@FETCH_STATUS`) did go in and recased ordinary column names. Both now run over letters,
+digits and `_`. **Every word in `SqlKeywords` is recased as it is typed** unless the entry is marked
+`recase: false`. That flag is for multi-word entries with a column name among their words: `STATISTICS IO`
+/ `PROFILE`, `TRANSACTION ISOLATION LEVEL` and the isolation levels (`READ COMMITTED`, `SNAPSHOT`, …) are
+offered in completion but never recased, because the recaser sees one word with no context and cannot tell
+`SET STATISTICS IO` from a column called `IO`. One-word options that *are* column names (`LANGUAGE`,
+`ROWCOUNT`, `TEXTSIZE`) are left out altogether. `SqlKeywordWordTests` pins which words stay out of the set.
+The levels have their own context, `AfterIsolationLevel`, which is not part of `General`.
+
 ## IntelliSense: joining on a foreign key from the table position
 
 There are two halves to the foreign-key join support, and they answer different questions at different
@@ -209,3 +221,47 @@ string: `dbo.Customer c ON c.Id = o.CustomerId`.
 inverted predicate and a reused alias both produce SQL that runs and returns the wrong rows, and a composite
 key paired out of order joins on the wrong column of the right table. `SqlCompletionSource` keeps the cache
 lookups and the item construction; the builder gets plain `CachedForeignKey` rows and returns plain strings.
+
+## IntelliSense: CREATE INDEX column lists
+
+`CREATE [UNIQUE] [NON]CLUSTERED [COLUMNSTORE] INDEX ix ON dbo.T (` — and `CREATE STATISTICS`, which takes
+the same list — is its own context, `IndexColumn`, offering the target table's columns in both the key list
+and the `INCLUDE (` list, minus any column already named in either (a column cannot be both key and include).
+
+- **It is checked before the function-argument probe.** `Orders(` looks exactly like a call to a function
+  named Orders; if the table happened to share a built-in's name the list would offer data types or dateparts.
+- **A column is only offered right after `(` or `,`.** After `(CustomerId ` the next token is ASC/DESC or a
+  comma, and a column there inserts SQL that does not parse.
+- **A filtered index's `WHERE` offers columns at its start and after each `AND` / `OR`, and nowhere else.**
+  A filter compares a column with a constant, so after `=`, `>=` or inside `IN (` a column is never valid —
+  the opposite of the query `WHERE`, which is why this does not reuse `ColumnContextPattern`. Nothing is
+  excluded there (`Qty >= 1 AND Qty < 10` is ordinary), and a `WITH (` options clause or `;` ends the filter.
+- **`INDEX name ON` is in `TableContextBeforeDot`**, or `ON dbo.` would be read as the alias `dbo` and
+  offer that non-existent alias's (empty) column list instead of tables. The rule needs the `INDEX name`
+  in front of `ON`: a bare `ON` would break every `JOIN ... ON o.` predicate (`IndexColumnContextTests` pins it).
+
+## IntelliSense: OPTION ( … ) query hints, USE HINT names and WITH ( … ) table hints
+
+`OPTION (` offers the query hints (`SqlQueryHints.Hints`) and `USE HINT (` offers the hint names
+(`SqlQueryHints.UseHintNames`), inserted as quoted literals. Neither needs a connection.
+
+- **Both lists are verified against ScriptDom, not the documentation.** `QueryHintContextTests` parses every
+  hint (with a sample argument) and every name. `DISABLE_OPTIMIZED_PLAN_FORCING` is documented for SQL Server
+  2022 but ScriptDom rejects it, so it is left out — offering it would insert SQL the formatter cannot parse.
+  Synapse/PDW-only hints (`LABEL`, `FORCE EXTERNALPUSHDOWN`, …) are left out as well.
+- **A slot is found by paren depth, not by regex.** The innermost `(` still open at the cursor decides it, so
+  `OPTION (OPTIMIZE FOR (@p = 1), ` is a hint slot and `OPTIMIZE FOR (` is not; and only straight after that
+  `(` or a top-level `,` — after `MAXDOP ` the next thing is the hint's argument.
+- **Checked before the function-argument probe**, since `OPTION (` and `HINT (` both look like calls.
+- **Table hints (`SqlQueryHints.TableHints`) use the same scan**, for a table reference's `WITH (` and for
+  `OPTION (TABLE HINT (obj, ` after the object. **The table reference in front of `WITH` is what makes it a
+  table hint** (`TableHintOpenPattern`): `WITH` is also a CTE (`WITH cte (`) and an options clause
+  (`CREATE INDEX … (c) WITH (`, `REBUILD WITH (`), and offering NOLOCK there inserts SQL that does not parse.
+  The alias group refuses the word WITH, or `FROM dbo.T WITH` would read WITH as the alias.
+- **`WITH (INDEX (` and `WITH (FORCESEEK (` offer the hinted table's index names** from the schema cache.
+  The table is the reference in front of the *enclosing* `WITH (`, one level down the paren stack, which is
+  why `TableHintOpenPattern` captures q1/q2/tbl. `UPDATE o WITH (` names an alias, so an unqualified name is
+  first looked up as an alias of the statement (`AliasResolver`). FORCESEEK takes one index, so it is not
+  offered after a comma. The cache loads indexes for `U` objects only, so an indexed view (NOEXPAND) gets none.
+- **An opening quote already typed is part of the replaced span** for a hint name (`FindApplicableSpan`),
+  or committing after `('DISA` would produce `(''DISABLE_…'`.

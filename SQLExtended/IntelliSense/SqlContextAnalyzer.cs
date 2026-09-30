@@ -28,7 +28,12 @@ internal static class SqlContextAnalyzer
         AlterIndexAction,
         AlterIndexName,
         CollationName,
-        StarExpansion
+        StarExpansion,
+        IndexColumn,
+        QueryHint,
+        UseHintName,
+        TableHint,
+        IndexHintName
     }
 
     internal sealed class AnalysisResult
@@ -76,6 +81,12 @@ internal static class SqlContextAnalyzer
         /// the text a committed expansion replaces. The alias (if any) is in DotPrefix.
         /// </summary>
         public int StarReplaceLength { get; set; }
+
+        /// <summary>
+        /// For IndexColumn: the columns already named in the index's key and INCLUDE lists, so they are
+        /// not offered a second time. The target table is in TargetDatabase / TargetSchema / TargetTable.
+        /// </summary>
+        public IReadOnlyCollection<string> ExistingColumns { get; set; }
     }
 
     /// <summary>
@@ -118,6 +129,24 @@ internal static class SqlContextAnalyzer
         {
             dotResult.StatementText = statementText;
             return dotResult;
+        }
+
+        // 1a. CREATE INDEX ... ON table ( <here> / INCLUDE ( <here> — the target table's columns. Checked
+        // before the function-argument probe, which would otherwise read "Orders(" as a call to Orders.
+        var indexResult = CheckIndexColumnContext(StripTrailingPartialIdentifier(textBeforeCursor));
+        if (indexResult != null)
+        {
+            indexResult.StatementText = statementText;
+            return indexResult;
+        }
+
+        // 1a-i. OPTION ( <hint> and USE HINT ( '<name>' — ahead of the function-argument probe for the same
+        // reason: "OPTION (" and "HINT (" both look like calls.
+        var hintResult = CheckQueryHintContext(StripTrailingPartialIdentifier(textBeforeCursor));
+        if (hintResult != null)
+        {
+            hintResult.StatementText = statementText;
+            return hintResult;
         }
 
         // 1b. Inside a built-in function call whose argument draws from a known set —
@@ -198,6 +227,16 @@ internal static class SqlContextAnalyzer
 
         // 2d-ii. ALTER INDEX {name | ALL} ON <object> — the object is a table/view name.
         if (AlterIndexOnPattern.IsMatch(textBeforeIdent))
+        {
+            return new AnalysisResult
+            {
+                Type = CompletionType.TableName,
+                StatementText = statementText
+            };
+        }
+
+        // 2d-ii-a. CREATE [UNIQUE] [CLUSTERED] INDEX <name> ON <object> — the object is a table/view name.
+        if (CreateIndexOnPattern.IsMatch(textBeforeIdent))
         {
             return new AnalysisResult
             {
@@ -453,6 +492,199 @@ internal static class SqlContextAnalyzer
     }
 
     /// <summary>
+    /// Detects a column slot in a CREATE INDEX / CREATE STATISTICS statement — right after the opening
+    /// "(" or a "," of the key list or of the INCLUDE list, or at the start of a filtered index's WHERE
+    /// predicate and after each AND / OR in it. After a column name ("(Col " or "WHERE Col ") the next
+    /// thing is not a column, so nothing is returned there.
+    /// </summary>
+    private static AnalysisResult CheckIndexColumnContext(string textBeforeIdent)
+    {
+        if (string.IsNullOrEmpty(textBeforeIdent) || textBeforeIdent.IndexOf('(') < 0)
+            return null;
+
+        var f = IndexFilterPattern.Match(textBeforeIdent);
+        if (f.Success)
+        {
+            // The filter's right-hand sides are constants, so only its start and each AND/OR take a column.
+            // Repeating a column is ordinary here ("Qty >= 1 AND Qty < 10"), so nothing is excluded.
+            if (!IndexFilterSlotPattern.IsMatch(f.Groups["filter"].Value))
+                return null;
+            return TableTargetResult(CompletionType.IndexColumn, f, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        var m = IndexColumnListPattern.Match(textBeforeIdent);
+        if (!m.Success)
+            return null;
+
+        string open = (m.Groups["incl"].Success ? m.Groups["incl"].Value : m.Groups["keys"].Value).TrimEnd();
+        if (open.Length > 0 && open[open.Length - 1] != ',')
+            return null;
+
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var list in new[] { m.Groups["keys"].Value, m.Groups["incl"].Value })
+        {
+            foreach (var entry in list.Split(','))
+            {
+                var name = IndexListEntryPattern.Match(entry);
+                if (name.Success)
+                    existing.Add(name.Groups["name"].Value);
+            }
+        }
+
+        return TableTargetResult(CompletionType.IndexColumn, m, existing);
+    }
+
+    /// <summary>A result naming the table a match's q1 / q2 / tbl groups captured (two qualifiers → database.schema).</summary>
+    private static AnalysisResult TableTargetResult(CompletionType type, Match m, HashSet<string> existing = null)
+    {
+        string q1 = m.Groups["q1"].Success ? m.Groups["q1"].Value : null;
+        string q2 = m.Groups["q2"].Success ? m.Groups["q2"].Value : null;
+        return new AnalysisResult
+        {
+            Type = type,
+            TargetDatabase = q2 != null ? q1 : null,
+            TargetSchema = q2 ?? q1,
+            TargetTable = m.Groups["tbl"].Value,
+            ExistingColumns = existing
+        };
+    }
+
+    /// <summary>
+    /// Returns QueryHint when the cursor is at a hint slot of "OPTION (" — right after the "(" or a
+    /// top-level ",", so "OPTION (MAXDOP 1, " qualifies and "OPTION (MAXDOP " or "OPTIMIZE FOR (" do not —
+    /// UseHintName at a name slot of "USE HINT (", where an opening quote may already be typed, and
+    /// TableHint at a slot of a table reference's "WITH (" or of OPTION's "TABLE HINT (object, ".
+    /// Anything else returns None.
+    /// </summary>
+    private static AnalysisResult CheckQueryHintContext(string textBeforeIdent)
+    {
+        if (string.IsNullOrEmpty(textBeforeIdent) || textBeforeIdent.IndexOf('(') < 0)
+            return null;
+
+        // An opening quote typed for a USE HINT name ("('DISA" strips to "('") is set aside first, so the
+        // scan below does not read the rest of the text as an unterminated string.
+        string text = textBeforeIdent;
+        bool quoteOpen = false;
+        var quote = Regex.Match(text, @"N?'$");
+        if (quote.Success)
+        {
+            text = text.Substring(0, quote.Index);
+            quoteOpen = true;
+        }
+
+        // Find the innermost "(" still open at the cursor, skipping string literals and bracketed names.
+        var open = new Stack<int>();
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c == '\'')
+            {
+                i++;
+                while (i < text.Length)
+                {
+                    if (text[i] == '\'')
+                    {
+                        if (i + 1 < text.Length && text[i + 1] == '\'') { i += 2; continue; }
+                        break;
+                    }
+                    i++;
+                }
+                if (i >= text.Length) return null;   // inside some other string
+                continue;
+            }
+            if (c == '[')
+            {
+                while (i < text.Length && text[i] != ']') i++;
+                continue;
+            }
+            if (c == '(') open.Push(i);
+            else if (c == ')' && open.Count > 0) open.Pop();
+        }
+
+        if (open.Count == 0)
+            return null;
+
+        int paren = open.Peek();
+        string inside = text.Substring(paren + 1);
+        int lastComma = inside.LastIndexOf(',');
+        if (inside.Substring(lastComma + 1).Trim().Length > 0)
+            return null;   // part way through a hint ("MAXDOP ") or a name, not at a slot
+
+        string before = text.Substring(0, paren);
+
+        // WITH (INDEX (<here>, …) and WITH (FORCESEEK (<here> (cols))) take an index of the hinted table, whose
+        // reference sits in front of the enclosing WITH ( — the next "(" down the stack. FORCESEEK takes one.
+        var indexHint = IndexHintOpenPattern.Match(before);
+        if (indexHint.Success)
+        {
+            if (quoteOpen || open.Count < 2 || (lastComma >= 0 && indexHint.Groups["kw"].Value.Equals("FORCESEEK", StringComparison.OrdinalIgnoreCase)))
+                return null;
+            int withParen = open.ToArray()[1];   // a Stack enumerates top first
+            var table = TableHintOpenPattern.Match(text.Substring(0, withParen));
+            return table.Success ? TableTargetResult(CompletionType.IndexHintName, table) : null;
+        }
+        if (UseHintOpenPattern.IsMatch(before))
+            return new AnalysisResult { Type = CompletionType.UseHintName };
+        if (quoteOpen)
+            return null;
+        if (OptionOpenPattern.IsMatch(before))
+            return new AnalysisResult { Type = CompletionType.QueryHint };
+        if (TableHintOpenPattern.IsMatch(before))
+            return new AnalysisResult { Type = CompletionType.TableHint };
+        // OPTION (TABLE HINT (dbo.T, NOLOCK)) — the first argument is the object, the rest are table hints.
+        if (lastComma >= 0 && OptionTableHintOpenPattern.IsMatch(before))
+            return new AnalysisResult { Type = CompletionType.TableHint };
+        return null;
+    }
+
+    // The text just before a hint list's "(": "OPTION" (not "MyOPTION"), and "USE HINT".
+    private static readonly Regex OptionOpenPattern = new Regex(@"(?i)\bOPTION\s*$", RegexOptions.Compiled);
+    private static readonly Regex UseHintOpenPattern = new Regex(@"(?i)\bUSE\s+HINT\s*$", RegexOptions.Compiled);
+    private static readonly Regex OptionTableHintOpenPattern = new Regex(@"(?i)\bTABLE\s+HINT\s*$", RegexOptions.Compiled);
+    private static readonly Regex IndexHintOpenPattern = new Regex(@"(?i)[(,]\s*(?<kw>INDEX|FORCESEEK)\s*$", RegexOptions.Compiled);
+
+    // A table reference followed by WITH: "FROM dbo.T WITH", "JOIN [db].dbo.T AS t WITH", "UPDATE t WITH",
+    // "INSERT INTO dbo.T WITH", "MERGE dbo.T AS tgt WITH", "..., dbo.U u WITH". Requiring the reference is what
+    // keeps a CTE ("WITH cte (") and index/table options ("... ON dbo.T (c) WITH (") out: neither has one
+    // directly before the WITH. The alias may not be WITH itself, or "FROM dbo.T WITH" would be read as
+    // alias "WITH" and need a second WITH. Groups: q1/q2 = qualifiers, tbl = the table (for INDEX ( names).
+    private static readonly Regex TableHintOpenPattern = new Regex(
+        @"(?i)(?:\b(?:FROM|JOIN|UPDATE|INTO|DELETE|MERGE|USING)|,)\s+" +
+        @"(?:(?:\[(?<q1>[^\]]+)\]|(?<q1>\w+))\s*\.\s*(?:(?:\[(?<q2>[^\]]+)\]|(?<q2>\w+))\s*\.\s*)?)?(?:\[(?<tbl>[^\]]+)\]|(?<tbl>[#@]*\w+))" +
+        @"(?:\s+(?:AS\s+)?(?!WITH\b)\w+)?\s+WITH\s*$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // "CREATE [UNIQUE] [CLUSTERED | NONCLUSTERED] [COLUMNSTORE] INDEX name ON [db.][schema.]table (keys[) INCLUDE (incl]"
+    // ending at the cursor, still inside one of the two lists. CREATE STATISTICS takes the same column list.
+    // Groups: q1/q2 = qualifiers (two → database.schema), tbl = table, keys/incl = the list text so far.
+    private const string IndexHeaderAndTable =
+        @"(?i)\bCREATE\s+(?:(?:UNIQUE\s+)?(?:(?:NON)?CLUSTERED\s+)?(?:COLUMNSTORE\s+)?INDEX|STATISTICS)\s+(?:\[[^\]]+\]|\w+)\s+ON\s+" +
+        @"(?:(?:\[(?<q1>[^\]]+)\]|(?<q1>\w+))\s*\.\s*(?:(?:\[(?<q2>[^\]]+)\]|(?<q2>\w+))\s*\.\s*)?)?(?:\[(?<tbl>[^\]]+)\]|(?<tbl>[#@\w]+))";
+
+    private static readonly Regex IndexColumnListPattern = new Regex(
+        IndexHeaderAndTable + @"\s*\((?<keys>[^()]*)(?:\)\s*INCLUDE\s*\((?<incl>[^()]*))?$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // "... (keys) [INCLUDE (incl)] WHERE <filter>" ending at the cursor, still in the predicate - a WITH (...)
+    // options clause or a ';' after it means the filter is finished. The filter may hold IN (...) lists.
+    private static readonly Regex IndexFilterPattern = new Regex(
+        IndexHeaderAndTable + @"\s*\([^()]*\)\s*(?:INCLUDE\s*\([^()]*\)\s*)?WHERE\s+(?<filter>(?:(?!\bWITH\b)[^;])*)$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // A column slot in a filter predicate: its start, or straight after AND / OR.
+    private static readonly Regex IndexFilterSlotPattern = new Regex(
+        @"(?i)(?:^\s*|\b(?:AND|OR)\s+)$", RegexOptions.Compiled);
+
+    // The column name at the head of one index-list entry: "Col", "[Order Date] DESC".
+    private static readonly Regex IndexListEntryPattern = new Regex(
+        @"^\s*(?:\[(?<name>[^\]]+)\]|(?<name>\w+))", RegexOptions.Compiled);
+
+    // Matches "CREATE [UNIQUE] [CLUSTERED] [COLUMNSTORE] INDEX name ON " (or CREATE STATISTICS) — a table name is expected.
+    private static readonly Regex CreateIndexOnPattern = new Regex(
+        @"(?i)\bCREATE\s+(?:(?:UNIQUE\s+)?(?:(?:NON)?CLUSTERED\s+)?(?:COLUMNSTORE\s+)?INDEX|STATISTICS)\s+(?:\[[^\]]+\]|\w+)\s+ON\s+$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    /// <summary>
     /// Detects whether the cursor sits at an argument position of a built-in function
     /// that expects a value from a known set (a data type or a datepart). Returns a
     /// FunctionArgument result with the expected kind, or null if not applicable.
@@ -554,7 +786,7 @@ internal static class SqlContextAnalyzer
     // references are still recognized as object-name (table) completion, not column-after-dot.
     // Bracketed qualifiers may contain dots (e.g. "FROM [DataBaseName].dbo.").
     private static readonly Regex TableContextBeforeDot = new Regex(
-        @"(?i)\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|TRUNCATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|INSERT\s+INTO|TABLE|EXEC|EXECUTE)\b\s*(?:(?:\[[^\]]+\]|\w+)\s*\.\s*)*$",
+        @"(?i)\b(?:FROM|JOIN|INTO|UPDATE|DELETE\s+FROM|TRUNCATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|INSERT\s+INTO|TABLE|EXEC|EXECUTE|(?:INDEX|STATISTICS)\s+(?:\[[^\]]+\]|\w+)\s+ON)\b\s*(?:(?:\[[^\]]+\]|\w+)\s*\.\s*)*$",
         RegexOptions.Compiled);
 
     /// <summary>

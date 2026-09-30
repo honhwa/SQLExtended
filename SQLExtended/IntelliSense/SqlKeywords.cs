@@ -49,6 +49,9 @@ internal enum KeywordContext
     /// <summary>After SET clause in UPDATE.</summary>
     AfterSet = 1 << 11,
 
+    /// <summary>After SET TRANSACTION ISOLATION LEVEL (expecting the level). Deliberately not part of General.</summary>
+    AfterIsolationLevel = 1 << 12,
+
     /// <summary>Valid almost everywhere as a general keyword.</summary>
     General = StatementStart | AfterSelect | AfterFrom | AfterWhere | AfterGroupBy |
               AfterOrderBy | Expression | Block | AfterJoin | AfterInsert | AfterUpdate | AfterSet,
@@ -62,10 +65,18 @@ internal sealed class SqlKeyword
     public string Text { get; }
     public KeywordContext ValidContexts { get; }
 
-    public SqlKeyword(string text, KeywordContext validContexts)
+    /// <summary>
+    /// False for a completion-only keyword: offered in the list but left out of the type-time recasing set,
+    /// because one of its words is also a common column name (the LEVEL of ISOLATION LEVEL, the IO and
+    /// PROFILE of STATISTICS). Recasing reads single words with no context, so it cannot tell the two apart.
+    /// </summary>
+    public bool Recase { get; }
+
+    public SqlKeyword(string text, KeywordContext validContexts, bool recase = true)
     {
         Text = text;
         ValidContexts = validContexts;
+        Recase = recase;
     }
 }
 
@@ -201,6 +212,50 @@ internal static class SqlKeywords
         new SqlKeyword("EXEC", KeywordContext.StatementStart | KeywordContext.Block),
         new SqlKeyword("EXECUTE", KeywordContext.StatementStart | KeywordContext.Block),
 
+        // SET session options — offered after "SET ". Every word here is recased as it is typed, so an option
+        // whose words are also common column names is completion-only (recase: false) — STATISTICS IO/PROFILE
+        // and TRANSACTION ISOLATION LEVEL below — or, for LANGUAGE, ROWCOUNT and TEXTSIZE, which are one word
+        // and so the column name itself, left out.
+        new SqlKeyword("IDENTITY_INSERT", KeywordContext.AfterSet),
+        new SqlKeyword("NOCOUNT", KeywordContext.AfterSet),
+        new SqlKeyword("XACT_ABORT", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_NULLS", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_WARNINGS", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_PADDING", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_NULL_DFLT_ON", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_NULL_DFLT_OFF", KeywordContext.AfterSet),
+        new SqlKeyword("ANSI_DEFAULTS", KeywordContext.AfterSet),
+        new SqlKeyword("QUOTED_IDENTIFIER", KeywordContext.AfterSet),
+        new SqlKeyword("ARITHABORT", KeywordContext.AfterSet),
+        new SqlKeyword("ARITHIGNORE", KeywordContext.AfterSet),
+        new SqlKeyword("CONCAT_NULL_YIELDS_NULL", KeywordContext.AfterSet),
+        new SqlKeyword("NUMERIC_ROUNDABORT", KeywordContext.AfterSet),
+        new SqlKeyword("IMPLICIT_TRANSACTIONS", KeywordContext.AfterSet),
+        new SqlKeyword("CURSOR_CLOSE_ON_COMMIT", KeywordContext.AfterSet),
+        new SqlKeyword("DEADLOCK_PRIORITY", KeywordContext.AfterSet),
+        new SqlKeyword("LOCK_TIMEOUT", KeywordContext.AfterSet),
+        new SqlKeyword("DATEFIRST", KeywordContext.AfterSet),
+        new SqlKeyword("DATEFORMAT", KeywordContext.AfterSet),
+        new SqlKeyword("NOEXEC", KeywordContext.AfterSet),
+        new SqlKeyword("PARSEONLY", KeywordContext.AfterSet),
+        new SqlKeyword("FMTONLY", KeywordContext.AfterSet),
+        new SqlKeyword("FORCEPLAN", KeywordContext.AfterSet),
+        new SqlKeyword("SHOWPLAN_XML", KeywordContext.AfterSet),
+        new SqlKeyword("SHOWPLAN_ALL", KeywordContext.AfterSet),
+        new SqlKeyword("SHOWPLAN_TEXT", KeywordContext.AfterSet),
+        new SqlKeyword("STATISTICS IO", KeywordContext.AfterSet, recase: false),
+        new SqlKeyword("STATISTICS TIME", KeywordContext.AfterSet, recase: false),
+        new SqlKeyword("STATISTICS XML", KeywordContext.AfterSet, recase: false),
+        new SqlKeyword("STATISTICS PROFILE", KeywordContext.AfterSet, recase: false),
+        new SqlKeyword("TRANSACTION ISOLATION LEVEL", KeywordContext.AfterSet, recase: false),
+
+        // SET TRANSACTION ISOLATION LEVEL <level>. Completion-only: READ, SNAPSHOT and COMMITTED are column names too.
+        new SqlKeyword("READ UNCOMMITTED", KeywordContext.AfterIsolationLevel, recase: false),
+        new SqlKeyword("READ COMMITTED", KeywordContext.AfterIsolationLevel, recase: false),
+        new SqlKeyword("REPEATABLE READ", KeywordContext.AfterIsolationLevel, recase: false),
+        new SqlKeyword("SNAPSHOT", KeywordContext.AfterIsolationLevel, recase: false),
+        new SqlKeyword("SERIALIZABLE", KeywordContext.AfterIsolationLevel, recase: false),
+
         // CTE / subquery
         new SqlKeyword("WITH", KeywordContext.StatementStart),
 
@@ -242,6 +297,7 @@ internal static class SqlKeywords
         new SqlKeyword("XML", KeywordContext.General),
         new SqlKeyword("SQL_VARIANT", KeywordContext.General),
         new SqlKeyword("TABLE", KeywordContext.General),
+        new SqlKeyword("CURSOR", KeywordContext.General),   // DECLARE c CURSOR FOR - was only recased as a fragment of @@CURSOR_ROWS
 
         // NULL / identity / constraint keywords
         new SqlKeyword("NULL", KeywordContext.General),
@@ -296,8 +352,14 @@ internal static class SqlKeywords
     /// <summary>
     /// Individual keyword <em>words</em> (multi-word entries split apart) for fast type-time
     /// recasing — e.g. "INNER JOIN" contributes INNER and JOIN, "WITH (NOLOCK)" contributes
-    /// WITH and NOLOCK. Only purely-alphabetic tokens of length ≥ 2 are included, so identifiers
-    /// (which carry digits/underscores) and single letters never collide with the set.
+    /// WITH and NOLOCK. A word runs over letters, digits and underscores, as it does in the recaser
+    /// (<c>KeywordCaseController.IsWordChar</c>), so IDENTITY_INSERT, SQL_VARIANT and DATETIME2 go in whole.
+    ///
+    /// <para>They used to be split at the underscore or digit, into IDENTITY + INSERT. The recaser looks up
+    /// the whole typed word, so the whole keyword never matched and was never recased — while the fragments
+    /// did go in, which is how @@FETCH_STATUS put STATUS in the set and recased every Status column typed.
+    /// An identifier still cannot collide by carrying a keyword inside it: "transaction_header" is looked up
+    /// as itself. Words shorter than 2 characters are left out, so single-letter aliases are never touched.</para>
     /// </summary>
     private static readonly HashSet<string> KeywordWordSet = BuildKeywordWordSet();
 
@@ -310,6 +372,9 @@ internal static class SqlKeywords
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kw in AllKeywords)
         {
+            if (!kw.Recase)
+                continue;
+
             string text = kw.Text;
             int i = 0;
             while (i < text.Length)
@@ -317,7 +382,7 @@ internal static class SqlKeywords
                 if (char.IsLetter(text[i]))
                 {
                     int start = i;
-                    while (i < text.Length && char.IsLetter(text[i]))
+                    while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
                         i++;
                     if (i - start >= 2)
                         set.Add(text.Substring(start, i - start));
@@ -373,6 +438,10 @@ internal static class SqlKeywords
                 return KeywordContext.AfterSet;
             return KeywordContext.Expression;
         }
+
+        // SET TRANSACTION ISOLATION LEVEL <level> — checked before SET, which it does not end with anyway.
+        if (IsolationLevelPattern.IsMatch(upper))
+            return KeywordContext.AfterIsolationLevel;
 
         // After SET (in UPDATE context)
         if (EndsWithKeyword(upper, "SET"))
@@ -523,6 +592,9 @@ internal static class SqlKeywords
     }
 
     private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    private static readonly System.Text.RegularExpressions.Regex IsolationLevelPattern = new(
+        @"\bTRANSACTION\s+ISOLATION\s+LEVEL$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static bool EndsWithKeyword(string upper, string keyword)
     {
