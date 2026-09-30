@@ -1,0 +1,54 @@
+<Window x:Class="SQLExtended.Monitoring.SqlTextDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avalonedit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        Width="800" Height="520"
+        MinWidth="400" MinHeight="250"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SqlxSurface}"
+        ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        KeyDown="Window_KeyDown">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/SQLExtended;component/Monitoring/MonitoringTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="HeaderText" Grid.Row="0" Foreground="{DynamicResource SqlxHeading}" FontSize="13" FontWeight="SemiBold"
+                   TextTrimming="CharacterEllipsis" Margin="4,2,4,8"/>
+
+        <Border Grid.Row="1" BorderBrush="{DynamicResource SqlxBorderSubtle}" BorderThickness="1" Margin="4,0">
+            <avalonedit:TextEditor x:Name="SqlEditor"
+                                   IsReadOnly="True"
+                                   ShowLineNumbers="True"
+                                   WordWrap="False"
+                                   FontFamily="Cascadia Code, Consolas, Courier New"
+                                   FontSize="13"
+                                   Background="{DynamicResource SqlxSurface}"
+                                   Foreground="{DynamicResource SqlxText}"
+                                   LineNumbersForeground="{DynamicResource SqlxLineNumber}"
+                                   BorderThickness="0"
+                                   Padding="4"
+                                   HorizontalScrollBarVisibility="Auto"
+                                   VerticalScrollBarVisibility="Auto"/>
+        </Border>
+
+        <DockPanel Grid.Row="2" Margin="4,8,4,0" LastChildFill="False">
+            <TextBlock x:Name="StatusText" DockPanel.Dock="Left" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" VerticalAlignment="Center"/>
+            <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource ToolButton}" Click="Close_Click" IsCancel="True" MinWidth="70"/>
+            <Button DockPanel.Dock="Right" Content="Copy" Style="{StaticResource ToolButton}" Click="Copy_Click" MinWidth="70" Margin="0,0,8,0"
+                    ToolTip="Copy the whole statement to the clipboard (Ctrl+C with nothing selected)"/>
+        </DockPanel>
+    </Grid>
+</Window>

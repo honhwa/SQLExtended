@@ -49,6 +49,19 @@
                 <Setter Property="FontSize" Value="10"/>
                 <Setter Property="Margin" Value="0,3,0,0"/>
             </Style>
+
+            <!--
+                Right-click menu shared by the Activity, Blocking and Top queries grids. Not shared as one instance
+                (x:Shared) because a ContextMenu can only belong to one element. Items are told apart by Tag in
+                StatementMenu_Opened; Copy Batch only applies to Activity rows, the only ones that carry a batch.
+            -->
+            <ContextMenu x:Key="StatementMenu" x:Shared="False" Background="{DynamicResource SqlxSurfaceAlt}" Foreground="{DynamicResource SqlxTextChrome}"
+                         Opened="StatementMenu_Opened">
+                <MenuItem Tag="CopyStatement" Header="Copy Statement" Click="CopyStatement_Click" ToolTip="Copy the full statement text to the clipboard"/>
+                <MenuItem Tag="CopyBatch" Header="Copy Batch" Click="CopyBatch_Click" ToolTip="Copy the whole batch the statement belongs to"/>
+                <MenuItem Tag="View" Header="View Statement…" Click="ViewStatement_Click" ToolTip="Show the full SQL in a window (also: double-click the row)"/>
+                <MenuItem Tag="Open" Header="Open in New Query Window" Click="OpenStatement_Click"/>
+            </ContextMenu>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -290,7 +303,9 @@
                                    Text="Idle sessions holding an open transaction are included — they never appear in sys.dm_exec_requests but are a common head blocker."/>
                     </StackPanel>
 
-                    <DataGrid x:Name="ActivityGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                    <DataGrid x:Name="ActivityGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}"
+                              ContextMenu="{StaticResource StatementMenu}"
+                              MouseDoubleClick="StatementGrid_MouseDoubleClick" PreviewMouseRightButtonDown="StatementGrid_PreviewMouseRightButtonDown">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="SPID" Binding="{Binding SessionId}" Width="60" ElementStyle="{StaticResource NumCell}"/>
                             <DataGridTextColumn Header="Blocked by" Binding="{Binding BlockingSessionId, Converter={StaticResource Num}}" Width="85"
@@ -338,7 +353,9 @@
                     <TextBlock x:Name="BlockingEmpty" Grid.Row="0" Foreground="{DynamicResource SqlxGood}" FontSize="11" Margin="0,6,0,6"
                                Text="Nothing is blocked."/>
 
-                    <DataGrid x:Name="BlockingGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}" Visibility="Collapsed">
+                    <DataGrid x:Name="BlockingGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}" Visibility="Collapsed"
+                              ContextMenu="{StaticResource StatementMenu}"
+                              MouseDoubleClick="StatementGrid_MouseDoubleClick" PreviewMouseRightButtonDown="StatementGrid_PreviewMouseRightButtonDown">
                         <DataGrid.Columns>
                             <!-- The indent is part of the cell text so the chain shape survives however it is sorted or copied. -->
                             <DataGridTemplateColumn Header="Chain" Width="150" SortMemberPath="SessionId">
@@ -432,7 +449,9 @@
                                    Text="Aggregates from the plan cache since each plan was compiled — not limited to the sample window."/>
                     </StackPanel>
 
-                    <DataGrid x:Name="QueriesGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}">
+                    <DataGrid x:Name="QueriesGrid" Grid.Row="1" Style="{StaticResource MonitorGrid}"
+                              ContextMenu="{StaticResource StatementMenu}"
+                              MouseDoubleClick="StatementGrid_MouseDoubleClick" PreviewMouseRightButtonDown="StatementGrid_PreviewMouseRightButtonDown">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Database" Binding="{Binding DatabaseName, Converter={StaticResource Dash}}" Width="140"/>
                             <DataGridTextColumn Header="Executions" Binding="{Binding ExecutionCount, Converter={StaticResource Num}}" Width="95"

@@ -1006,6 +1006,116 @@ public partial class PerfMonitorControl : UserControl
         OpenTextInNewQueryWindow(sql);
     }
 
+    // Activity, Blocking and Top queries: double-click a row to read its SQL, right-click to copy it. The grids select
+    // by cell, so SelectedItem is not reliably the row under the mouse — the row is taken from the click itself.
+
+    /// <summary>The SQL a row carries, and what the viewer calls it.</summary>
+    private sealed class RowSql(string title, string statement, string batch)
+    {
+        public string Title { get; } = title;
+        public string Statement { get; } = statement;
+        public string Batch { get; } = batch;
+    }
+
+    private object _contextRow;
+
+    private static RowSql SqlOf(object row)
+    {
+        static string Db(string name) => string.IsNullOrEmpty(name) ? "" : $" — {name}";
+
+        return row switch
+        {
+            PerfRequestRow r => new RowSql($"Session {r.SessionId}{Db(r.DatabaseName)}", r.StatementText, r.BatchText),
+            PerfBlockingRow b => new RowSql(b.IsHeadBlocker ? $"Session {b.SessionId} (head blocker){Db(b.DatabaseName)}"
+                                                            : $"Session {b.SessionId} (blocked, chain head {b.HeadBlockerSessionId}){Db(b.DatabaseName)}", b.StatementText, null),
+            PerfQueryRow q => new RowSql($"Top query{Db(q.DatabaseName)}", q.StatementText, null),
+            _ => null,
+        };
+    }
+
+    private void StatementGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Also fires on the headers, scrollbars and the empty area below the rows.
+        var row = RowAt(e.OriginalSource as DependencyObject)?.Item;
+        if (SqlOf(row) == null) return;
+
+        e.Handled = true;
+        ShowStatement(row);
+    }
+
+    private void StatementGrid_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        _contextRow = RowAt(e.OriginalSource as DependencyObject)?.Item;
+    }
+
+    private void StatementMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        var sql = SqlOf(_contextRow);
+        bool hasStatement = !string.IsNullOrWhiteSpace(sql?.Statement);
+        bool hasBatch = !string.IsNullOrWhiteSpace(sql?.Batch);
+
+        foreach (var item in ((ContextMenu)sender).Items.OfType<MenuItem>())
+        {
+            switch (item.Tag as string)
+            {
+                case "CopyBatch":
+                    item.Visibility = _contextRow is PerfRequestRow ? Visibility.Visible : Visibility.Collapsed;
+                    item.IsEnabled = hasBatch;
+                    break;
+                default:
+                    item.IsEnabled = hasStatement || hasBatch;
+                    break;
+            }
+        }
+    }
+
+    private void CopyStatement_Click(object sender, RoutedEventArgs e) { var sql = SqlOf(_contextRow); CopyText(FirstNonEmpty(sql?.Statement, sql?.Batch), "statement"); }
+
+    private void CopyBatch_Click(object sender, RoutedEventArgs e) => CopyText(SqlOf(_contextRow)?.Batch, "batch");
+
+    private void ViewStatement_Click(object sender, RoutedEventArgs e) => ShowStatement(_contextRow);
+
+    private void OpenStatement_Click(object sender, RoutedEventArgs e)
+    {
+        var sql = SqlOf(_contextRow);
+        string text = FirstNonEmpty(sql?.Batch, sql?.Statement);
+        if (text != null) OpenTextInNewQueryWindow(text);
+    }
+
+    private void CopyText(string text, string what)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        try
+        {
+            Clipboard.SetText(text);
+            StatusText.Text = $"Copied the {what} to the clipboard.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Copy failed: " + ex.Message;
+        }
+    }
+
+    /// <summary>Shows the row's SQL. For a request that is the whole batch with the running statement selected in it.</summary>
+    private void ShowStatement(object row)
+    {
+        if (SqlOf(row) is not RowSql sql) return;
+
+        string text = FirstNonEmpty(sql.Batch, sql.Statement);
+        if (text == null) { StatusText.Text = "This row has no SQL text."; return; }
+
+        new SqlTextDialog(sql.Title, text, text == sql.Batch ? sql.Statement : null).Show();
+    }
+
+    private static DataGridRow RowAt(DependencyObject from)
+    {
+        while (from != null && from is not DataGridRow)
+            from = from is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D ? System.Windows.Media.VisualTreeHelper.GetParent(from) : LogicalTreeHelper.GetParent(from);
+
+        return from as DataGridRow;
+    }
+
     private static string FirstNonEmpty(params string[] candidates)
     {
         foreach (var candidate in candidates)

@@ -874,6 +874,11 @@ ORDER BY md.creation_time DESC;
     private static DateTime? Date(SqlDataReader reader, string name)
     {
         int i = reader.GetOrdinal(name);
-        return reader.IsDBNull(i) ? (DateTime?)null : Convert.ToDateTime(reader.GetValue(i));
+        if (reader.IsDBNull(i)) return null;
+
+        // sys.dm_server_memory_dumps.creation_time is datetimeoffset, which Convert.ToDateTime rejects (not IConvertible).
+        // Local time, because callers compare against asOf, which is the client clock.
+        object value = reader.GetValue(i);
+        return value is DateTimeOffset dto ? dto.LocalDateTime : Convert.ToDateTime(value);
     }
 }

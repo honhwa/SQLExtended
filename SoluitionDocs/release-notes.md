@@ -5,6 +5,14 @@ New
 - IntelliSense: query hints. Inside `OPTION (` the list offers the query hints — RECOMPILE, MAXDOP, OPTIMIZE FOR, OPTIMIZE FOR UNKNOWN, USE HINT, MAXRECURSION, FORCE ORDER, the join and union hints and the rest — each with a one-line description, and again after each comma. Inside `USE HINT (` it offers the hint names (DISABLE_PARAMETER_SNIFFING, ENABLE_QUERY_OPTIMIZER_HOTFIXES, the cardinality estimation hints, QUERY_OPTIMIZER_COMPATIBILITY_LEVEL_n and others), inserted with their quotes.
 - IntelliSense: table hints. After a table in FROM, JOIN, UPDATE, DELETE, INSERT INTO or MERGE, `WITH (` offers the table hints — NOLOCK, READPAST, UPDLOCK, ROWLOCK, TABLOCK, HOLDLOCK, FORCESEEK, INDEX and the rest. It is not offered after a CTE's WITH or an index's WITH (options), where those hints would not parse.
 - IntelliSense: index names in index hints. `WITH (INDEX (` and `WITH (FORCESEEK (` list the indexes of the table being hinted, with each index's type and key columns beside it, primary key and clustered index first. An alias works too: in `UPDATE o WITH (INDEX (` the indexes come from the table `o` stands for.
+- Highlight Tab: right-click a document tab and choose Highlight Tab to paint it Rose, Pumpkin, Gold, Volt, Green, Sky or Magenta, so the query you keep coming back to stands out among the rest. The highlight takes precedence over the tab's Environment Tabs colour, works whether or not Environment Tabs is switched on, and lasts until you choose Clear Highlight or close the tab; it is not kept between sessions. Clearing it gives the tab its environment colour back, if it had one.
+- Performance Monitor: read and copy the SQL behind a row. Double-click a row in the Activity, Blocking or Top queries grid to open its SQL in a viewer with syntax highlighting — for an active request that is the whole batch with the running statement selected — or right-click for Copy Statement, Copy Batch (Activity only), View Statement and Open in New Query Window. The grids only have room for one collapsed line of each statement.
+- Script Library: eight new scripts.
+  - Monitoring: sp_WhoIsActive by Adam Machanic, in two builds — one for SQL Server 2022 and later, one for 2012 to 2019, which the 2022 build does not compile on — and Rodrigo Nascentes' sp_who3.
+  - DBA Tools: Microsoft Tiger Team's BPCheck (installs msdb.dbo.usp_bpcheck, a broad best-practice health check) and usp_WhatsUp.
+  - Security: Failed logins, which summarises the Login failed entries across every error log, and Login info and last login, from Lorenzo Uriel's data-eyes.
+  - Server Health: Table sizes, the row count and space used by every table in the database, largest first.
+  The installed procedures are the upstream scripts unchanged, with their copyright and licence headers; sp_WhoIsActive is GPL-3.0 and the rest are MIT. Login info and last login is incomplete upstream (it stops part way through its last statement), so the library copy finishes it, marked with a comment. Credits are in THIRD-PARTY-NOTICES.md.
 - IntelliSense: SET options. After `SET` the list offers IDENTITY_INSERT, NOCOUNT, XACT_ABORT, ANSI_NULLS, QUOTED_IDENTIFIER, ARITHABORT, the other session options, STATISTICS IO / TIME / XML / PROFILE and TRANSACTION ISOLATION LEVEL; after `SET TRANSACTION ISOLATION LEVEL` it offers the five isolation levels.
 
 Changed
@@ -12,6 +20,7 @@ Changed
 - Keyword casing while typing now covers keywords containing an underscore or digit — IDENTITY_INSERT, NOCOUNT, XACT_ABORT, SQL_VARIANT, DATETIME2. They had never been recased. STATISTICS IO, ISOLATION LEVEL and the isolation levels are offered in the list but deliberately not recased as you type, because IO, Level, Read and Snapshot are common column names.
 
 Fixed
+- Performance Monitor: the server information panel failed to load on an instance that had written a memory dump. The dump's creation time is a datetimeoffset, which the reader could not convert.
 - Keyword casing while typing no longer capitalises columns named Status: STATUS was being treated as a keyword because it is part of @@FETCH_STATUS.
 - IntelliSense marked a column (PK) only if it was ascending in the primary key; a column the key sorts descending lost the flag.
 - View Schema: a primary key column with a space in its name and a descending sort (`[Order Date] DESC`) was read as a column called Order, so the CREATE TABLE script treated it as a non-key column.

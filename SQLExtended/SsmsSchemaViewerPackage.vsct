@@ -23,6 +23,14 @@
           <ButtonText>SQLExtended</ButtonText>
         </Strings>
       </Menu>
+
+      <!-- "Highlight Tab" submenu on the document tab's right-click menu (EnvTabs/TabHighlightCommand.cs) -->
+      <Menu guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabContextGroup"/>
+        <Strings>
+          <ButtonText>Highlight Tab</ButtonText>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
@@ -73,6 +81,17 @@
            extracted from SSMS 22's SQLWorkbenchCommands). -->
       <Group guid="guidSsmsSchemaViewerCmdSet" id="ResultsGridContextGroup" priority="0x0700">
         <Parent guid="guidSQLEditorGroup" id="IDM_SQLWB_SQLRESGRID_CONTEXT"/>
+      </Group>
+
+      <!-- Group on the document tab's right-click menu, and the two groups inside its Highlight Tab submenu -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="TabContextGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_EZDOCWINTAB"/>
+      </Group>
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" priority="0x0100">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightMenu"/>
+      </Group>
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightClearGroup" priority="0x0200">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightMenu"/>
       </Group>
 
       <!-- Toolbar groups -->
@@ -256,6 +275,64 @@
         <Strings>
           <ButtonText>Environment Tabs...</ButtonText>
           <ToolTipText>Colour and rename query tabs by the server and database they are connected to</ToolTipText>
+        </Strings>
+      </Button>
+
+      <!-- Highlight Tab submenu. Colours are palette indices mapped in TabHighlightCommand.Colors. -->
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightRoseCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Rose</ButtonText>
+          <ToolTipText>Colour this tab rose until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightPumpkinCommandId" priority="0x0110" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Pumpkin</ButtonText>
+          <ToolTipText>Colour this tab pumpkin until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightGoldCommandId" priority="0x0120" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Gold</ButtonText>
+          <ToolTipText>Colour this tab gold until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightVoltCommandId" priority="0x0130" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Volt</ButtonText>
+          <ToolTipText>Colour this tab volt until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightGreenCommandId" priority="0x0140" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Green</ButtonText>
+          <ToolTipText>Colour this tab green until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightSkyCommandId" priority="0x0150" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Sky</ButtonText>
+          <ToolTipText>Colour this tab sky until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightMagentaCommandId" priority="0x0160" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightColorGroup" />
+        <Strings>
+          <ButtonText>Magenta</ButtonText>
+          <ToolTipText>Colour this tab magenta until cleared or closed</ToolTipText>
+        </Strings>
+      </Button>
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightClearCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightClearGroup" />
+        <Strings>
+          <ButtonText>Clear Highlight</ButtonText>
+          <ToolTipText>Remove this tab's highlight; its environment colour, if any, returns</ToolTipText>
         </Strings>
       </Button>
 
@@ -499,6 +576,14 @@
       <IDSymbol name="SqlSearchCommandId" value="0x0400" />
       <IDSymbol name="SQLExtendedSettingsCommandId" value="0x0500" />
       <IDSymbol name="EnvTabsCommandId" value="0x0505" />
+      <IDSymbol name="TabHighlightRoseCommandId" value="0x0510" />
+      <IDSymbol name="TabHighlightPumpkinCommandId" value="0x0511" />
+      <IDSymbol name="TabHighlightGoldCommandId" value="0x0512" />
+      <IDSymbol name="TabHighlightVoltCommandId" value="0x0513" />
+      <IDSymbol name="TabHighlightGreenCommandId" value="0x0514" />
+      <IDSymbol name="TabHighlightSkyCommandId" value="0x0515" />
+      <IDSymbol name="TabHighlightMagentaCommandId" value="0x0516" />
+      <IDSymbol name="TabHighlightClearCommandId" value="0x051F" />
       <IDSymbol name="ToolbarCacheStatusId" value="0x0600" />
       <IDSymbol name="SqlHistoryCommandId" value="0x0700" />
       <IDSymbol name="CheckForUpdatesCommandId" value="0x0800" />
@@ -516,6 +601,12 @@
 
       <!-- Context menu groups -->
       <IDSymbol name="ResultsGridContextGroup" value="0x1090" />
+      <IDSymbol name="TabContextGroup" value="0x10A0" />
+      <IDSymbol name="TabHighlightColorGroup" value="0x10A1" />
+      <IDSymbol name="TabHighlightClearGroup" value="0x10A2" />
+
+      <!-- Submenus -->
+      <IDSymbol name="TabHighlightMenu" value="0x1100" />
     </GuidSymbol>
 
     <!-- SQLEditors' command set that owns the query editor / results pane context menus.

@@ -40,6 +40,13 @@ internal sealed class EnvTabsService : IDisposable
     /// <summary>Document path → its number within its group, kept stable while the tab stays open.</summary>
     private readonly Dictionary<string, int> _sequenceByPath = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Document path → the palette index the user highlighted it with from the tab's context menu. Session-only and
+    /// dropped when the tab closes. Held here rather than in a service of its own because both features write the
+    /// same managed block of the shell's config file, and two writers would erase each other's lines every poll.
+    /// </summary>
+    private readonly Dictionary<string, int> _highlightByPath = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Connections already offered to the user this session, so the prompt appears once.</summary>
     private readonly HashSet<string> _promptedThisSession = new(StringComparer.OrdinalIgnoreCase);
 
@@ -65,14 +72,18 @@ internal sealed class EnvTabsService : IDisposable
         _instance.Restart();
     }
 
-    /// <summary>(Re)starts the poll. Called at startup and whenever the settings dialog saves.</summary>
-    public void Restart()
+    /// <summary>
+    /// (Re)starts the poll. Called at startup, whenever the settings dialog saves, and when a highlight changes.
+    /// The poll also runs with the feature switched off while any tab is highlighted — a highlight is its own
+    /// explicit request and does not depend on having environment rules.
+    /// </summary>
+    public void Restart(bool immediate = false)
     {
         _timer?.Dispose();
         _timer = null;
 
         var settings = SQLExtendedSettings.Current;
-        if (!settings.EnvTabsEnabled)
+        if (!settings.EnvTabsEnabled && _highlightByPath.Count == 0)
         {
             TurnOff();
             return;
@@ -80,7 +91,29 @@ internal sealed class EnvTabsService : IDisposable
 
         _pinTicksRemaining = PinRetryTicks;
         int seconds = Math.Max(1, settings.EnvTabsPollSeconds);
-        _timer = new Timer(OnTick, null, TimeSpan.FromSeconds(Math.Min(3, seconds)), TimeSpan.FromSeconds(seconds));
+        var due = immediate ? TimeSpan.Zero : TimeSpan.FromSeconds(Math.Min(3, seconds));
+        _timer = new Timer(OnTick, null, due, TimeSpan.FromSeconds(seconds));
+    }
+
+    /// <summary>The palette index <paramref name="path"/> is highlighted with, or null.</summary>
+    public int? HighlightOf(string path) =>
+        path != null && _highlightByPath.TryGetValue(path, out int color) ? color : null;
+
+    /// <summary>Highlights one tab, overriding any environment colour it has. Main thread.</summary>
+    public void SetHighlight(string path, int colorIndex)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if (string.IsNullOrWhiteSpace(path) || colorIndex < 0 || colorIndex >= EnvTabPalette.Count) return;
+        _highlightByPath[path] = colorIndex;
+        Restart(immediate: true);
+    }
+
+    /// <summary>Removes a tab's highlight; its environment colour, if any, comes back. Main thread.</summary>
+    public void ClearHighlight(string path)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if (path == null || !_highlightByPath.Remove(path)) return;
+        Restart(immediate: true);
     }
 
     private const int PinRetryTicks = 4;
@@ -151,21 +184,43 @@ internal sealed class EnvTabsService : IDisposable
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
         var settings = SQLExtendedSettings.Current;
-        if (!settings.EnvTabsEnabled) return;
+        bool enabled = settings.EnvTabsEnabled;
+        if (!enabled && _highlightByPath.Count == 0) return;
 
-        if (settings.EnvTabsColorTabs && !_shellPreferenceSet)
+        bool ruleColors = enabled && settings.EnvTabsColorTabs;
+        bool anyColor = ruleColors || _highlightByPath.Count > 0;
+
+        if (anyColor && !_shellPreferenceSet)
             _shellPreferenceSet = FileColorServiceProxy.EnableRegexTabColoring(true);
+        else if (!anyColor && _shellPreferenceSet)
+        {
+            // Only a highlight had turned it on (rule colours are off) and the last one is gone — hand the preference back.
+            FileColorServiceProxy.EnableRegexTabColoring(false);
+            _shellPreferenceSet = false;
+        }
 
         var tabs = DocumentTabs.Enumerate(_serviceProvider);
         if (tabs.Count == 0) return;
 
-        SampleActiveConnection(tabs);
+        if (enabled) SampleActiveConnection(tabs);
         PruneClosedTabs(tabs);
 
-        var ruleSet = new EnvTabRuleSet { Rules = settings.EnvTabsRules ?? new List<EnvTabRule>() };
-        var groups = BuildGroups(tabs, ruleSet);
+        var ruleSet = new EnvTabRuleSet { Rules = enabled ? settings.EnvTabsRules ?? new List<EnvTabRule>() : new List<EnvTabRule>() };
+        var groups = BuildGroups(tabs, ruleSet, ruleColors);
 
-        if (settings.EnvTabsColorTabs) await ApplyColorsAsync(groups, tabs);
+        if (anyColor) await ApplyColorsAsync(groups, tabs);
+
+        if (!enabled)
+        {
+            // Running only for highlights: take back any prefixes left from when the feature was on.
+            foreach (var tab in tabs.Where(t => TabCaptionFormatter.HasPrefix(t.Caption)))
+                DocumentTabs.TrySetCaption(tab.Frame, TabCaptionFormatter.Strip(tab.Caption));
+
+            // The last highlighted tab closed: stop the poll and take the block and the shell preference back out.
+            if (_highlightByPath.Count == 0) Restart();
+            return;
+        }
+
         if (settings.EnvTabsRenameTabs) ApplyCaptions(tabs, ruleSet, settings);
 
         MaybePrompt(tabs, ruleSet, settings);
@@ -218,15 +273,39 @@ internal sealed class EnvTabsService : IDisposable
 
         foreach (var stale in _sequenceByPath.Keys.Where(p => !open.Contains(p)).ToList())
             _sequenceByPath.Remove(stale);
+
+        foreach (var stale in _highlightByPath.Keys.Where(p => !open.Contains(p)).ToList())
+            _highlightByPath.Remove(stale);
     }
 
     /// <summary>
     /// Groups the open tabs by the rule they match, in rule order, and rewrites the config file if the
-    /// result differs from what is already on disk.
+    /// result differs from what is already on disk. Returns the groups written, which are the ones to pin.
+    ///
+    /// Highlight groups (one per colour) are written <b>first</b>, since the first matching line wins, and highlighted
+    /// paths are also left out of the rule groups: otherwise a rule group's pin could be sent through a highlighted
+    /// tab, which the shell resolves to the highlight's group, recolouring the highlight instead. Rule groups are
+    /// only written when rule colouring is on — a highlight turns the shell's tab colouring on, and a rule group
+    /// sitting in the file would then show in the shell's hash-derived colour with nobody having asked for colours.
+    /// Sequence numbers are still assigned over every path, because captions use them.
     /// </summary>
-    private List<EnvTabGroup> BuildGroups(List<DocumentTab> tabs, EnvTabRuleSet ruleSet)
+    private List<EnvTabGroup> BuildGroups(List<DocumentTab> tabs, EnvTabRuleSet ruleSet, bool ruleColors)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
+
+        var highlights = new List<EnvTabGroup>();
+        foreach (var tab in tabs)
+        {
+            if (!_highlightByPath.TryGetValue(tab.Path, out int color)) continue;
+
+            var highlight = highlights.FirstOrDefault(g => g.ColorIndex == color);
+            if (highlight == null)
+            {
+                highlight = new EnvTabGroup { RuleKey = "highlight:" + color, Label = "Highlight — " + EnvTabPalette.NameOf(color), ColorIndex = color };
+                highlights.Add(highlight);
+            }
+            highlight.Paths.Add(tab.Path);
+        }
 
         var byRule = new Dictionary<string, EnvTabGroup>(StringComparer.Ordinal);
         var ordered = new List<EnvTabGroup>();
@@ -249,14 +328,25 @@ internal sealed class EnvTabsService : IDisposable
             AssignSequence(tab.Path, group);
         }
 
+        var written = new List<EnvTabGroup>(highlights);
+        if (ruleColors)
+        {
+            foreach (var group in ordered)
+            {
+                var copy = new EnvTabGroup { RuleKey = group.RuleKey, Label = group.Label, ColorIndex = group.ColorIndex };
+                copy.Paths.AddRange(group.Paths.Where(p => !_highlightByPath.ContainsKey(p)));
+                if (copy.Paths.Count > 0) written.Add(copy);
+            }
+        }
+
         string configPath = ResolveConfigPath();
-        if (configPath != null && ColorByRegexConfigStore.Write(configPath, ordered))
+        if (configPath != null && ColorByRegexConfigStore.Write(configPath, written))
         {
             _blockWritten = true;
             _pinTicksRemaining = PinRetryTicks;
         }
 
-        return ordered;
+        return written;
     }
 
     /// <summary>

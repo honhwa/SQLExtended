@@ -150,6 +150,9 @@ public sealed class SsmsSchemaViewerPackage : AsyncPackage
         try { await EnvTabs.EnvTabsCommand.InitializeAsync(this); }
         catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "EnvTabsCommand init failed", ex); }
 
+        try { await EnvTabs.TabHighlightCommand.InitializeAsync(this); }
+        catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "TabHighlightCommand init failed", ex); }
+
         // Hook the Object Explorer context menu (reflection-based; tolerant of OE not being ready yet).
         try { _ = ObjectExplorer.ObjectExplorerMenuService.InitializeAsync(this); }
         catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "ObjectExplorerMenuService init failed", ex); }

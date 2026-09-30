@@ -99,7 +99,12 @@ MIT — see [LICENSE](LICENSE).
 
 Includes third-party code; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The statistics
 parser is vendored from [Brent Ozar Unlimited's Statistics Parser](https://github.com/BrentOzarULTD/StatisticsParserExtension)
-(MIT). Environment Tabs was inspired by [SSMS-EnvTabs](https://github.com/Blake-goofy/SSMS-EnvTabs),
+(MIT). The Script Library ships four community procedures as install scripts, unmodified and with their
+headers intact: [sp_WhoIsActive](https://github.com/amachanic/sp_whoisactive) by Adam Machanic
+(GPL-3.0), [sp_who3](https://github.com/ronascentes/sp_who3) by Rodrigo Nascentes (MIT), and
+[BPCheck](https://github.com/microsoft/tigertoolbox/tree/master/BPCheck) and
+[usp_WhatsUp](https://github.com/microsoft/tigertoolbox/tree/master/usp_WhatsUp) from Microsoft's Tiger Toolbox (MIT).
+Its two login-audit scripts come from Lorenzo Uriel's [data-eyes](https://github.com/lorenzouriel/data-eyes) (MIT). Environment Tabs was inspired by [SSMS-EnvTabs](https://github.com/Blake-goofy/SSMS-EnvTabs),
 though no code is shared.
 
 Not affiliated with or endorsed by Microsoft. SQL Server and SSMS are trademarks of Microsoft Corporation.

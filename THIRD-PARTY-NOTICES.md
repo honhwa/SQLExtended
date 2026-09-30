@@ -52,6 +52,27 @@ SOFTWARE.
 
 ---
 
+## Script Library scripts
+
+The Script Library carries these community scripts, embedded in `SQLExtended/ScriptLibrary/CuratedScripts.json`.
+Each is the upstream file verbatim (line endings normalised) with its copyright and licence header intact,
+except as noted below the table. They are data the user chooses to run,
+not code compiled into the extension.
+
+| Script | Author | Licence | Source |
+|---|---|---|---|
+| sp_WhoIsActive v2200.20260409 (SQL Server 2022+) and v1219.20260409 (`/2019` build, SQL Server 2012–2019) — © 2007-2026 Adam Machanic | Adam Machanic | GPL-3.0 (https://github.com/amachanic/sp_whoisactive/blob/master/LICENSE) | https://github.com/amachanic/sp_whoisactive |
+| sp_who3 v1.1.0 — © 2021 Rodrigo Nascentes | Rodrigo Nascentes | MIT (text reproduced in the script header) | https://github.com/ronascentes/sp_who3 |
+| BPCheck (`Check_BP_Servers.sql`, installs `msdb.dbo.usp_bpcheck`) at commit `0b0c137ff2809c086e6a9ae65e9e69ceca13e475` (2024-06-21) — © Microsoft Corporation | Microsoft Tiger Team | MIT (MIT text reproduced above under Statistics Parser; https://github.com/microsoft/tigertoolbox/blob/master/LICENSE.md) | https://github.com/microsoft/tigertoolbox/tree/master/BPCheck |
+| usp_WhatsUp (`usp_whatsup.sql`) at commit `de9510b75ec1df0528d10ebe4696b31abb9a8539` (2024-05-14) — © Microsoft Corporation | Pedro Lopes, Microsoft Tiger Team | MIT (as BPCheck) | https://github.com/microsoft/tigertoolbox/tree/master/usp_WhatsUp |
+| Failed logins (`who_is_trying_access.sql`) and Login info and last login (`users_info.sql`), **Security** category, at commit `a473c2e2b86d2661b57af49ef8114c4bbd8d53a1` (2026-03-14) — © Lorenzo Uriel | Lorenzo Uriel | MIT (text reproduced above under Statistics Parser) | https://github.com/lorenzouriel/data-eyes/tree/main/sql-scripts/sql_access |
+
+`users_info.sql` is truncated upstream — it ends mid-statement at `WHERE I`. The library copy completes that final
+`UPDATE` (`WHERE ISNULL(A.LastLogin, '19000101') < B.LogDate`) and adds a closing `SELECT` of `dbo.LastLogin`;
+the change is marked with a comment in the script. Every other script in this table is unmodified.
+
+---
+
 ## Redistributed binaries
 
 These are packaged inside `SQLExtended.vsix` and installed alongside the extension. Everything else the

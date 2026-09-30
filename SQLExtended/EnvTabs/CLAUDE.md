@@ -63,6 +63,19 @@ config file. Turning it off removes the managed block and restores the captions 
 last state. The preference is set once at startup, not every poll — someone who turns tab colouring off in
 Tools > Options has said something, and a poll that re-enabled it would be fighting them.
 
+**Tab highlights** (`TabHighlightCommand`, right-click a document tab → Highlight Tab) ride the same mechanism
+and are owned by `EnvTabsService`, not a service of their own — both write the one managed block, and two
+writers would erase each other's lines every poll. Session-only, per path, dropped when the tab closes. Rules
+that keep them correct:
+- Highlight groups are written **above** the rule groups (first match wins), and highlighted paths are removed
+  from the rule groups too — a rule group pinned through a highlighted tab would resolve to the highlight's group
+  and recolour it.
+- A highlight works with Environment Tabs switched off: the poll runs while any highlight exists, and it turns on
+  the shell's colouring preference. So rule groups are written only when rule colouring is on — otherwise they
+  would show in the shell's hash colour with nobody having asked. When the last highlight goes, the block and the
+  preference are handed back (`Restart` → `TurnOff`).
+- The tab acted on is the active document frame; right-clicking a tab activates it before the menu opens.
+
 The auto-prompt offers three answers, not two: "Not now" is per session, "Never for this" persists
 (`EnvTabsDeclined`). A single Cancel cannot tell "I'm busy" from "never colour this server", and getting
 that wrong means either a dialog every session forever or silently never offering again. Only the *active*
