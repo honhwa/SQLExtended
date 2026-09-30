@@ -1,4 +1,4 @@
-DataByte for SSMS (unreleased)
+DataByte for SSMS 2026.9.30.1734
 
 New
 - IntelliSense: column suggestions while writing an index. In `CREATE [UNIQUE] [CLUSTERED | NONCLUSTERED] [COLUMNSTORE] INDEX ix ON dbo.Orders (` the list offers the columns of dbo.Orders — in the key list, in the `INCLUDE (` list, and in a filtered index's `WHERE` (at its start and after each AND or OR, where a column can go). A column already named in the key or INCLUDE list is not offered again. `CREATE STATISTICS … ON table (` works the same way. `ON` itself now offers table names, including after `ON dbo.`, which used to open an empty column list.
