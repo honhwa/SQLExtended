@@ -69,6 +69,12 @@ public sealed class SQLExtendedSettings
     /// </summary>
     public bool RecaseKeywordsWhileTyping { get; set; } = true;
 
+    /// <summary>
+    /// Typing a single quote in code inserts the closing one too, with the caret between them. Not inside a
+    /// string, comment or bracketed name, and not straight after a word (O'Brien) except the N of N'…'.
+    /// </summary>
+    public bool AutoCloseQuotes { get; set; } = true;
+
     // --- Editor: rainbow parentheses ---
 
     /// <summary>

@@ -73,6 +73,7 @@ public partial class SQLExtendedSettingsDialog : Window
             ChkCommitOnEnter.IsChecked = _settings.CommitOnEnter;
             ChkCommitOnSpace.IsChecked = _settings.CommitOnSpace;
             ChkRecaseKeywords.IsChecked = _settings.RecaseKeywordsWhileTyping;
+            ChkAutoCloseQuotes.IsChecked = _settings.AutoCloseQuotes;
             ChkCamelCase.IsChecked = _settings.CamelCaseMatching;
 
             // Editor — rainbow parentheses. The combo starts at 2 colours, so index 0 is 2.
@@ -183,6 +184,7 @@ public partial class SQLExtendedSettingsDialog : Window
         _settings.CommitOnEnter = ChkCommitOnEnter.IsChecked == true;
         _settings.CommitOnSpace = ChkCommitOnSpace.IsChecked == true;
         _settings.RecaseKeywordsWhileTyping = ChkRecaseKeywords.IsChecked == true;
+        _settings.AutoCloseQuotes = ChkAutoCloseQuotes.IsChecked == true;
         _settings.CamelCaseMatching = ChkCamelCase.IsChecked == true;
         _settings.ShowColumnTypeInfo = ChkShowColumnType.IsChecked == true;
         _settings.ShowRowCounts = ChkShowRowCounts.IsChecked == true;

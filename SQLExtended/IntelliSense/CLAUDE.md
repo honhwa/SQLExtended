@@ -303,3 +303,23 @@ and the `INCLUDE (` list, minus any column already named in either (a column can
   offered after a comma. The cache loads indexes for `U` objects only, so an indexed view (NOEXPAND) gets none.
 - **An opening quote already typed is part of the replaced span** for a hint name (`FindApplicableSpan`),
   or committing after `('DISA` would produce `(''DISABLE_…'`.
+
+## IntelliSense: closing single quotes as they are typed
+
+`QuotePairCommandFilter` turns a typed `'` into `''` with the caret between, steps over the closing quote it
+inserted, and removes an empty pair it inserted on Backspace (`AutoCloseQuotes`, on by default).
+`SqlQuotePairing` decides when, and is free of the editor so `SqlQuotePairingTests` links it.
+
+- **The quote is swallowed and the pair inserted in one edit, not passed down the chain and patched after.**
+  Passed down, the keystroke can open a completion session whose applicable span ends at the caret, and a
+  closing quote inserted afterwards lands inside that span and becomes filter text. One edit is also one undo.
+- **The region is lexed from the top of the document, not the line.** Pairing the quote that *closes* a
+  multi-line string opens a new one and silently swallows the rest of the script — the costly direction.
+  Quotes are rare keystrokes, so the scan is cheap where it runs. Block comments nest, as T-SQL's do.
+- **Only the closer this filter inserted is ever stepped over or deleted**, tracked by `ITrackingPoint`s and
+  retired the moment the caret leaves the pair. Overtyping any `'` in front of the caret would make escaping
+  a quote in an existing literal (`'It''s'`) impossible to type.
+- **A quote glued to a word is an apostrophe** (`O'Brien`) and is not paired — except the `N` of `N'…'`.
+- **A USE HINT name commits over the pair** (`SqlCompletionCommitManager.TryCommitQuotedLiteral`): its item
+  inserts its own quotes and the span already holds the opening one, so the closer just past the span is
+  replaced too, or the commit leaves `'DISABLE_…''`.

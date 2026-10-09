@@ -244,6 +244,13 @@
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Rewrites a T-SQL keyword to match the formatter's keyword casing once you finish typing it (on space, punctuation, or newline). Uses the active formatter profile; does nothing when its keyword casing is Unchanged. Never affects identifiers, strings, comments, or bracketed names."/>
 
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Typing"/>
+
+                        <CheckBox x:Name="ChkAutoCloseQuotes" Content="Close single quotes automatically"
+                                  Style="{StaticResource DarkCheck}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Typing ' inserts '' with the cursor between them; typing ' again steps over the closing quote, and Backspace on an empty pair removes both. Not inside strings, comments or bracketed names, nor straight after a word (O'Brien) except the N of N'…'."/>
+
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Matching"/>
 
                         <CheckBox x:Name="ChkCamelCase" Content="CamelCase matching (e.g., OD matches OrderDetails)"
