@@ -221,6 +221,11 @@
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Accepting a procedure inserts its full &quot;@param = value -- TYPE&quot; call as interactive tab-stops. Tab jumps between values."/>
 
+                        <CheckBox x:Name="ChkAutoAliasTables" Content="Add an alias to tables picked after FROM / JOIN"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Company is inserted as &quot;dbo.Company c&quot;, and its columns are then offered as c.ACTIVE, even with a single table."/>
+
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Commit keys"/>
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Which keys accept the highlighted completion. Unchecked keys are typed normally and leave the list open."/>
@@ -304,6 +309,13 @@
 
                         <TextBlock Style="{StaticResource DimLabel}" Margin="0,12,0,0"
                                    Text="These colours live in the same place: Tools &#x2192; Options &#x2192; Environment &#x2192; Fonts and Colors, under &quot;SQLExtended Comment&quot;."/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Execution safety" Margin="0,18,0,6"/>
+
+                        <CheckBox x:Name="ChkUnsafeDmlGuard" Content="Confirm before executing UPDATE or DELETE without WHERE"
+                                  Style="{StaticResource DarkCheck}"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="Checks the selection, or the whole script when nothing is selected, each time a query is executed, and lists the statements that would touch every row of their table. Answering No cancels the execution. Not flagged: table variables and #temp tables, an INNER JOIN in the FROM clause, WHERE CURRENT OF, and statements inside a CREATE / ALTER PROCEDURE, FUNCTION or TRIGGER. A script that does not parse — including SQLCMD-mode scripts — is not checked."/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

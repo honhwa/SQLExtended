@@ -42,6 +42,13 @@ public sealed class SQLExtendedSettings
     /// </summary>
     public bool ExpandProcedureParameters { get; set; } = true;
 
+    /// <summary>
+    /// A table picked from the list after FROM or JOIN is inserted with an alias built from its initials
+    /// ("dbo.Company c"), and the columns of an aliased table are offered with that alias ("c.ACTIVE")
+    /// even when it is the only table in the query.
+    /// </summary>
+    public bool AutoAliasTables { get; set; } = true;
+
     // --- Completion commit keys ---
     // Which keys accept (commit) the highlighted completion item.
 
@@ -89,6 +96,14 @@ public sealed class SQLExtendedSettings
     /// BEGIN TRAN and BEGIN DIALOG are deliberately excluded — neither is closed by END.
     /// </summary>
     public bool RainbowParensIncludeBlocks { get; set; } = false;
+
+    // --- Editor: execution safety ---
+
+    /// <summary>
+    /// Ask before executing an UPDATE or DELETE that has no WHERE clause, and cancel the execution on No.
+    /// See <c>Safety/UnsafeDmlAnalyzer</c> for what is deliberately not flagged (temp tables, INNER JOINs, module bodies).
+    /// </summary>
+    public bool UnsafeDmlGuardEnabled { get; set; } = true;
 
     // --- Editor: comment tags ---
 
