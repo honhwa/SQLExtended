@@ -18,7 +18,8 @@ No (Settings → Editor → Execution safety, `SQLExtendedSettings.UnsafeDmlGuar
 
 `UnsafeDmlAnalyzer` is ScriptDom-based (comments and strings never count as a WHERE) and free of VS, so the tests
 link it (`SQLExtended.Tests/Safety/`). Deliberate exemptions, each pinned by a test: table variables and `#temp`
-targets, a FROM clause with an INNER JOIN, `WHERE CURRENT OF`, and statements inside CREATE/ALTER
+targets, a target that is one side of an INNER JOIN whose ON names it (not an inner join between other
+tables, nor `ON 1 = 1`), `WHERE CURRENT OF`, and statements inside CREATE/ALTER
 PROCEDURE/FUNCTION/TRIGGER (note `TriggerStatementBody` does **not** derive from `ProcedureStatementBodyBase`).
 `TOP (n)` is still flagged — a `DELETE TOP (n)` loop is a whole-table purge. MERGE and TRUNCATE are out of scope.
 

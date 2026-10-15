@@ -1,4 +1,4 @@
-﻿using SQLExtended.Cache.Models;
+using SQLExtended.Cache.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;

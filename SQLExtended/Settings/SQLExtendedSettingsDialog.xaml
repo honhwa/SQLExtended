@@ -322,7 +322,7 @@
                         <CheckBox x:Name="ChkUnsafeDmlGuard" Content="Confirm before executing UPDATE or DELETE without WHERE"
                                   Style="{StaticResource DarkCheck}"/>
                         <TextBlock Style="{StaticResource DimLabel}"
-                                   Text="Checks the selection, or the whole script when nothing is selected, each time a query is executed, and lists the statements that would touch every row of their table. Answering No cancels the execution. Not flagged: table variables and #temp tables, an INNER JOIN in the FROM clause, WHERE CURRENT OF, and statements inside a CREATE / ALTER PROCEDURE, FUNCTION or TRIGGER. A script that does not parse — including SQLCMD-mode scripts — is not checked."/>
+                                   Text="Checks the selection, or the whole script when nothing is selected, each time a query is executed, and lists the statements that would touch every row of their table. Answering No cancels the execution. Not flagged: table variables and #temp tables, a table restricted by an INNER JOIN on it, WHERE CURRENT OF, and statements inside a CREATE / ALTER PROCEDURE, FUNCTION or TRIGGER. A script that does not parse — including SQLCMD-mode scripts — is not checked."/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

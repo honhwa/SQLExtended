@@ -33,7 +33,8 @@ internal sealed class UnsafeDmlResult
 /// either cannot touch every row or is not executed by running the script:</para>
 /// <list type="bullet">
 ///   <item>targets that are table variables or <c>#temp</c> tables — emptying scratch data is routine;</item>
-///   <item>a FROM clause with an INNER JOIN — the join restricts the rows (LEFT, CROSS and comma joins do not);</item>
+///   <item>a target that is one side of an INNER JOIN whose ON names it — the join restricts its rows (LEFT, CROSS and
+///   comma joins do not, nor does an inner join between other tables, nor <c>ON 1 = 1</c>);</item>
 ///   <item><c>WHERE CURRENT OF cursor</c> — that is a WHERE clause;</item>
 ///   <item>statements inside CREATE/ALTER PROCEDURE, FUNCTION or TRIGGER — running the script defines them, it does not run them.</item>
 /// </list>
@@ -79,7 +80,7 @@ internal static class UnsafeDmlAnalyzer
         {
             if (where != null) return;
             if (IsScratchTable(target)) return;
-            if (from != null && from.TableReferences.Any(HasInnerJoin)) return;
+            if (IsRestrictedByInnerJoin(target, from)) return;
 
             findings.Add(new UnsafeDmlFinding { Kind = kind, Target = TargetName(target), Line = node.StartLine, Snippet = Snippet(node) });
         }
@@ -91,13 +92,77 @@ internal static class UnsafeDmlAnalyzer
             _ => false
         };
 
-        private static bool HasInnerJoin(TableReference reference) => reference switch
+        /// <summary>
+        /// Whether the target's own rows are cut down by an INNER JOIN: the target appears in the FROM clause, sits on
+        /// one side of an inner join, and that join's ON names it. An inner join anywhere else does not restrict it —
+        /// "UPDATE dbo.A SET … FROM dbo.B b JOIN dbo.C c ON …" pairs every row of A with the join, and so does
+        /// "ON 1 = 1". An unqualified column in the ON could be the target's, so it is given the benefit of the doubt.
+        /// </summary>
+        private static bool IsRestrictedByInnerJoin(TableReference target, FromClause from)
         {
-            QualifiedJoin q => q.QualifiedJoinType == QualifiedJoinType.Inner || HasInnerJoin(q.FirstTableReference) || HasInnerJoin(q.SecondTableReference),
-            JoinParenthesisTableReference p => HasInnerJoin(p.Join),
-            UnqualifiedJoin u => HasInnerJoin(u.FirstTableReference) || HasInnerJoin(u.SecondTableReference),
+            if (from == null || target is not NamedTableReference t) return false;
+
+            var refs = new List<NamedTableReference>();
+            from.Accept(new Collector<NamedTableReference>(refs));
+            var match = refs.FirstOrDefault(r => Names(t, r));
+            if (match == null) return false;
+
+            string exposed = (match.Alias ?? match.SchemaObject.BaseIdentifier).Value;
+            return from.TableReferences.Any(r => RestrictsByInnerJoin(r, match, exposed));
+        }
+
+        /// <summary>
+        /// Whether the DML target names this FROM entry: "UPDATE c … FROM dbo.T c" by its alias, or "UPDATE dbo.T … FROM
+        /// dbo.T" by an unaliased name. "UPDATE dbo.T … FROM dbo.T x" is a second copy of T, not the same reference.
+        /// </summary>
+        private static bool Names(NamedTableReference target, NamedTableReference candidate)
+        {
+            var tn = target.SchemaObject;
+            if (candidate.Alias != null)
+                return tn.Identifiers.Count == 1 && Same(tn.BaseIdentifier, candidate.Alias);
+
+            var cn = candidate.SchemaObject;
+            return Same(tn.BaseIdentifier, cn.BaseIdentifier)
+                && (tn.SchemaIdentifier == null || cn.SchemaIdentifier == null || Same(tn.SchemaIdentifier, cn.SchemaIdentifier));
+        }
+
+        private static bool RestrictsByInnerJoin(TableReference reference, NamedTableReference target, string exposed) => reference switch
+        {
+            QualifiedJoin q => (q.QualifiedJoinType == QualifiedJoinType.Inner
+                                && (Contains(q.FirstTableReference, target) || Contains(q.SecondTableReference, target))
+                                && OnNames(q.SearchCondition, exposed))
+                               || RestrictsByInnerJoin(q.FirstTableReference, target, exposed) || RestrictsByInnerJoin(q.SecondTableReference, target, exposed),
+            JoinParenthesisTableReference p => RestrictsByInnerJoin(p.Join, target, exposed),
+            UnqualifiedJoin u => RestrictsByInnerJoin(u.FirstTableReference, target, exposed) || RestrictsByInnerJoin(u.SecondTableReference, target, exposed),
             _ => false
         };
+
+        private static bool Contains(TableReference subtree, NamedTableReference target)
+        {
+            var refs = new List<NamedTableReference>();
+            subtree.Accept(new Collector<NamedTableReference>(refs));
+            return refs.Contains(target);
+        }
+
+        private static bool OnNames(BooleanExpression on, string exposed)
+        {
+            if (on == null) return false;
+            var columns = new List<ColumnReferenceExpression>();
+            on.Accept(new Collector<ColumnReferenceExpression>(columns));
+            return columns.Any(c => c.MultiPartIdentifier is { } id
+                && (id.Identifiers.Count == 1 || string.Equals(id.Identifiers[id.Identifiers.Count - 2].Value, exposed, System.StringComparison.OrdinalIgnoreCase)));
+        }
+
+        private static bool Same(Identifier a, Identifier b) => string.Equals(a?.Value, b?.Value, System.StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Every node of type <typeparamref name="T"/> under the fragment it is accepted by.</summary>
+        private sealed class Collector<T>(List<T> found) : TSqlFragmentVisitor where T : TSqlFragment
+        {
+            public override void Visit(TSqlFragment node)
+            {
+                if (node is T match) found.Add(match);
+            }
+        }
 
         private static string TargetName(TableReference target) => target switch
         {

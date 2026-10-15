@@ -107,7 +107,7 @@ public sealed class SQLExtendedSettings
 
     /// <summary>
     /// Ask before executing an UPDATE or DELETE that has no WHERE clause, and cancel the execution on No.
-    /// See <c>Safety/UnsafeDmlAnalyzer</c> for what is deliberately not flagged (temp tables, INNER JOINs, module bodies).
+    /// See <c>Safety/UnsafeDmlAnalyzer</c> for what is deliberately not flagged (temp tables, a target restricted by an INNER JOIN, module bodies).
     /// </summary>
     public bool UnsafeDmlGuardEnabled { get; set; } = true;
 

@@ -23,6 +23,12 @@ public class UnsafeDmlAnalyzerTests
     [InlineData("DELETE c FROM dbo.Customers c CROSS JOIN dbo.Orders o")]
     [InlineData("DELETE c FROM dbo.Customers c, dbo.Orders o")]
     [InlineData("WITH x AS (SELECT * FROM dbo.Customers) DELETE FROM x")]
+    // An INNER JOIN that does not restrict the target's own rows.
+    [InlineData("UPDATE dbo.Customers SET Active = 0 FROM dbo.Orders o INNER JOIN dbo.Lines l ON l.OrderId = o.Id")]
+    [InlineData("UPDATE c SET Active = 0 FROM dbo.Customers c INNER JOIN dbo.Orders o ON 1 = 1")]
+    [InlineData("UPDATE c SET Active = 0 FROM dbo.Customers c LEFT JOIN (dbo.Orders o INNER JOIN dbo.Lines l ON l.OrderId = o.Id) ON o.CustomerId = c.Id")]
+    [InlineData("DELETE c FROM dbo.Customers c CROSS JOIN dbo.Regions r INNER JOIN dbo.Orders o ON o.RegionId = r.Id")]
+    [InlineData("UPDATE dbo.Customers SET Active = 0 FROM dbo.Customers x INNER JOIN dbo.Orders o ON o.CustomerId = x.Id")]
     public void StatementWithoutWhere_IsFlagged(string sql) => Assert.Single(Analyze(sql).Findings);
 
     [Theory]
@@ -33,6 +39,9 @@ public class UnsafeDmlAnalyzerTests
     [InlineData("DECLARE @t TABLE (Id int); DELETE FROM @t")]
     [InlineData("UPDATE c SET Active = 0 FROM dbo.Customers c INNER JOIN dbo.Orders o ON o.CustomerId = c.Id")]
     [InlineData("DELETE c FROM dbo.Customers c JOIN dbo.Orders o ON o.CustomerId = c.Id")]
+    [InlineData("UPDATE dbo.Customers SET Active = 0 FROM dbo.Customers INNER JOIN dbo.Orders o ON o.CustomerId = Customers.Id")]
+    [InlineData("UPDATE c SET Active = 0 FROM dbo.Customers c INNER JOIN dbo.Orders o ON o.CustomerId = c.Id INNER JOIN dbo.Lines l ON l.OrderId = o.Id")]
+    [InlineData("UPDATE c SET Active = 0 FROM dbo.Customers c INNER JOIN dbo.Orders o ON CustomerId = Id")]   // unqualified: could be c's
     [InlineData("SELECT * FROM dbo.Customers")]
     [InlineData("INSERT INTO dbo.Customers (Name) VALUES ('a')")]
     [InlineData("")]
