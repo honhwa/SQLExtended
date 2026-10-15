@@ -23,5 +23,5 @@ tables, nor `ON 1 = 1`), `WHERE CURRENT OF`, and statements inside CREATE/ALTER
 PROCEDURE/FUNCTION/TRIGGER (note `TriggerStatementBody` does **not** derive from `ProcedureStatementBodyBase`).
 `TOP (n)` is still flagged — a `DELETE TOP (n)` loop is a whole-table purge. MERGE and TRUNCATE are out of scope.
 
-Not yet observed in a running SSMS 22: that `Query.Execute` resolves by that name, and that `CancelDefault`
-stops the execution.
+Confirmed in a running SSMS 22 (2026-10-15): `Query.Execute` resolves by that name, and `CancelDefault` stops
+the execution. If the dialog stops appearing after an SSMS update, check the `Hooked Query.Execute` log line first.
