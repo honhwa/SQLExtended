@@ -34,6 +34,11 @@
     <Compile Include="..\SQLExtended\Theme\ThemePalette.cs" Link="Theme\ThemePalette.cs" />
   </ItemGroup>
 
+  <!-- The UPDATE/DELETE-without-WHERE check; the DTE hook beside it is not linked. -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Safety\UnsafeDmlAnalyzer.cs" Link="Safety\UnsafeDmlAnalyzer.cs" />
+  </ItemGroup>
+
   <!-- Include formatting source files directly to avoid VSIX dependencies -->
   <ItemGroup>
     <Compile Include="..\SQLExtended\Formatting\*.cs" Link="Formatting\%(Filename)%(Extension)" />
@@ -47,6 +52,7 @@
     <Compile Include="..\SQLExtended\Cache\Models\CachedForeignKey.cs" Link="Cache\Models\CachedForeignKey.cs" />
     <Compile Include="..\SQLExtended\Cache\Models\CachedIndex.cs" Link="Cache\Models\CachedIndex.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\JoinClauseBuilder.cs" Link="IntelliSense\JoinClauseBuilder.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\UpdateTemplateBuilder.cs" Link="IntelliSense\UpdateTemplateBuilder.cs" />
     <Compile Include="..\SQLExtended\Cache\SystemCatalogSql.cs" Link="Cache\SystemCatalogSql.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlContextAnalyzer.cs" Link="IntelliSense\SqlContextAnalyzer.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlCompletionContext.cs" Link="IntelliSense\SqlCompletionContext.cs" />
@@ -57,6 +63,7 @@
     <Compile Include="..\SQLExtended\IntelliSense\SqlDbccCommands.cs" Link="IntelliSense\SqlDbccCommands.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlAlterCommands.cs" Link="IntelliSense\SqlAlterCommands.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlQueryHints.cs" Link="IntelliSense\SqlQueryHints.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\SqlQuotePairing.cs" Link="IntelliSense\SqlQuotePairing.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetManager.cs" Link="Snippets\SnippetManager.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetPlaceholderResolver.cs" Link="Snippets\SnippetPlaceholderResolver.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetXmlBuilder.cs" Link="Snippets\SnippetXmlBuilder.cs" />

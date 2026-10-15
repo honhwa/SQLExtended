@@ -74,15 +74,7 @@ internal static class JoinClauseBuilder
         // Aliases already spoken for — both the alias and the table name of everything in scope. A generated
         // alias that collides with either produces SQL that parses and runs, with the predicate bound to the
         // wrong side of what is now an accidental self-join.
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (tablesInScope != null)
-        {
-            foreach (var t in tablesInScope)
-            {
-                if (!string.IsNullOrEmpty(t.Alias)) taken.Add(t.Alias);
-                if (!string.IsNullOrEmpty(t.Table)) taken.Add(t.Table);
-            }
-        }
+        var taken = NamesInScope(tablesInScope);
 
         // One alias per candidate *table*, not per suggestion: two foreign keys to the same table
         // (BillToAddressId and ShipToAddressId, both → Address) are alternatives, only one of which is ever
@@ -145,6 +137,59 @@ internal static class JoinClauseBuilder
         return results;
     }
 
+    /// <summary>The aliases and table names of everything in scope — what a generated alias must not reuse.</summary>
+    internal static HashSet<string> NamesInScope(IEnumerable<AliasResolver.TableReference> tablesInScope)
+    {
+        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (tablesInScope != null)
+        {
+            foreach (var t in tablesInScope)
+            {
+                if (!string.IsNullOrEmpty(t.Alias)) taken.Add(t.Alias);
+                if (!string.IsNullOrEmpty(t.Table)) taken.Add(t.Table);
+            }
+        }
+        return taken;
+    }
+
+    // Words that may follow a table name without being its alias but are not on the reserved list.
+    private static readonly HashSet<string> NonAliasWords = new(StringComparer.OrdinalIgnoreCase) { "GO", "APPLY", "WINDOW", "OUTPUT" };
+
+    /// <summary>
+    /// Whether the text after the cursor (to the end of the line) already gives the table being completed an
+    /// alias: "FROM dbo.Comp| c WHERE" re-picked by Ctrl+Space must not become "dbo.Company c c".
+    /// The rest of the name under the cursor is skipped first, since the commit replaces it. A following
+    /// keyword (WHERE, JOIN, ON, ...) is not an alias; AS, a bracket or any other word is.
+    /// </summary>
+    internal static bool IsFollowedByAlias(string textAfter)
+    {
+        if (string.IsNullOrEmpty(textAfter))
+            return false;
+
+        int i = 0;
+        while (i < textAfter.Length && (char.IsLetterOrDigit(textAfter[i]) || textAfter[i] is '_' or '.' or '[' or ']' or '#' or '@' or '$'))
+            i++;
+
+        int afterName = i;
+        while (i < textAfter.Length && (textAfter[i] == ' ' || textAfter[i] == '\t'))
+            i++;
+
+        if (i == afterName || i >= textAfter.Length)
+            return false;
+        if (textAfter[i] == '[')
+            return true;
+        if (!char.IsLetter(textAfter[i]) && textAfter[i] != '_')
+            return false;
+
+        int start = i;
+        while (i < textAfter.Length && (char.IsLetterOrDigit(textAfter[i]) || textAfter[i] == '_'))
+            i++;
+
+        string word = textAfter.Substring(start, i - start);
+        return string.Equals(word, "AS", StringComparison.OrdinalIgnoreCase)
+            || (!SqlIdentifierQuoting.IsReservedKeyword(word) && !NonAliasWords.Contains(word));
+    }
+
     /// <summary>
     /// Derives a short alias from a table name — the initial of each word, so Customer → c, OrderItem → oi,
     /// ORDER_ITEM → oi — and makes it unique against <paramref name="taken"/> by appending a counter.
@@ -169,7 +214,8 @@ internal static class JoinClauseBuilder
 
     /// <summary>
     /// First letter of each word in a name, lower-cased. Words break on underscores, spaces, hyphens and
-    /// camel-case humps. Capped at four letters, past which an alias has stopped being an abbreviation.
+    /// camel-case humps. Not capped: ORDER_LINE_ITEM_TAX_PAYMENT → olitp, because a cut-off alias stops
+    /// telling apart the tables that share a prefix (ORDER_LINE_ITEM_TAX vs ORDER_LINE_ITEM_TAX_PAYMENT).
     /// </summary>
     private static string Initials(string name)
     {
@@ -179,10 +225,10 @@ internal static class JoinClauseBuilder
         // Brackets are part of how the name is written, never part of the alias.
         name = name.Trim().Trim('[', ']');
 
-        var sb = new StringBuilder(4);
+        var sb = new StringBuilder(8);
         bool atWordStart = true;
 
-        for (int i = 0; i < name.Length && sb.Length < 4; i++)
+        for (int i = 0; i < name.Length; i++)
         {
             char c = name[i];
 

@@ -186,6 +186,10 @@ public sealed class SsmsSchemaViewerPackage : AsyncPackage
             }
         });
 
+        // Confirm before executing UPDATE/DELETE without WHERE. Hooks the shell's Query.Execute; the setting is read per execution.
+        try { Safety.UnsafeDmlGuard.Initialize(this); }
+        catch (Exception ex) { Diagnostics.SQLExtendedLog.Error("Package", "UnsafeDmlGuard init failed", ex); }
+
         // Colour and rename query tabs by connection. Off unless the user has enabled it — Start()
         // checks the setting itself and does nothing when it's off.
         try { EnvTabs.EnvTabsService.Start(this); }

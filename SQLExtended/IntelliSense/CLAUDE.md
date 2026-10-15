@@ -222,6 +222,44 @@ inverted predicate and a reused alias both produce SQL that runs and returns the
 key paired out of order joins on the wrong column of the right table. `SqlCompletionSource` keeps the cache
 lookups and the item construction; the builder gets plain `CachedForeignKey` rows and returns plain strings.
 
+## IntelliSense: an alias for every table picked after FROM / JOIN
+
+`AutoAliasTables` (on by default) inserts a picked table as `dbo.Company c`, and offers the columns of an
+aliased table as `c.ACTIVE` **even when it is the only table** — before it, a single table's columns were
+always bare. The alias is `JoinClauseBuilder.MakeAlias`, the same one the foreign-key join clauses use, so the
+two agree; it is **no longer capped at four letters** (`ORDER_LINE_ITEM_TAX_PAYMENT` → `olitp`), because a
+cut-off alias stops telling apart tables that share a prefix.
+
+- **Only where the grammar has room for an alias** — `AnalysisResult.AcceptsAlias`: any JOIN, and a FROM that
+  is not `DELETE [TOP (n)] FROM`. `INSERT INTO dbo.T t`, `UPDATE dbo.T t SET`, `DELETE FROM dbo.T t` and
+  `TRUNCATE TABLE dbo.T t` do not parse. `TableAliasContextTests` pins both sides **with ScriptDom**, not by
+  assertion: every accepting position must parse with `dbo.T t` committed there, every refusing one must not.
+- **Not when the name being replaced already has an alias after it** (`IsFollowedByAlias`, same line only):
+  re-picking `FROM dbo.Comp| c` with Ctrl+Space would otherwise give `c c`. A reserved word next (WHERE,
+  JOIN, WITH, ON) is not an alias; `AS`, a bracket or any other word is.
+- **It avoids the aliases and table names already in the statement**, via the counter (`gc2`) — the same
+  rule, and the same reason, as the join clauses: a collision still runs and binds to the wrong table.
+- Tables, views, temp tables and table variables get one; **table-valued functions do not** — their
+  arguments come next, and an alias in front of `(` does not parse.
+
+## IntelliSense: the UPDATE … SET template
+
+`UPDATE [db.][schema.]table ` offers "(all columns) SET col = val" (`UpdateSetTemplate` context,
+`UpdateTemplateBuilder`), the UPDATE counterpart of the INSERT templates, with the same placeholders
+(`DefaultValueFor`) and the same formatter options (indent, comma position, keyword case).
+
+- **The WHERE is on the primary key, and the key columns are left out of the SET.** A template without a WHERE
+  is an UPDATE of every row that looks finished. A table with no primary key gets `WHERE 1 = 0`, which updates
+  nothing until a real predicate is written. A composite key is ANDed in the key's declared order.
+- **Identity, computed and rowversion/timestamp columns are never set** — any one of them fails the whole
+  statement. (The INSERT template does not skip rowversion; worth fixing there too.)
+- **Words after UPDATE that are not a table are refused by the pattern** — STATISTICS, TOP, SET, and the
+  foreign-key / GRANT forms (`ON UPDATE CASCADE`, `ON UPDATE NO ACTION`, `GRANT UPDATE ON`).
+  `UpdateTemplateTests` pins those, the exact template text, and that the committed statement parses.
+- **The filter text leaves out "set"**, so typing SET by hand narrows the list away instead of committing the
+  template over it.
+- `UPDATE c ` naming an alias from a FROM further on is not resolved — the cache has no table `c`, so no item.
+
 ## IntelliSense: CREATE INDEX column lists
 
 `CREATE [UNIQUE] [NON]CLUSTERED [COLUMNSTORE] INDEX ix ON dbo.T (` — and `CREATE STATISTICS`, which takes
@@ -265,3 +303,23 @@ and the `INCLUDE (` list, minus any column already named in either (a column can
   offered after a comma. The cache loads indexes for `U` objects only, so an indexed view (NOEXPAND) gets none.
 - **An opening quote already typed is part of the replaced span** for a hint name (`FindApplicableSpan`),
   or committing after `('DISA` would produce `(''DISABLE_…'`.
+
+## IntelliSense: closing single quotes as they are typed
+
+`QuotePairCommandFilter` turns a typed `'` into `''` with the caret between, steps over the closing quote it
+inserted, and removes an empty pair it inserted on Backspace (`AutoCloseQuotes`, on by default).
+`SqlQuotePairing` decides when, and is free of the editor so `SqlQuotePairingTests` links it.
+
+- **The quote is swallowed and the pair inserted in one edit, not passed down the chain and patched after.**
+  Passed down, the keystroke can open a completion session whose applicable span ends at the caret, and a
+  closing quote inserted afterwards lands inside that span and becomes filter text. One edit is also one undo.
+- **The region is lexed from the top of the document, not the line.** Pairing the quote that *closes* a
+  multi-line string opens a new one and silently swallows the rest of the script — the costly direction.
+  Quotes are rare keystrokes, so the scan is cheap where it runs. Block comments nest, as T-SQL's do.
+- **Only the closer this filter inserted is ever stepped over or deleted**, tracked by `ITrackingPoint`s and
+  retired the moment the caret leaves the pair. Overtyping any `'` in front of the caret would make escaping
+  a quote in an existing literal (`'It''s'`) impossible to type.
+- **A quote glued to a word is an apostrophe** (`O'Brien`) and is not paired — except the `N` of `N'…'`.
+- **A USE HINT name commits over the pair** (`SqlCompletionCommitManager.TryCommitQuotedLiteral`): its item
+  inserts its own quotes and the span already holds the opening one, so the closer just past the span is
+  replaced too, or the commit leaves `'DISABLE_…''`.

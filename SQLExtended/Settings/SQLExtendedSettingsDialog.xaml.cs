@@ -68,16 +68,19 @@ public partial class SQLExtendedSettingsDialog : Window
             ChkSuppressBuiltIn.IsChecked = _settings.SuppressBuiltInIntelliSense;
             ChkAutoTrigger.IsChecked = _settings.AutoTriggerAfterKeyword;
             ChkExpandProcParams.IsChecked = _settings.ExpandProcedureParameters;
+            ChkAutoAliasTables.IsChecked = _settings.AutoAliasTables;
             ChkCommitOnTab.IsChecked = _settings.CommitOnTab;
             ChkCommitOnEnter.IsChecked = _settings.CommitOnEnter;
             ChkCommitOnSpace.IsChecked = _settings.CommitOnSpace;
             ChkRecaseKeywords.IsChecked = _settings.RecaseKeywordsWhileTyping;
+            ChkAutoCloseQuotes.IsChecked = _settings.AutoCloseQuotes;
             ChkCamelCase.IsChecked = _settings.CamelCaseMatching;
 
             // Editor — rainbow parentheses. The combo starts at 2 colours, so index 0 is 2.
             ChkRainbowParens.IsChecked = _settings.RainbowParensEnabled;
             CboRainbowLevels.SelectedIndex = Math.Min(Math.Max(_settings.RainbowParensLevels, 2), 7) - 2;
             ChkRainbowUnmatched.IsChecked = _settings.RainbowParensHighlightUnmatched;
+            ChkUnsafeDmlGuard.IsChecked = _settings.UnsafeDmlGuardEnabled;
             ChkRainbowBlocks.IsChecked = _settings.RainbowParensIncludeBlocks;
             ChkCommentTags.IsChecked = _settings.CommentTagsEnabled;
 
@@ -176,10 +179,12 @@ public partial class SQLExtendedSettingsDialog : Window
         _settings.SuppressBuiltInIntelliSense = ChkSuppressBuiltIn.IsChecked == true;
         _settings.AutoTriggerAfterKeyword = ChkAutoTrigger.IsChecked == true;
         _settings.ExpandProcedureParameters = ChkExpandProcParams.IsChecked == true;
+        _settings.AutoAliasTables = ChkAutoAliasTables.IsChecked == true;
         _settings.CommitOnTab = ChkCommitOnTab.IsChecked == true;
         _settings.CommitOnEnter = ChkCommitOnEnter.IsChecked == true;
         _settings.CommitOnSpace = ChkCommitOnSpace.IsChecked == true;
         _settings.RecaseKeywordsWhileTyping = ChkRecaseKeywords.IsChecked == true;
+        _settings.AutoCloseQuotes = ChkAutoCloseQuotes.IsChecked == true;
         _settings.CamelCaseMatching = ChkCamelCase.IsChecked == true;
         _settings.ShowColumnTypeInfo = ChkShowColumnType.IsChecked == true;
         _settings.ShowRowCounts = ChkShowRowCounts.IsChecked == true;
@@ -188,6 +193,7 @@ public partial class SQLExtendedSettingsDialog : Window
         _settings.RainbowParensEnabled = ChkRainbowParens.IsChecked == true;
         _settings.RainbowParensLevels = Math.Max(0, CboRainbowLevels.SelectedIndex) + 2;
         _settings.RainbowParensHighlightUnmatched = ChkRainbowUnmatched.IsChecked == true;
+        _settings.UnsafeDmlGuardEnabled = ChkUnsafeDmlGuard.IsChecked == true;
         _settings.RainbowParensIncludeBlocks = ChkRainbowBlocks.IsChecked == true;
         _settings.CommentTagsEnabled = ChkCommentTags.IsChecked == true;
         if (CboCommentScheme.SelectedItem is SchemeItem scheme)

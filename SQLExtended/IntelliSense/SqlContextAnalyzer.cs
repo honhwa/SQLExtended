@@ -20,6 +20,8 @@ internal static class SqlContextAnalyzer
         ProcedureName,
         Keyword,
         InsertColumnTemplate,
+        /// <summary>"UPDATE [db.][schema.]table " — offer the all-columns SET template (UpdateTemplateBuilder).</summary>
+        UpdateSetTemplate,
         DatabaseName,
         FunctionArgument,
         DbccCommand,
@@ -75,6 +77,13 @@ internal static class SqlContextAnalyzer
         /// INSERT INTO and the rest, where there is no left-hand table for a predicate to reference.
         /// </summary>
         public bool IsJoinTarget { get; set; }
+
+        /// <summary>
+        /// For TableName: the position takes a table alias after the name — a FROM or a JOIN, so a picked
+        /// table can be inserted as "dbo.Company c". False for INSERT INTO, UPDATE, DELETE FROM,
+        /// TRUNCATE TABLE and the rest, where an alias after the name does not parse.
+        /// </summary>
+        public bool AcceptsAlias { get; set; }
 
         /// <summary>
         /// For StarExpansion: length of the "*" or "alias.*" token ending at the cursor —
@@ -283,6 +292,23 @@ internal static class SqlContextAnalyzer
             };
         }
 
+        // 3a-ii. "UPDATE [schema.]table " — offer the all-columns SET template. Same reason as 3a for coming
+        // before the generic keyword context.
+        var updateMatch = UpdateTableContextPattern.Match(textBeforeCursor);
+        if (updateMatch.Success)
+        {
+            string q1 = updateMatch.Groups["q1"].Success ? updateMatch.Groups["q1"].Value : null;
+            string q2 = updateMatch.Groups["q2"].Success ? updateMatch.Groups["q2"].Value : null;
+            return new AnalysisResult
+            {
+                Type = CompletionType.UpdateSetTemplate,
+                TargetDatabase = q2 != null ? q1 : null,
+                TargetSchema = q2 ?? q1,
+                TargetTable = updateMatch.Groups["tbl"].Value,
+                StatementText = statementText
+            };
+        }
+
         // 3. Check if we're in a table-name-expecting context (FROM, JOIN, etc.)
         if (SqlCompletionContext.IsObjectNameExpected(textBeforeIdent))
         {
@@ -290,6 +316,7 @@ internal static class SqlContextAnalyzer
             {
                 Type = CompletionType.TableName,
                 IsJoinTarget = JoinTargetPattern.IsMatch(textBeforeIdent),
+                AcceptsAlias = AliasTargetPattern.IsMatch(textBeforeIdent),
                 StatementText = statementText
             };
         }
@@ -766,6 +793,13 @@ internal static class SqlContextAnalyzer
         @"(?i)\bJOIN\s+$",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
+    // Matches a table position whose table may carry an alias: any JOIN, or a FROM that is not the target of
+    // "DELETE [TOP (n)] FROM" - "DELETE FROM dbo.T t" does not parse, while "DELETE t FROM dbo.T t" (FROM after
+    // the alias) and "UPDATE t SET ... FROM dbo.T t" do. INTO, UPDATE, TRUNCATE TABLE and the rest never match.
+    private static readonly Regex AliasTargetPattern = new Regex(
+        @"(?i)(?:\bJOIN|(?<!\bDELETE\s+(?:TOP\s*\(\s*[^)]*\)\s*(?:PERCENT\s+)?)?)\bFROM)\s+$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
     // Matches "JOIN [db.][schema.]table [AS] [alias] ON " at the end of (partial-stripped) text.
     // Anchored at end so it binds to the nearest JOIN that immediately precedes the ON.
     // Bracketed qualifiers may contain dots ([DataBaseName].dbo.Tasks).
@@ -840,6 +874,14 @@ internal static class SqlContextAnalyzer
     // may contain dots ([Database].dbo.Projects).
     private static readonly Regex InsertTableContextPattern = new Regex(
         @"(?i)\bINSERT\s+INTO\s+(?:(?:\[(?<q1>[^\]]+)\]|(?<q1>\w+))\s*\.\s*(?:(?:\[(?<q2>[^\]]+)\]|(?<q2>\w+))\s*\.\s*)?)?(?:\[(?<tbl>[^\]]+)\]|(?<tbl>\w+))\s+$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // Matches "UPDATE [db.][schema.]table " (trailing whitespace, nothing after the table yet). The words after
+    // UPDATE that are not a table are refused up front: UPDATE STATISTICS, UPDATE TOP (n), "ON UPDATE CASCADE" /
+    // "NO ACTION" / "SET NULL" in a foreign key, "GRANT UPDATE ON" and "FOR UPDATE OF" - and SET, or the template
+    // would be offered again after "UPDATE dbo.T SET ".
+    private static readonly Regex UpdateTableContextPattern = new Regex(
+        @"(?i)\bUPDATE\s+(?!(?:STATISTICS|TOP|CASCADE|NO|SET|ON|OF)\b)(?:(?:\[(?<q1>[^\]]+)\]|(?<q1>\w+))\s*\.\s*(?:(?:\[(?<q2>[^\]]+)\]|(?<q2>\w+))\s*\.\s*)?)?(?:\[(?<tbl>[^\]]+)\]|(?<tbl>\w+))\s+$",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     // Matches the USE keyword at the end of (stripped) text, expecting a database name next.

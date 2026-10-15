@@ -93,6 +93,7 @@ load automatically when a file in that folder is opened, but not while merely pl
 | … Always On monitor | `SQLExtended/Monitoring/AlwaysOn/CLAUDE.md` |
 | … Replication monitor | `SQLExtended/Monitoring/Replication/CLAUDE.md` |
 | Environment Tabs (tab colouring by connection) | `SQLExtended/EnvTabs/CLAUDE.md` |
+| Execution safety — confirm UPDATE/DELETE without WHERE (`Query.Execute` hook) | `SQLExtended/Safety/CLAUDE.md` |
 | Object Explorer context menu | `SQLExtended/ObjectExplorer/CLAUDE.md` |
 
 ## Releasing

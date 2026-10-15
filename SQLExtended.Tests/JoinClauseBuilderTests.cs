@@ -96,6 +96,8 @@ public class JoinClauseBuilderTests
     [InlineData("ORDER_ITEM", "oi")]
     [InlineData("order item", "oi")]
     [InlineData("SalesOrderHeaderDetail", "sohd")]
+    [InlineData("Company", "c")]
+    [InlineData("ORDER_LINE_ITEM_TAX_PAYMENT", "olitp")]
     public void MakeAlias_InitialsEachWord(string table, string expected)
     {
         Assert.Equal(expected, JoinClauseBuilder.MakeAlias(table, new HashSet<string>()));

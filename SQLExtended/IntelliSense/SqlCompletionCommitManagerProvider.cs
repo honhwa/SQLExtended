@@ -114,6 +114,9 @@ internal sealed class SqlCompletionCommitManager : IAsyncCompletionCommitManager
         ThreadHelper.ThrowIfNotOnUIThread();
         SqlCompletionSource.DebugLog($"[CommitManager] TryCommit for '{item.DisplayText}'");
 
+        if (TryCommitQuotedLiteral(session, buffer, item))
+            return CommitResult.Handled;
+
         // Resolve the snippet to expand. Two sources:
         //   1. Stored-procedure items — the "@param = value" call is built on demand from the
         //      cached parameters carried on the item.
@@ -172,5 +175,31 @@ internal sealed class SqlCompletionCommitManager : IAsyncCompletionCommitManager
 
         SqlCompletionSource.DebugLog("[CommitManager] Session start returned false, falling back");
         return CommitResult.Unhandled;
+    }
+
+    /// <summary>
+    /// An item inserted as its own quoted literal (a USE HINT name) committed inside a pair
+    /// <see cref="QuotePairCommandFilter"/> opened: the span already includes the typed opening quote, and the
+    /// closing one sits just past it. The default commit would leave that one behind - <c>'DISABLE_…''</c> - so
+    /// it is replaced along with the span.
+    /// </summary>
+    private bool TryCommitQuotedLiteral(IAsyncCompletionSession session, ITextBuffer buffer, CompletionItem item)
+    {
+        string insert = item.InsertText;
+        if (insert == null || insert.Length < 2 || insert[0] != '\'' || insert[insert.Length - 1] != '\'')
+            return false;
+
+        var snapshot = buffer.CurrentSnapshot;
+        var span = session.ApplicableToSpan.GetSpan(snapshot);
+        if (span.Length == 0 || snapshot[span.Start] != '\'' || span.End.Position >= snapshot.Length || snapshot[span.End] != '\'')
+            return false;
+
+        using (var edit = buffer.CreateEdit())
+        {
+            edit.Replace(new Span(span.Start, span.Length + 1), insert);
+            snapshot = edit.Apply();
+        }
+        _textView.Caret.MoveTo(new SnapshotPoint(snapshot, span.Start.Position + insert.Length));
+        return true;
     }
 }

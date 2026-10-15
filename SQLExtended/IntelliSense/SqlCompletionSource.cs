@@ -142,6 +142,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             case SqlContextAnalyzer.CompletionType.JoinOnCondition:
             case SqlContextAnalyzer.CompletionType.ProcedureName:
             case SqlContextAnalyzer.CompletionType.InsertColumnTemplate:
+            case SqlContextAnalyzer.CompletionType.UpdateSetTemplate:
             case SqlContextAnalyzer.CompletionType.IndexColumn:
             case SqlContextAnalyzer.CompletionType.IndexHintName:
             case SqlContextAnalyzer.CompletionType.DatabaseName:
@@ -319,6 +320,9 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 case SqlContextAnalyzer.CompletionType.InsertColumnTemplate:
                     return BuildInsertTemplateCompletion(cache, connectionString, connKey, currentDb, analysis);
 
+                case SqlContextAnalyzer.CompletionType.UpdateSetTemplate:
+                    return BuildUpdateTemplateCompletion(cache, connectionString, connKey, currentDb, analysis);
+
                 case SqlContextAnalyzer.CompletionType.IndexColumn:
                     return BuildIndexColumnCompletion(cache, connectionString, connKey, currentDb, analysis, localTables);
 
@@ -408,6 +412,12 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
 
         var items = new List<CompletionItem>();
 
+        // FROM / JOIN: a picked table is inserted with an alias ("dbo.Company c"), unless the setting is off or
+        // the name being replaced already has one after it. Null means no alias.
+        ISet<string> aliasTaken = _sessionSettings.AutoAliasTables && analysis.AcceptsAlias && !JoinClauseBuilder.IsFollowedByAlias(TextToLineEnd(triggerLocation))
+            ? JoinClauseBuilder.NamesInScope(AliasResolver.Resolve(analysis.StatementText))
+            : null;
+
         if (parts.Count == 0)
         {
             // Bare object position: this window's local temp tables/variables first (they're
@@ -418,8 +428,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             if (analysis.IsJoinTarget)
                 AppendJoinClauseItems(items, cache, connKey, currentDb, analysis);
 
-            AppendLocalTableItems(items, localTables);
-            AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: null, qualifyWithSchema: true);
+            AppendLocalTableItems(items, localTables, aliasTaken);
+            AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: null, qualifyWithSchema: true, aliasTaken: aliasTaken);
             AppendDatabaseItems(items, connectionString, currentDb);
         }
         else if (parts.Count == 1)
@@ -427,11 +437,11 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             string qualifier = parts[0];
 
             // Interpretation A: a schema in the current database \u2192 its tables/views.
-            AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: qualifier, qualifyWithSchema: false);
+            AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: qualifier, qualifyWithSchema: false, aliasTaken: aliasTaken);
 
             // Interpretation A': "sys." / "INFORMATION_SCHEMA." \u2014 the catalog views and DMVs, which
             // the schema cache does not hold (it loads is_ms_shipped = 0 only).
-            AppendSystemObjectItems(items, connectionString, connKey, qualifier);
+            AppendSystemObjectItems(items, connectionString, connKey, qualifier, aliasTaken);
 
             // Interpretation B: a database on the server \u2192 its schemas (three-part naming).
             if (IsKnownDatabase(connectionString, qualifier))
@@ -445,11 +455,11 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             if (IsKnownDatabase(connectionString, db))
             {
                 AppendObjectItems(items, cache, connKey, db, schemaFilter: schema, qualifyWithSchema: false,
-                    ensureConnectionString: connectionString);
+                    ensureConnectionString: connectionString, aliasTaken: aliasTaken);
 
                 // "MyDb.sys." resolves to the same catalog: it is a property of the instance, and the
                 // cache is keyed per server for that reason. No per-database load is needed here.
-                AppendSystemObjectItems(items, connectionString, connKey, schema);
+                AppendSystemObjectItems(items, connectionString, connKey, schema, aliasTaken);
             }
         }
 
@@ -457,6 +467,17 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             ? new CompletionContext(items.ToImmutableArray())
             : CompletionContext.Empty;
     }
+
+    /// <summary>The rest of the cursor's line, at most 200 characters.</summary>
+    private static string TextToLineEnd(SnapshotPoint point)
+    {
+        var line = point.GetContainingLine();
+        return point.Snapshot.GetText(point.Position, Math.Min(line.End.Position - point.Position, 200));
+    }
+
+    /// <summary>" alias" for a table being inserted, or empty when <paramref name="aliasTaken"/> is null (no alias here).</summary>
+    private static string AliasSuffix(string tableName, ISet<string> aliasTaken) =>
+        aliasTaken == null ? string.Empty : " " + JoinClauseBuilder.MakeAlias(tableName, aliasTaken);
 
     /// <summary>
     /// Appends table/view completion items for a database. When <paramref name="qualifyWithSchema"/>
@@ -467,7 +488,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// </summary>
     private void AppendObjectItems(
         List<CompletionItem> items, ISchemaCache cache, string connKey, string database,
-        string schemaFilter, bool qualifyWithSchema, string ensureConnectionString = null)
+        string schemaFilter, bool qualifyWithSchema, string ensureConnectionString = null, ISet<string> aliasTaken = null)
     {
         if (ensureConnectionString != null && !EnsureDatabaseLoaded(cache, ensureConnectionString, connKey, database))
             return;
@@ -487,9 +508,9 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 continue;
 
             string quotedName = SqlIdentifierQuoting.QuoteObjectIfNeeded(obj.ObjectName);
-            string insertText = qualifyWithSchema
+            string insertText = (qualifyWithSchema
                 ? $"{SqlIdentifierQuoting.QuoteIfNeeded(obj.SchemaName)}.{quotedName}"
-                : quotedName;
+                : quotedName) + AliasSuffix(obj.ObjectName, aliasTaken);
             string displayText = $"{obj.SchemaName}.{obj.ObjectName}";
 
             // Row counts are the one part of this suffix that costs something to be wrong about: they are
@@ -531,7 +552,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// list would bury a database's own tables under ~1,100 system objects, which is the opposite of
     /// useful; the user asks for them by typing "sys.".
     /// </summary>
-    private void AppendSystemObjectItems(List<CompletionItem> items, string connectionString, string connKey, string schema)
+    private void AppendSystemObjectItems(List<CompletionItem> items, string connectionString, string connKey, string schema, ISet<string> aliasTaken = null)
     {
         if (!SystemCatalogCache.IsSystemSchema(schema))
             return;
@@ -572,8 +593,9 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 icon: new ImageElement(CompletionIcons.ForObjectType(type).ToImageId()),
                 filters: filters,
                 suffix: typeLabel,
-                // The schema is already typed and stays put, so only the object name is inserted.
-                insertText: SqlIdentifierQuoting.QuoteObjectIfNeeded(obj.ObjectName),
+                // The schema is already typed and stays put, so only the object name is inserted. A table-valued
+                // function takes its arguments next, so only tables and views get an alias.
+                insertText: SqlIdentifierQuoting.QuoteObjectIfNeeded(obj.ObjectName) + (type is "U" or "V" ? AliasSuffix(obj.ObjectName, aliasTaken) : string.Empty),
                 sortText: displayText,
                 filterText: $"{obj.SchemaName}.{obj.ObjectName} {obj.ObjectName}",
                 attributeIcons: ImmutableArray<ImageElement>.Empty));
@@ -585,7 +607,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// These sort ahead of everything else (a leading space sortText) since the user just declared
     /// them and is most likely to want them.
     /// </summary>
-    private void AppendLocalTableItems(List<CompletionItem> items, IReadOnlyList<LocalTableScanner.LocalTable> localTables)
+    private void AppendLocalTableItems(List<CompletionItem> items, IReadOnlyList<LocalTableScanner.LocalTable> localTables, ISet<string> aliasTaken = null)
     {
         if (localTables == null || localTables.Count == 0)
             return;
@@ -604,7 +626,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 icon: icon,
                 filters: TableFilter,
                 suffix: suffix,
-                insertText: SqlIdentifierQuoting.QuoteObjectIfNeeded(lt.Name),
+                insertText: SqlIdentifierQuoting.QuoteObjectIfNeeded(lt.Name) + AliasSuffix(lt.Name, aliasTaken),
                 sortText: $" 0_{lt.Name}",   // leading space sorts ahead of all alnum sortTexts
                 filterText: SqlIdentifierQuoting.QuoteObjectIfNeeded(lt.Name) == lt.Name
                     ? lt.Name
@@ -1201,7 +1223,8 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             string database = tableRef.Database ?? currentDb;
             string schema = tableRef.Schema ?? "dbo";
             string tableName = tableRef.Table;
-            string prefix = multipleTables ? tableRef.ReferenceName : null;
+            // An aliased table prefixes its columns even when it is alone, so "FROM dbo.Company c WHERE " offers c.ACTIVE.
+            string prefix = multipleTables || (_sessionSettings.AutoAliasTables && !string.IsNullOrEmpty(tableRef.Alias)) ? tableRef.ReferenceName : null;
 
             var columns = GetColumnsWithFlags(cache, connectionString, connKey, database, schema, tableName, localTables);
             foreach (var (col, isPk, isFk) in columns)
@@ -1476,6 +1499,52 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             filterText: "all columns insert template select assign");
 
         return new CompletionContext(ImmutableArray.Create(valuesItem, selectItem));
+    }
+
+    /// <summary>
+    /// Builds the "(all columns) SET col = val" item after "UPDATE [schema.]table ": every assignable column outside
+    /// the primary key set to a placeholder, and a WHERE on the key (see <see cref="UpdateTemplateBuilder"/>).
+    /// </summary>
+    private CompletionContext BuildUpdateTemplateCompletion(
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, SqlContextAnalyzer.AnalysisResult analysis)
+    {
+        string table = analysis.TargetTable;
+        if (string.IsNullOrEmpty(table))
+            return CompletionContext.Empty;
+
+        string database = analysis.TargetDatabase ?? currentDb;
+        if (connectionString != null)
+            EnsureDatabaseLoaded(cache, connectionString, connKey, database);
+
+        string schema = ResolveTableSchema(cache, connKey, database, analysis.TargetSchema, table);
+
+        var columns = cache.GetColumns(connKey, database, schema, table);
+        if (columns == null || columns.Count == 0)
+            return CompletionContext.Empty;
+
+        var keyColumns = cache.GetIndexes(connKey, database, schema, table)?.FirstOrDefault(ix => ix.IsPrimaryKey)?.KeyColumnNames().ToList();
+
+        FormatterOptions opts;
+        try { opts = FormatterOptions.Load(); }
+        catch { opts = new FormatterOptions(); }
+
+        string indent = opts.IndentStyle == IndentStyleOption.Tabs ? "\t" : new string(' ', Math.Max(1, opts.IndentSize));
+        string body = UpdateTemplateBuilder.Build(columns, keyColumns, DefaultValueFor, indent,
+            opts.CommaPosition == CommaPositionOption.LeadingComma, opts.KeywordCase);
+        if (body == null)
+            return CompletionContext.Empty;
+
+        int setCount = columns.Count(c => UpdateTemplateBuilder.IsSettable(c)
+            && !(keyColumns?.Contains(c.ColumnName, StringComparer.OrdinalIgnoreCase) ?? false));
+        string where = keyColumns is { Count: > 0 } ? "WHERE on the primary key" : "no primary key: WHERE 1 = 0";
+
+        // The filter text leaves out "set", so typing SET by hand narrows this away instead of committing the template.
+        return new CompletionContext(ImmutableArray.Create(MakeItem(
+            display: "(all columns) SET col = val",
+            suffix: $"UPDATE template for {schema}.{table} · {setCount} columns · {where}",
+            body: body,
+            sortText: "~0_update_set",
+            filterText: "all columns update template")));
     }
 
     /// <summary>The given schema, or - when the reference left it out - the schema the cache finds the table or view in (default dbo).</summary>
