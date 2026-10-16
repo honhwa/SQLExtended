@@ -29,6 +29,7 @@ internal static class SchemaCacheLoader
             conn.Open();
 
             result.Objects = LoadObjects(conn, ct);
+            ResolveCrossDatabaseSynonyms(conn, result.Objects, ct);
             result.Columns = LoadColumns(conn, ct);
             result.Indexes = LoadIndexes(conn, ct);
             result.ForeignKeys = LoadForeignKeys(conn, ct);
@@ -56,7 +57,7 @@ internal static class SchemaCacheLoader
     {
         const string sql = @"
             SELECT s.name AS schema_name, o.name, o.type, o.create_date, o.modify_date,
-                   p.rows AS row_count
+                   p.rows AS row_count, sn.base_object_name, bo.type AS base_type
             FROM sys.objects o
             JOIN sys.schemas s ON o.schema_id = s.schema_id
             LEFT JOIN (
@@ -64,6 +65,10 @@ internal static class SchemaCacheLoader
                 FROM sys.partitions WHERE index_id IN (0,1)
                 GROUP BY object_id
             ) p ON o.object_id = p.object_id
+            LEFT JOIN sys.synonyms sn ON sn.object_id = o.object_id
+            LEFT JOIN sys.objects bo ON bo.object_id = OBJECT_ID(sn.base_object_name)
+                AND PARSENAME(sn.base_object_name, 4) IS NULL
+                AND ISNULL(PARSENAME(sn.base_object_name, 3), DB_NAME()) = DB_NAME()
             WHERE o.type IN ('U','V','P','FN','IF','TF','SN','TT')
               AND o.is_ms_shipped = 0
               AND o.modify_date > @since";
@@ -75,12 +80,15 @@ internal static class SchemaCacheLoader
         cmd.Parameters.AddWithValue("@since", since);
         cmd.CommandTimeout = 30;
 
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        using (var reader = cmd.ExecuteReader())
         {
-            ct.ThrowIfCancellationRequested();
-            objects.Add(ReadObject(reader));
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                objects.Add(ReadObject(reader));
+            }
         }
+        ResolveCrossDatabaseSynonyms(conn, objects, ct);
         return objects;
     }
 
@@ -91,7 +99,7 @@ internal static class SchemaCacheLoader
     {
         const string sql = @"
             SELECT s.name AS schema_name, o.name, o.type, o.create_date, o.modify_date,
-                   p.rows AS row_count
+                   p.rows AS row_count, sn.base_object_name, bo.type AS base_type
             FROM sys.objects o
             JOIN sys.schemas s ON o.schema_id = s.schema_id
             LEFT JOIN (
@@ -99,6 +107,10 @@ internal static class SchemaCacheLoader
                 FROM sys.partitions WHERE index_id IN (0,1)
                 GROUP BY object_id
             ) p ON o.object_id = p.object_id
+            LEFT JOIN sys.synonyms sn ON sn.object_id = o.object_id
+            LEFT JOIN sys.objects bo ON bo.object_id = OBJECT_ID(sn.base_object_name)
+                AND PARSENAME(sn.base_object_name, 4) IS NULL
+                AND ISNULL(PARSENAME(sn.base_object_name, 3), DB_NAME()) = DB_NAME()
             WHERE o.type IN ('U','V','P','FN','IF','TF','SN','TT')
               AND o.is_ms_shipped = 0
               AND o.modify_date > @since";
@@ -108,12 +120,15 @@ internal static class SchemaCacheLoader
         cmd.Parameters.AddWithValue("@since", since);
         cmd.CommandTimeout = 30;
 
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        using (var reader = cmd.ExecuteReader())
         {
-            ct.ThrowIfCancellationRequested();
-            objects.Add(ReadObject(reader));
+            while (reader.Read())
+            {
+                ct.ThrowIfCancellationRequested();
+                objects.Add(ReadObject(reader));
+            }
         }
+        ResolveCrossDatabaseSynonyms(conn, objects, ct);
         return objects;
     }
 
@@ -121,7 +136,7 @@ internal static class SchemaCacheLoader
     {
         const string sql = @"
             SELECT s.name AS schema_name, o.name, o.type, o.create_date, o.modify_date,
-                   p.rows AS row_count
+                   p.rows AS row_count, sn.base_object_name, bo.type AS base_type
             FROM sys.objects o
             JOIN sys.schemas s ON o.schema_id = s.schema_id
             LEFT JOIN (
@@ -129,6 +144,10 @@ internal static class SchemaCacheLoader
                 FROM sys.partitions WHERE index_id IN (0,1)
                 GROUP BY object_id
             ) p ON o.object_id = p.object_id
+            LEFT JOIN sys.synonyms sn ON sn.object_id = o.object_id
+            LEFT JOIN sys.objects bo ON bo.object_id = OBJECT_ID(sn.base_object_name)
+                AND PARSENAME(sn.base_object_name, 4) IS NULL
+                AND ISNULL(PARSENAME(sn.base_object_name, 3), DB_NAME()) = DB_NAME()
             WHERE o.type IN ('U','V','P','FN','IF','TF','SN','TT') AND o.is_ms_shipped = 0";
 
         var objects = new List<CachedObject>();
@@ -152,8 +171,61 @@ internal static class SchemaCacheLoader
             ObjectType = reader.GetString(2).Trim(),
             CreateDate = reader.IsDBNull(3) ? null : (DateTime?)reader.GetDateTime(3),
             ModifyDate = reader.IsDBNull(4) ? null : (DateTime?)reader.GetDateTime(4),
-            RowCount = reader.IsDBNull(5) ? 0 : Convert.ToInt64(reader.GetValue(5))
+            RowCount = reader.IsDBNull(5) ? 0 : Convert.ToInt64(reader.GetValue(5)),
+            BaseObjectName = reader.IsDBNull(6) ? null : reader.GetString(6),
+            BaseObjectType = reader.IsDBNull(7) ? null : reader.GetString(7).Trim()
         };
+    }
+
+    /// <summary>
+    /// Fills in <see cref="CachedObject.BaseObjectType"/> for synonyms that point into another database on the same
+    /// server — the object query only resolves same-database targets, because OBJECTPROPERTY-style lookups and a
+    /// plain join on sys.objects both read the current database. One query per target database, run from here so
+    /// OBJECT_ID still sees the synonym's own three-part name. A database that is offline, missing or closed to this
+    /// login just leaves its synonyms unresolved; completion treats those as "could be a table or a procedure".
+    /// </summary>
+    private static void ResolveCrossDatabaseSynonyms(SqlConnection conn, List<CachedObject> objects, CancellationToken ct)
+    {
+        var byDatabase = new Dictionary<string, List<CachedObject>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var obj in objects)
+        {
+            if (obj.ObjectType != "SN" || obj.BaseObjectType != null)
+                continue;
+            var target = SynonymTarget.Parse(obj.BaseObjectName);
+            if (target == null || target.Server != null || target.Database == null || string.Equals(target.Database, conn.Database, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!byDatabase.TryGetValue(target.Database, out var list))
+                byDatabase[target.Database] = list = new List<CachedObject>();
+            list.Add(obj);
+        }
+
+        foreach (var pair in byDatabase)
+        {
+            ct.ThrowIfCancellationRequested();
+            string sql = $@"
+                SELECT sn.base_object_name, o.type
+                FROM sys.synonyms sn
+                JOIN [{pair.Key.Replace("]", "]]")}].sys.objects o ON o.object_id = OBJECT_ID(sn.base_object_name)
+                WHERE PARSENAME(sn.base_object_name, 4) IS NULL AND PARSENAME(sn.base_object_name, 3) = @db";
+            try
+            {
+                var types = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                using (var cmd = new SqlCommand(sql, conn) { CommandTimeout = 15 })
+                {
+                    cmd.Parameters.AddWithValue("@db", pair.Key);
+                    using var reader = cmd.ExecuteReader();
+                    while (reader.Read())
+                        types[reader.GetString(0)] = reader.GetString(1).Trim();
+                }
+                foreach (var obj in pair.Value)
+                    if (types.TryGetValue(obj.BaseObjectName, out string type))
+                        obj.BaseObjectType = type;
+            }
+            catch (SqlException ex)
+            {
+                Diagnostics.SQLExtendedLog.Info("SchemaCache", $"Synonym targets in [{pair.Key}] left unresolved: {ex.Message}");
+            }
+        }
     }
 
     private static List<CachedColumn> LoadColumns(SqlConnection conn, CancellationToken ct)

@@ -39,6 +39,9 @@ public partial class SchemaCacheControl : UserControl
     private readonly HashSet<string> _collapsedServers = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _expandedDatabases = new(StringComparer.OrdinalIgnoreCase);
 
+    // The linked-server branch starts collapsed, at every level: it is reference, not the cache's main content.
+    private readonly HashSet<string> _expandedLinked = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Which node is selected, carried across rebuilds. The tree's ItemsSource is replaced wholesale every
     /// five seconds, so without this the toolbar's Export button would lose its target on the next tick.
@@ -74,6 +77,7 @@ public partial class SchemaCacheControl : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         SchemaCache.Instance.CacheRefreshed += OnCacheRefreshed;
+        LinkedServerCache.Instance.Changed += OnLinkedServersChanged;
         Rebuild();
         _timer.Start();
     }
@@ -82,9 +86,13 @@ public partial class SchemaCacheControl : UserControl
     {
         _timer.Stop();
         SchemaCache.Instance.CacheRefreshed -= OnCacheRefreshed;
+        LinkedServerCache.Instance.Changed -= OnLinkedServersChanged;
     }
 
     private void OnCacheRefreshed(object sender, CacheRefreshEventArgs e)
+        => Dispatcher.BeginInvoke(new Action(() => Rebuild()));
+
+    private void OnLinkedServersChanged(object sender, EventArgs e)
         => Dispatcher.BeginInvoke(new Action(() => Rebuild()));
 
     // --- Tree construction ---
@@ -109,6 +117,16 @@ public partial class SchemaCacheControl : UserControl
 
                 if (s.IsSelected) _selectedKey = SelectionKeyForServer(s.ConnectionKey);
 
+                foreach (var node in s.Linked?.AllNodes() ?? Enumerable.Empty<LinkedNode>())
+                {
+                    if (capture)
+                    {
+                        if (node.IsExpanded) _expandedLinked.Add(node.Key);
+                        else _expandedLinked.Remove(node.Key);
+                    }
+                    if (node.IsSelected) _selectedKey = "l|" + node.Key;
+                }
+
                 if (s.Databases != null)
                 {
                     foreach (var d in s.Databases)
@@ -131,12 +149,19 @@ public partial class SchemaCacheControl : UserControl
 
         var snapshot = SchemaCache.Instance.GetCacheSnapshot();
 
-        var servers = snapshot
-            .GroupBy(e => e.ConnectionKey, StringComparer.OrdinalIgnoreCase)
+        // A server whose linked servers were read but none of whose databases is cached still gets a node.
+        var serverKeys = snapshot.Select(e => e.ConnectionKey)
+            .Concat(LinkedServerCache.Instance.ConnectionKeys)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        bool linkedHidden = SQLExtendedSettings.Current.LinkedServerCompletion == LinkedServerCompletionLevel.Off;
+
+        var servers = serverKeys
+            .GroupJoin(snapshot, k => k, e => e.ConnectionKey, (k, entries) => new { Key = k, Entries = entries.ToList() }, StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .Select(g =>
             {
-                var dbs = g.OrderBy(e => e.Database, StringComparer.OrdinalIgnoreCase)
+                var dbs = g.Entries.OrderBy(e => e.Database, StringComparer.OrdinalIgnoreCase)
                            .Select(e =>
                            {
                                var node = DatabaseNode.From(e);
@@ -145,12 +170,18 @@ public partial class SchemaCacheControl : UserControl
                                return node;
                            })
                            .ToList();
-                int objects = g.Sum(e => e.ObjectCount);
+                int objects = g.Entries.Sum(e => e.ObjectCount);
+                var linked = BuildLinkedGroup(g.Key);
                 return new ServerNode
                 {
                     ConnectionKey = g.Key,
                     Name = g.Key,
                     Databases = dbs,
+                    Linked = linked,
+                    // With linked servers turned off and nothing read, the branch would be an empty row under every server.
+                    Children = linkedHidden && LinkedServerCache.Instance.GetServersState(g.Key, out _) == LinkedLoadState.NotLoaded
+                        ? dbs.Cast<object>().ToList()
+                        : dbs.Cast<object>().Append(linked).ToList(),
                     Summary = $"{dbs.Count} database{(dbs.Count == 1 ? "" : "s")} · {objects:N0} object{(objects == 1 ? "" : "s")}",
                     IsExpanded = !_collapsedServers.Contains(g.Key),
                     IsSelected = _selectedKey == SelectionKeyForServer(g.Key)
@@ -269,6 +300,9 @@ public partial class SchemaCacheControl : UserControl
         _collapsedServers.Clear();
         foreach (var entry in SchemaCache.Instance.GetCacheSnapshot())
             _expandedDatabases.Add(DbKey(entry.ConnectionKey, entry.Database));
+        foreach (var server in CacheTree.ItemsSource as IEnumerable<ServerNode> ?? Enumerable.Empty<ServerNode>())
+            foreach (var node in server.Linked?.AllNodes() ?? Enumerable.Empty<LinkedNode>())
+                _expandedLinked.Add(node.Key);
         Rebuild(capture: false);
     }
 
@@ -277,6 +311,7 @@ public partial class SchemaCacheControl : UserControl
         foreach (var entry in SchemaCache.Instance.GetCacheSnapshot())
             _collapsedServers.Add(entry.ConnectionKey);
         _expandedDatabases.Clear();
+        _expandedLinked.Clear();
         Rebuild(capture: false);
     }
 
@@ -336,6 +371,157 @@ public partial class SchemaCacheControl : UserControl
     {
         if ((sender as MenuItem)?.DataContext is ServerNode node)
             TrySetClipboard(node.Name);
+    }
+
+    // --- Linked servers ---
+
+    /// <summary>
+    /// The "Linked servers" branch under one server: what <see cref="LinkedServerCache"/> holds for it, which is only
+    /// what IntelliSense has asked for so far (or what was loaded from here), at the level the setting allows.
+    /// </summary>
+    private LinkedGroupNode BuildLinkedGroup(string connectionKey)
+    {
+        var cache = LinkedServerCache.Instance;
+        var state = cache.GetServersState(connectionKey, out string error);
+        var group = new LinkedGroupNode { ConnectionKey = connectionKey, Key = $"{connectionKey}|" };
+
+        var servers = cache.GetSnapshot(connectionKey).Select(ls =>
+        {
+            var server = new LinkedServerNode
+            {
+                ConnectionKey = connectionKey,
+                Name = ls.Server.Name,
+                Key = $"{connectionKey}|{ls.Server.Name}",
+                Product = string.Join(" · ", new[] { ls.Server.Description, ls.Server.DataSource }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                StateBrush = BrushFor(ls.DatabasesState),
+                StateText = ls.DatabasesState switch
+                {
+                    LinkedLoadState.Ready => $"Databases read {(ls.DatabasesLoadedUtc.HasValue ? RelativeTime(ls.DatabasesLoadedUtc.Value) : "")}",
+                    LinkedLoadState.Loading => "Reading databases…",
+                    LinkedLoadState.Failed => "Could not read databases: " + ls.DatabasesError,
+                    _ => "Databases not read — right-click to load"
+                },
+                Detail = ls.DatabasesState switch
+                {
+                    LinkedLoadState.Ready => $"{ls.Databases.Count:N0} database{(ls.Databases.Count == 1 ? "" : "s")}",
+                    LinkedLoadState.Loading => "loading…",
+                    LinkedLoadState.Failed => "failed",
+                    _ => "name only"
+                },
+                Databases = ls.Databases.Select(d => new LinkedDatabaseNode
+                {
+                    ConnectionKey = connectionKey,
+                    ServerName = ls.Server.Name,
+                    Name = d.Name,
+                    Key = $"{connectionKey}|{ls.Server.Name}|{d.Name}",
+                    StateBrush = BrushFor(d.ObjectsState),
+                    StateText = d.ObjectsState switch
+                    {
+                        LinkedLoadState.Ready => "Tables and views read",
+                        LinkedLoadState.Loading => "Reading tables and views…",
+                        LinkedLoadState.Failed => "Could not read tables and views: " + d.ObjectsError,
+                        _ => "Tables not read — right-click to load"
+                    },
+                    Detail = d.ObjectsState switch
+                    {
+                        LinkedLoadState.Ready => LinkedObjectSummary(d),
+                        LinkedLoadState.Loading => "loading…",
+                        LinkedLoadState.Failed => "failed",
+                        _ => ""
+                    }
+                }).ToList()
+            };
+            return server;
+        }).ToList();
+
+        group.Servers = servers;
+        group.Summary = state switch
+        {
+            LinkedLoadState.Ready => servers.Count == 0 ? "none" : $"{servers.Count}",
+            LinkedLoadState.Loading => "reading…",
+            LinkedLoadState.Failed => "could not be read",
+            _ => "not read yet"
+        };
+        group.StateText = state == LinkedLoadState.Failed
+            ? "Could not read sys.servers: " + error
+            : state == LinkedLoadState.NotLoaded ? "Right-click to read this server's linked servers" : null;
+
+        foreach (var node in group.AllNodes())
+        {
+            node.IsExpanded = _expandedLinked.Contains(node.Key);
+            node.IsSelected = _selectedKey == "l|" + node.Key;
+        }
+
+        return group;
+    }
+
+    private static string LinkedObjectSummary(LinkedDatabaseSnapshot d)
+    {
+        var parts = new List<string> { $"{d.TableCount:N0} table{(d.TableCount == 1 ? "" : "s")}", $"{d.ViewCount:N0} view{(d.ViewCount == 1 ? "" : "s")}" };
+        if (d.OtherCount > 0) parts.Add($"{d.OtherCount:N0} synonym{(d.OtherCount == 1 ? "" : "s")}");
+        if (d.TablesWithColumns > 0) parts.Add($"columns for {d.TablesWithColumns:N0}");
+        return string.Join(" · ", parts);
+    }
+
+    private static Brush BrushFor(LinkedLoadState state) => state switch
+    {
+        LinkedLoadState.Ready => ReadyBrush,
+        LinkedLoadState.Loading => LoadingBrush,
+        LinkedLoadState.Failed => ErrorBrush,
+        _ => NotLoadedBrush
+    };
+
+    /// <summary>
+    /// A connection to the local server, for a load started from here: the one IntelliSense last used, any cached
+    /// database's, or the active editor's. Null with the status line saying why.
+    /// </summary>
+    private string LinkedConnectionFor(string connectionKey)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        string cs = LinkedServerCache.Instance.GetConnectionString(connectionKey)
+                    ?? SchemaCache.Instance.GetCacheSnapshot().Where(e => string.Equals(e.ConnectionKey, connectionKey, StringComparison.OrdinalIgnoreCase))
+                                                             .Select(e => e.ConnectionString).FirstOrDefault(c => !string.IsNullOrEmpty(c))
+                    ?? TryActiveConnectionFor(connectionKey);
+        if (string.IsNullOrEmpty(cs))
+            SetStatus($"No connection available to {connectionKey} — open a query window on it first.", sticky: true);
+        return cs;
+    }
+
+    private void RefreshLinkedList_Click(object sender, RoutedEventArgs e)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if ((sender as MenuItem)?.DataContext is not LinkedGroupNode node || LinkedConnectionFor(node.ConnectionKey) is not { } cs)
+            return;
+        LinkedServerCache.Instance.Refresh(node.ConnectionKey, server: null, reloadDatabases: false, connectionString: cs);
+        SetStatus($"Reading the linked servers of {node.ConnectionKey}…");
+    }
+
+    private void RefreshLinkedServer_Click(object sender, RoutedEventArgs e)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if ((sender as MenuItem)?.DataContext is not LinkedServerNode node || LinkedConnectionFor(node.ConnectionKey) is not { } cs)
+            return;
+        _expandedLinked.Add(node.Key);
+        LinkedServerCache.Instance.Refresh(node.ConnectionKey, node.Name, reloadDatabases: true, connectionString: cs);
+        SetStatus($"Reading the databases on linked server {node.Name}…");
+    }
+
+    private void RefreshLinkedDatabase_Click(object sender, RoutedEventArgs e)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if ((sender as MenuItem)?.DataContext is not LinkedDatabaseNode node || LinkedConnectionFor(node.ConnectionKey) is not { } cs)
+            return;
+        LinkedServerCache.Instance.RefreshDatabase(node.ConnectionKey, node.ServerName, node.Name, connectionString: cs);
+        SetStatus($"Reading the tables and views in {node.ServerName}.{node.Name}…");
+    }
+
+    private void CopyLinkedName_Click(object sender, RoutedEventArgs e)
+    {
+        switch ((sender as MenuItem)?.DataContext)
+        {
+            case LinkedServerNode server: TrySetClipboard(server.Name); break;
+            case LinkedDatabaseNode db: TrySetClipboard($"{db.ServerName}.{db.Name}"); break;
+        }
     }
 
     // --- Export to folder ---
@@ -647,6 +833,10 @@ public partial class SchemaCacheControl : UserControl
         public string ConnectionKey { get; set; }
         public string Summary { get; set; }
         public List<DatabaseNode> Databases { get; set; }
+        public LinkedGroupNode Linked { get; set; }
+
+        /// <summary>What the tree shows beneath the server: its databases, then the linked-server branch.</summary>
+        public List<object> Children { get; set; }
         public bool IsExpanded { get; set; } = true;
         public bool IsSelected { get; set; }
     }
@@ -713,6 +903,47 @@ public partial class SchemaCacheControl : UserControl
             CacheState.NotLoaded => "not loaded",
             _ => $"{e.ObjectCount:N0} object{(e.ObjectCount == 1 ? "" : "s")}"
         };
+    }
+
+    /// <summary>Common to the three linked-server node types, so expansion and selection survive the rebuild.</summary>
+    public abstract class LinkedNode
+    {
+        public string ConnectionKey { get; set; }
+        public string Name { get; set; }
+        internal string Key { get; set; }
+        public string Detail { get; set; }
+        public Brush StateBrush { get; set; }
+        public string StateText { get; set; }
+        public bool IsExpanded { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public sealed class LinkedGroupNode : LinkedNode
+    {
+        public string Summary { get; set; }
+        public List<LinkedServerNode> Servers { get; set; } = new();
+
+        internal IEnumerable<LinkedNode> AllNodes()
+        {
+            yield return this;
+            foreach (var server in Servers)
+            {
+                yield return server;
+                foreach (var db in server.Databases)
+                    yield return db;
+            }
+        }
+    }
+
+    public sealed class LinkedServerNode : LinkedNode
+    {
+        public string Product { get; set; }
+        public List<LinkedDatabaseNode> Databases { get; set; } = new();
+    }
+
+    public sealed class LinkedDatabaseNode : LinkedNode
+    {
+        public string ServerName { get; set; }
     }
 
     public sealed class TypeCountNode

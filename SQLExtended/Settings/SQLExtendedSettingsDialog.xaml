@@ -226,6 +226,16 @@
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Company is inserted as &quot;dbo.Company c&quot;, and its columns are then offered as c.ACTIVE, even with a single table."/>
 
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,12,0,4" Text="Linked servers"/>
+                        <ComboBox x:Name="CboLinkedServers" Style="{StaticResource DarkCombo}" Width="260" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="Off"/>
+                            <ComboBoxItem Content="Names"/>
+                            <ComboBoxItem Content="Names and databases"/>
+                            <ComboBoxItem Content="Names, databases, tables and columns"/>
+                        </ComboBox>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,4,0,4"
+                                   Text="Names are offered after FROM, JOIN, EXEC, OPENQUERY( and ) AT, from this server's own list. The other two levels ask the linked server itself, through its provider, so they wait on that server; what has been read, and any failure, shows in the Schema Cache window. Procedures on a linked server are never listed."/>
+
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Commit keys"/>
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Which keys accept the highlighted completion. Unchecked keys are typed normally and leave the list open."/>

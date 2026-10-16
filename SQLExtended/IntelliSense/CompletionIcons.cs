@@ -27,6 +27,9 @@ internal static class CompletionIcons
     // Database icon (for USE completion)
     public static ImageMoniker Database => KnownMonikers.Database;
 
+    // Linked server (four-part names, OPENQUERY)
+    public static ImageMoniker LinkedServer => KnownMonikers.LinkedServer;
+
     // Schema icon (for cross-database three-part name completion)
     public static ImageMoniker Schema => KnownMonikers.Namespace;
 

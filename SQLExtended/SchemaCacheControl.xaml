@@ -182,7 +182,7 @@
                     <TreeView.Resources>
                         <!-- Server node -->
                         <HierarchicalDataTemplate DataType="{x:Type local:SchemaCacheControl+ServerNode}"
-                                                  ItemsSource="{Binding Databases}"
+                                                  ItemsSource="{Binding Children}"
                                                   xmlns:local="clr-namespace:SQLExtended">
                             <Grid Tag="{Binding}" Margin="0,1">
                                 <Grid.ContextMenu>
@@ -249,6 +249,84 @@
                                            FontSize="11" VerticalAlignment="Center" Margin="10,0,4,0"/>
                             </Grid>
                         </HierarchicalDataTemplate>
+
+                        <!-- "Linked servers" branch under a server -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:SchemaCacheControl+LinkedGroupNode}"
+                                                  ItemsSource="{Binding Servers}"
+                                                  xmlns:local="clr-namespace:SQLExtended">
+                            <Grid Tag="{Binding}" Margin="0,1" ToolTip="{Binding StateText}">
+                                <Grid.ContextMenu>
+                                    <ContextMenu Style="{StaticResource DarkMenu}"
+                                                 DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Re-read linked server list" Click="RefreshLinkedList_Click"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Linked servers" Foreground="{DynamicResource SqlxText}"
+                                               FontSize="13" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource SqlxTextMuted}"
+                                               FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </HierarchicalDataTemplate>
+
+                        <!-- One linked server -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:SchemaCacheControl+LinkedServerNode}"
+                                                  ItemsSource="{Binding Databases}"
+                                                  xmlns:local="clr-namespace:SQLExtended">
+                            <Grid Tag="{Binding}" Margin="0,1">
+                                <Grid.ContextMenu>
+                                    <ContextMenu Style="{StaticResource DarkMenu}"
+                                                 DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Load / refresh databases" Click="RefreshLinkedServer_Click"
+                                                  ToolTip="Forget what was read from this linked server, including any failure, and read its databases again"/>
+                                        <Separator/>
+                                        <MenuItem Header="Copy linked server name" Click="CopyLinkedName_Click"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" Width="9" Height="9" Fill="{Binding StateBrush}"
+                                         VerticalAlignment="Center" Margin="0,0,7,0" ToolTip="{Binding StateText}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource SqlxText}"
+                                           FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Product}" Foreground="{DynamicResource SqlxTextMuted}"
+                                           FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="{DynamicResource SqlxSynComment}"
+                                           FontSize="11" VerticalAlignment="Center" Margin="10,0,4,0" ToolTip="{Binding StateText}"/>
+                            </Grid>
+                        </HierarchicalDataTemplate>
+
+                        <!-- A database on a linked server (leaf) -->
+                        <DataTemplate DataType="{x:Type local:SchemaCacheControl+LinkedDatabaseNode}"
+                                      xmlns:local="clr-namespace:SQLExtended">
+                            <Grid Tag="{Binding}" Margin="0,1">
+                                <Grid.ContextMenu>
+                                    <ContextMenu Style="{StaticResource DarkMenu}"
+                                                 DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                        <MenuItem Header="Load / refresh tables and views" Click="RefreshLinkedDatabase_Click"
+                                                  ToolTip="Forget the tables, views and columns read from this database and read its tables and views again"/>
+                                        <Separator/>
+                                        <MenuItem Header="Copy name" Click="CopyLinkedName_Click"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" Width="9" Height="9" Fill="{Binding StateBrush}"
+                                         VerticalAlignment="Center" Margin="0,0,7,0" ToolTip="{Binding StateText}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource SqlxText}"
+                                           FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Detail}" Foreground="{DynamicResource SqlxSynComment}"
+                                           FontSize="11" VerticalAlignment="Center" Margin="10,0,4,0" ToolTip="{Binding StateText}"/>
+                            </Grid>
+                        </DataTemplate>
 
                         <!-- Object-type count (leaf under a database) -->
                         <DataTemplate DataType="{x:Type local:SchemaCacheControl+TypeCountNode}"

@@ -35,7 +35,9 @@ internal static class SqlContextAnalyzer
         QueryHint,
         UseHintName,
         TableHint,
-        IndexHintName
+        IndexHintName,
+        /// <summary>"OPENQUERY(" and "EXEC ('…') AT " — only a linked server name fits.</summary>
+        LinkedServerName
     }
 
     internal sealed class AnalysisResult
@@ -156,6 +158,17 @@ internal static class SqlContextAnalyzer
         {
             hintResult.StatementText = statementText;
             return hintResult;
+        }
+
+        // 1a-ii. OPENQUERY( <server> and EXEC ('…') AT <server>. Ahead of the function-argument probe, since
+        // OPENQUERY( is a call, and of the procedure check, which "EXEC (" would otherwise not reach anyway.
+        if (LinkedServerContextPattern.IsMatch(StripTrailingPartialIdentifier(textBeforeCursor)))
+        {
+            return new AnalysisResult
+            {
+                Type = CompletionType.LinkedServerName,
+                StatementText = statementText
+            };
         }
 
         // 1b. Inside a built-in function call whose argument draws from a known set —
@@ -436,22 +449,28 @@ internal static class SqlContextAnalyzer
 
         int end = text.Length;
 
-        // Strip trailing unbracketed identifier chars
-        while (end > 0)
+        // An unclosed "[name" being typed can hold characters the loop below stops at - "[LNK\INS", "[My Ta" - so
+        // it goes whole. Not across a line break: an unclosed bracket on an earlier line is a typo, not a name.
+        int open = text.LastIndexOf('[');
+        if (open >= 0 && text.IndexOf(']', open) < 0 && text.IndexOf('\n', open) < 0)
         {
-            char c = text[end - 1];
-            if (char.IsLetterOrDigit(c) || c == '_' || c == '@' || c == '#')
-                end--;
-            else
-                break;
+            end = open;
+        }
+        else
+        {
+            // Strip trailing unbracketed identifier chars
+            while (end > 0)
+            {
+                char c = text[end - 1];
+                if (char.IsLetterOrDigit(c) || c == '_' || c == '@' || c == '#')
+                    end--;
+                else
+                    break;
+            }
         }
 
-        // Strip a trailing bracketed identifier like "[My Table"
-        if (end > 0 && text[end - 1] == '[')
-        {
-            end--;
-        }
-        else if (end > 0 && text[end - 1] == ']')
+        // Strip a trailing bracketed identifier like "[My Table]"
+        if (end > 0 && text[end - 1] == ']')
         {
             int bracketStart = text.LastIndexOf('[', end - 1);
             if (bracketStart >= 0) end = bracketStart;
@@ -923,6 +942,13 @@ internal static class SqlContextAnalyzer
     // Matches "ALTER INDEX {name | ALL} ON [schema.]object " — an index action is expected.
     private static readonly Regex AlterIndexActionPattern = new Regex(
         @"(?i)\bALTER\s+INDEX\s+(?:\[[^\]]+\]|\w+)\s+ON\s+(?:(?:\[[^\]]+\]|\w+)\s*\.\s*)?(?:\[[^\]]+\]|\w+)\s+$",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
+    // The first argument of OPENQUERY, or the server after "EXEC (…) AT". The AT form needs the EXEC ( … ) in front
+    // of it — "GETDATE() AT TIME ZONE" also has a ") AT " — and skips over string literals, which is where a
+    // pass-through query's own parentheses are.
+    private static readonly Regex LinkedServerContextPattern = new Regex(
+        @"(?i)(?:\bOPENQUERY\s*\(\s*|\bEXEC(?:UTE)?\s*\((?:[^()']|'(?:[^']|'')*')*\)\s*AT\s+)$",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     // Matches EXEC or EXECUTE keyword, optionally followed by partial schema.name typing

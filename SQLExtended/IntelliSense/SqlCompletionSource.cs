@@ -30,6 +30,10 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         ImmutableArray.Create(new CompletionFilter("Tables", "T", new ImageElement(CompletionIcons.Table.ToImageId())));
     private static readonly ImmutableArray<CompletionFilter> ViewFilter =
         ImmutableArray.Create(new CompletionFilter("Views", "V", new ImageElement(CompletionIcons.View.ToImageId())));
+    private static readonly ImmutableArray<CompletionFilter> LinkedServerFilter =
+        ImmutableArray.Create(new CompletionFilter("Linked servers", "L", new ImageElement(CompletionIcons.LinkedServer.ToImageId())));
+    private static readonly ImmutableArray<CompletionFilter> SynonymFilter =
+        ImmutableArray.Create(new CompletionFilter("Synonyms", "Y", new ImageElement(CompletionIcons.Synonym.ToImageId())));
     private static readonly ImmutableArray<CompletionFilter> ColumnFilter =
         ImmutableArray.Create(new CompletionFilter("Columns", "C", new ImageElement(CompletionIcons.Column.ToImageId())));
     private static readonly ImmutableArray<CompletionFilter> ProcFilter =
@@ -146,6 +150,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             case SqlContextAnalyzer.CompletionType.IndexColumn:
             case SqlContextAnalyzer.CompletionType.IndexHintName:
             case SqlContextAnalyzer.CompletionType.DatabaseName:
+            case SqlContextAnalyzer.CompletionType.LinkedServerName:
             case SqlContextAnalyzer.CompletionType.CollationName:
                 {
                     var span = FindApplicableSpan(triggerLocation, analysis.Type);
@@ -270,6 +275,16 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 return BuildDatabaseCompletion(connectionString);
             }
 
+            // OPENQUERY( and EXEC (…) AT: linked server names, which also need only a connection.
+            if (analysis.Type == SqlContextAnalyzer.CompletionType.LinkedServerName)
+            {
+                if (string.IsNullOrEmpty(connectionString))
+                    return CompletionContext.Empty;
+                var serverItems = new List<CompletionItem>();
+                AppendLinkedServerItems(serverItems, connectionString, SchemaCache.Instance.GetConnectionKey(connectionString));
+                return serverItems.Count > 0 ? new CompletionContext(serverItems.ToImmutableArray()) : CompletionContext.Empty;
+            }
+
             // Collation names (COLLATE …) also need only a connection.
             if (analysis.Type == SqlContextAnalyzer.CompletionType.CollationName)
             {
@@ -290,6 +305,10 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             // is already in memory the first time someone types the dot instead of the first
             // attempt coming back empty.
             SystemCatalogCache.Instance.EnsureLoaded(connectionString, connKey);
+
+            // The same for the linked server names: a local query, once per server per session.
+            if (_sessionSettings.LinkedServerCompletion != Settings.LinkedServerCompletionLevel.Off)
+                LinkedServerCache.Instance.EnsureServers(connectionString, connKey);
 
             // Trigger cache load if not loaded
             if (state == CacheState.NotLoaded)
@@ -315,7 +334,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                     return BuildJoinConditionCompletion(cache, connectionString, connKey, currentDb, analysis, localTables);
 
                 case SqlContextAnalyzer.CompletionType.ProcedureName:
-                    return BuildProcedureCompletion(cache, connKey, currentDb, triggerLocation);
+                    return BuildProcedureCompletion(cache, connectionString, connKey, currentDb, triggerLocation);
 
                 case SqlContextAnalyzer.CompletionType.InsertColumnTemplate:
                     return BuildInsertTemplateCompletion(cache, connectionString, connKey, currentDb, analysis);
@@ -431,9 +450,13 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             AppendLocalTableItems(items, localTables, aliasTaken);
             AppendObjectItems(items, cache, connKey, currentDb, schemaFilter: null, qualifyWithSchema: true, aliasTaken: aliasTaken);
             AppendDatabaseItems(items, connectionString, currentDb);
+            AppendLinkedServerItems(items, connectionString, connKey);
         }
         else if (parts.Count == 1)
         {
+            // Interpretation C: a linked server → its databases (four-part naming).
+            AppendLinkedDatabaseItems(items, connectionString, connKey, parts[0]);
+
             string qualifier = parts[0];
 
             // Interpretation A: a schema in the current database \u2192 its tables/views.
@@ -447,7 +470,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             if (IsKnownDatabase(connectionString, qualifier))
                 AppendSchemaItems(items, cache, connectionString, connKey, qualifier);
         }
-        else
+        else if (parts.Count == 2)
         {
             // database.schema. \u2192 tables/views in that database+schema.
             string db = parts[0];
@@ -461,6 +484,14 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 // cache is keyed per server for that reason. No per-database load is needed here.
                 AppendSystemObjectItems(items, connectionString, connKey, schema, aliasTaken);
             }
+
+            // linkedserver.database. \u2192 the schemas of that remote database.
+            AppendLinkedSchemaItems(items, connectionString, connKey, parts[0], parts[1]);
+        }
+        else if (parts.Count == 3)
+        {
+            // linkedserver.database.schema. \u2192 the remote tables and views.
+            AppendLinkedObjectItems(items, connectionString, connKey, parts[0], parts[1], parts[2], aliasTaken);
         }
 
         return items.Count > 0
@@ -478,6 +509,19 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// <summary>" alias" for a table being inserted, or empty when <paramref name="aliasTaken"/> is null (no alias here).</summary>
     private static string AliasSuffix(string tableName, ISet<string> aliasTaken) =>
         aliasTaken == null ? string.Empty : " " + JoinClauseBuilder.MakeAlias(tableName, aliasTaken);
+
+    /// <summary>
+    /// Whether a synonym belongs in a list of the given object types. One whose target could not be resolved (a linked
+    /// server, or a database this login cannot read) belongs in every such list: offering it where it does not fit
+    /// costs a glance, while leaving it out is the gap this exists to close - and cross-server synonyms are the
+    /// commonest kind.
+    /// </summary>
+    private static bool SynonymMayTarget(CachedObject synonym, params string[] types) =>
+        synonym.BaseObjectType == null || Array.IndexOf(types, synonym.BaseObjectType) >= 0;
+
+    /// <summary>"Synonym → [db].[dbo].[Target]", or plain "Synonym" if the target was never read.</summary>
+    private static string SynonymSuffix(CachedObject synonym) =>
+        string.IsNullOrEmpty(synonym.BaseObjectName) ? "Synonym" : $"Synonym \u2192 {synonym.BaseObjectName}";
 
     /// <summary>
     /// Appends table/view completion items for a database. When <paramref name="qualifyWithSchema"/>
@@ -500,7 +544,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         foreach (var obj in objects)
         {
             string type = obj.ObjectType?.Trim();
-            if (type != "U" && type != "V")
+            if (type != "U" && type != "V" && !(type == "SN" && SynonymMayTarget(obj, "U", "V")))
                 continue;
 
             if (schemaFilter != null &&
@@ -516,14 +560,16 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             // Row counts are the one part of this suffix that costs something to be wrong about: they are
             // whatever the cache last loaded, so on a busy table the number is stale by construction. The
             // setting is for people who would rather see no number than an old one.
-            string suffix = type != "U"
-                ? "View"
-                : _sessionSettings.ShowRowCounts
-                    ? $"Table \u00B7 {obj.RowCount:N0} rows"
-                    : "Table";
+            string suffix = type == "SN"
+                ? SynonymSuffix(obj)
+                : type != "U"
+                    ? "View"
+                    : _sessionSettings.ShowRowCounts
+                        ? $"Table \u00B7 {obj.RowCount:N0} rows"
+                        : "Table";
 
             var icon = new ImageElement(CompletionIcons.ForObjectType(type).ToImageId());
-            var filters = type == "U" ? TableFilter : ViewFilter;
+            var filters = type == "U" ? TableFilter : type == "V" ? ViewFilter : SynonymFilter;
 
             items.Add(new CompletionItem(
                 displayText: displayText,
@@ -971,24 +1017,31 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     // --- Stored procedure completion (Phase 4 logic) ---
 
     private CompletionContext BuildProcedureCompletion(
-        ISchemaCache cache, string connKey, string currentDb, SnapshotPoint triggerLocation)
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, SnapshotPoint triggerLocation)
     {
-        var objects = cache.GetObjects(connKey, currentDb);
-        if (objects == null || objects.Count == 0)
-            return CompletionContext.Empty;
-
         // Check for schema prefix (e.g., "dbo.")
         int pos = triggerLocation.Position;
         int lookBack = Math.Min(pos, 500);
         string textBefore = triggerLocation.Snapshot.GetText(pos - lookBack, lookBack);
         string schemaPrefix = SqlCompletionContext.GetSchemaPrefix(textBefore);
 
+        // "EXEC LinkedSrv.db.dbo.usp" — the server, then its databases. Procedures on a linked server are never
+        // listed (LinkedServerCache has no way to read them), so the list stops there.
         var items = new List<CompletionItem>();
+        var parts = SqlCompletionContext.GetQualifierParts(textBefore);
+        if (parts.Count == 0)
+            AppendLinkedServerItems(items, connectionString, connKey);
+        else if (parts.Count == 1)
+            AppendLinkedDatabaseItems(items, connectionString, connKey, parts[0]);
+
+        var objects = cache.GetObjects(connKey, currentDb);
+        if (objects == null || objects.Count == 0)
+            return items.Count > 0 ? new CompletionContext(items.ToImmutableArray()) : CompletionContext.Empty;
 
         foreach (var obj in objects)
         {
             string type = obj.ObjectType?.Trim();
-            if (type != "P")
+            if (type != "P" && !(type == "SN" && SynonymMayTarget(obj, "P")))
                 continue;
 
             if (schemaPrefix != null &&
@@ -1004,14 +1057,16 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             // Build parameter summary for suffix
             var parameters = cache.GetParameters(connKey, currentDb, obj.SchemaName, obj.ObjectName);
             string suffix = BuildParameterSummary(parameters);
+            if (type == "SN")
+                suffix = string.IsNullOrEmpty(suffix) ? SynonymSuffix(obj) : $"{SynonymSuffix(obj)} \u00B7 {suffix}";
 
-            var icon = new ImageElement(CompletionIcons.StoredProcedure.ToImageId());
+            var icon = new ImageElement((type == "SN" ? CompletionIcons.Synonym : CompletionIcons.StoredProcedure).ToImageId());
 
             var item = new CompletionItem(
                 displayText: displayText,
                 source: this,
                 icon: icon,
-                filters: ProcFilter,
+                filters: type == "SN" ? SynonymFilter : ProcFilter,
                 suffix: suffix,
                 insertText: insertText,
                 sortText: displayText,
@@ -1057,7 +1112,9 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         foreach (var obj in objects)
         {
             string type = obj.ObjectType?.Trim();
-            if (type != "FN" && type != "IF" && type != "TF")
+            // Only a synonym known to point at a function: unresolved ones already sit in the table and EXEC lists,
+            // and every "dbo." would otherwise offer them a third time.
+            if (type != "FN" && type != "IF" && type != "TF" && !(type == "SN" && obj.BaseObjectType is "FN" or "IF" or "TF"))
                 continue;
 
             if (schemaPrefix != null &&
@@ -1073,6 +1130,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 "FN" => "Scalar Function",
                 "IF" => "Inline Table Function",
                 "TF" => "Table Function",
+                "SN" => SynonymSuffix(obj),
                 _ => "Function"
             };
 
@@ -1088,7 +1146,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
                 displayText: displayText,
                 source: this,
                 icon: icon,
-                filters: FunctionFilter,
+                filters: type == "SN" ? SynonymFilter : FunctionFilter,
                 suffix: suffix,
                 insertText: insertText,
                 sortText: displayText,
@@ -1178,10 +1236,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
 
         if (tableRef != null)
         {
-            string database = tableRef.Database ?? currentDb;
-            string schema = tableRef.Schema ?? "dbo";
-            string tableName = tableRef.Table;
-            var columns = GetColumnsWithFlags(cache, connectionString, connKey, database, schema, tableName, localTables);
+            var columns = GetColumnsForReference(cache, connectionString, connKey, currentDb, tableRef, localTables);
             return BuildColumnItemsFrom(columns);
         }
 
@@ -1220,13 +1275,10 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
 
         foreach (var tableRef in tables)
         {
-            string database = tableRef.Database ?? currentDb;
-            string schema = tableRef.Schema ?? "dbo";
-            string tableName = tableRef.Table;
             // An aliased table prefixes its columns even when it is alone, so "FROM dbo.Company c WHERE " offers c.ACTIVE.
             string prefix = multipleTables || (_sessionSettings.AutoAliasTables && !string.IsNullOrEmpty(tableRef.Alias)) ? tableRef.ReferenceName : null;
 
-            var columns = GetColumnsWithFlags(cache, connectionString, connKey, database, schema, tableName, localTables);
+            var columns = GetColumnsForReference(cache, connectionString, connKey, currentDb, tableRef, localTables);
             foreach (var (col, isPk, isFk) in columns)
             {
                 string quoted = SqlIdentifierQuoting.QuoteIfNeeded(col.ColumnName);
@@ -1556,7 +1608,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         var objects = cache.GetObjects(connKey, database);
         var match = objects?.FirstOrDefault(o =>
             string.Equals(o.ObjectName, table, StringComparison.OrdinalIgnoreCase) &&
-            (o.ObjectType?.Trim() == "U" || o.ObjectType?.Trim() == "V"));
+            o.ObjectType?.Trim() is "U" or "V" or "SN");
         return match?.SchemaName ?? "dbo";
     }
 
@@ -1723,7 +1775,7 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
         foreach (var t in tables)
         {
             string prefix = prefixOverride ?? (prefixEach ? t.ReferenceName : null);
-            foreach (var (col, _, _) in GetColumnsWithFlags(cache, connectionString, connKey, t.Database ?? currentDb, t.Schema ?? "dbo", t.Table, localTables))
+            foreach (var (col, _, _) in GetColumnsForReference(cache, connectionString, connKey, currentDb, t, localTables))
             {
                 string quoted = SqlIdentifierQuoting.QuoteIfNeeded(col.ColumnName);
                 parts.Add(prefix != null ? $"{prefix}.{quoted}" : quoted);
@@ -2035,6 +2087,164 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
     /// is the table's resolved database — the current one, or the qualifier of a cross-database
     /// reference (whose cache load is kicked off in the background if not yet available).
     /// </summary>
+    /// <summary>
+    /// The columns of a table named in the statement. A four-part name reads the linked server's columns, and its
+    /// missing parts stay missing: "LS..dbo.T" has no database to default to, and the remote default schema is not
+    /// necessarily dbo.
+    /// </summary>
+    private IReadOnlyList<(CachedColumn Column, bool IsPrimaryKey, bool IsForeignKey)> GetColumnsForReference(
+        ISchemaCache cache, string connectionString, string connKey, string currentDb, AliasResolver.TableReference t,
+        IReadOnlyList<LocalTableScanner.LocalTable> localTables) =>
+        !string.IsNullOrEmpty(t.Server)
+            ? GetLinkedColumns(connectionString, connKey, t.Server, t.Database, t.Schema, t.Table)
+            : GetColumnsWithFlags(cache, connectionString, connKey, t.Database ?? currentDb, t.Schema ?? "dbo", t.Table, localTables);
+
+    /// <summary>
+    /// A linked server table's columns, read the first time they are asked for — so the first "lt." comes back
+    /// empty and the next one has them. No key flags: sp_columns_ex does not report them.
+    /// </summary>
+    private IReadOnlyList<(CachedColumn Column, bool IsPrimaryKey, bool IsForeignKey)> GetLinkedColumns(
+        string connectionString, string connKey, string server, string database, string schema, string table)
+    {
+        var linked = LinkedServerCache.Instance;
+        if (_sessionSettings.LinkedServerCompletion < Settings.LinkedServerCompletionLevel.Objects ||
+            !linked.EnsureColumns(connectionString, connKey, server, NullIfEmpty(database), NullIfEmpty(schema), table))
+            return Array.Empty<(CachedColumn, bool, bool)>();
+        return linked.GetColumns(connKey, server, NullIfEmpty(database), NullIfEmpty(schema), table).Select(c => (c, false, false)).ToList();
+    }
+
+    private static string NullIfEmpty(string value) => string.IsNullOrEmpty(value) ? null : value;
+
+    // --- Linked servers ---
+
+    /// <summary>
+    /// The linked server names, in the bare FROM / JOIN / EXEC list and after OPENQUERY( and ) AT. The list is
+    /// the local sys.servers, read once per server per session; the first ask starts that read and offers nothing.
+    /// </summary>
+    private void AppendLinkedServerItems(List<CompletionItem> items, string connectionString, string connKey)
+    {
+        var linked = LinkedServerCache.Instance;
+        if (_sessionSettings.LinkedServerCompletion == Settings.LinkedServerCompletionLevel.Off || !linked.EnsureServers(connectionString, connKey))
+            return;
+
+        var icon = new ImageElement(CompletionIcons.LinkedServer.ToImageId());
+        foreach (var server in linked.GetServers(connKey))
+        {
+            // SERVER\INSTANCE and host names with dots or hyphens are the usual linked server names, so most need brackets.
+            string quoted = SqlIdentifierQuoting.QuoteIfNeeded(server.Name);
+            items.Add(new CompletionItem(
+                displayText: server.Name,
+                source: this,
+                icon: icon,
+                filters: LinkedServerFilter,
+                suffix: string.IsNullOrEmpty(server.Description) ? "Linked server" : $"Linked server \u00B7 {server.Description}",
+                insertText: quoted,
+                sortText: $"~ls_{server.Name}",   // after the databases' "~db_"
+                filterText: quoted == server.Name ? server.Name : $"{server.Name} {quoted}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+    }
+
+    /// <summary>"LinkedSrv." → the databases on it. Asks the linked server (sp_catalogs), so the first ask offers nothing.</summary>
+    private void AppendLinkedDatabaseItems(List<CompletionItem> items, string connectionString, string connKey, string server)
+    {
+        var linked = LinkedServerCache.Instance;
+        if (_sessionSettings.LinkedServerCompletion < Settings.LinkedServerCompletionLevel.Databases ||
+            !linked.EnsureServers(connectionString, connKey) || linked.FindServer(connKey, server) is not { } info ||
+            !linked.EnsureDatabases(connectionString, connKey, info.Name))
+            return;
+
+        var icon = new ImageElement(CompletionIcons.Database.ToImageId());
+        foreach (string db in linked.GetDatabases(connKey, info.Name))
+        {
+            string quoted = SqlIdentifierQuoting.QuoteIfNeeded(db);
+            items.Add(new CompletionItem(
+                displayText: db,
+                source: this,
+                icon: icon,
+                filters: DatabaseFilter,
+                suffix: $"Database \u00B7 {info.Name}",
+                insertText: quoted,
+                sortText: $"~lsdb_{db}",
+                filterText: quoted == db ? db : $"{db} {quoted}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+    }
+
+    /// <summary>"LinkedSrv.db." → the schemas that own a table or view there, taken from the object list.</summary>
+    private void AppendLinkedSchemaItems(List<CompletionItem> items, string connectionString, string connKey, string server, string database)
+    {
+        var objects = GetLinkedObjects(connectionString, connKey, server, database, out string serverName);
+        if (objects == null)
+            return;
+
+        var icon = new ImageElement(CompletionIcons.Schema.ToImageId());
+        foreach (string schema in objects.Select(o => o.Schema).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            string quoted = SqlIdentifierQuoting.QuoteIfNeeded(schema);
+            items.Add(new CompletionItem(
+                displayText: schema,
+                source: this,
+                icon: icon,
+                filters: SchemaFilter,
+                suffix: $"Schema \u00B7 {serverName}.{database}",
+                insertText: quoted,
+                sortText: $"schema_{schema}",
+                filterText: quoted == schema ? schema : $"{schema} {quoted}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+    }
+
+    /// <summary>"LinkedSrv.db.schema." → its tables and views, with an alias where the position takes one.</summary>
+    private void AppendLinkedObjectItems(
+        List<CompletionItem> items, string connectionString, string connKey, string server, string database, string schema, ISet<string> aliasTaken)
+    {
+        var objects = GetLinkedObjects(connectionString, connKey, server, database, out string serverName);
+        if (objects == null)
+            return;
+
+        foreach (var obj in objects)
+        {
+            // "LS.db..T" leaves the schema empty: every schema then applies, as it does on the server.
+            if (!string.IsNullOrEmpty(schema) && !string.Equals(obj.Schema, schema, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string type = obj.Type == "VIEW" ? "V" : obj.Type == "SYNONYM" ? "SN" : "U";
+            string quotedName = SqlIdentifierQuoting.QuoteObjectIfNeeded(obj.Name);
+            string displayText = string.IsNullOrEmpty(obj.Schema) ? obj.Name : $"{obj.Schema}.{obj.Name}";
+
+            items.Add(new CompletionItem(
+                displayText: displayText,
+                source: this,
+                icon: new ImageElement(CompletionIcons.ForObjectType(type).ToImageId()),
+                filters: type == "U" ? TableFilter : type == "V" ? ViewFilter : SynonymFilter,
+                suffix: $"{(type == "U" ? "Table" : type == "V" ? "View" : "Synonym")} \u00B7 {serverName}",
+                insertText: quotedName + AliasSuffix(obj.Name, aliasTaken),
+                sortText: displayText,
+                filterText: quotedName == obj.Name ? $"{displayText} {obj.Name}" : $"{displayText} {obj.Name} {quotedName}",
+                attributeIcons: ImmutableArray<ImageElement>.Empty));
+        }
+    }
+
+    /// <summary>
+    /// A remote database's tables and views, or null when the setting stops short of them, the name is not a
+    /// linked server, or the read has not finished (it is started here). <paramref name="serverName"/> is the
+    /// server's own spelling, for the suffix.
+    /// </summary>
+    private IReadOnlyList<LinkedObject> GetLinkedObjects(string connectionString, string connKey, string server, string database, out string serverName)
+    {
+        serverName = null;
+        var linked = LinkedServerCache.Instance;
+        if (_sessionSettings.LinkedServerCompletion < Settings.LinkedServerCompletionLevel.Objects ||
+            !linked.EnsureServers(connectionString, connKey) || linked.FindServer(connKey, server) is not { } info)
+            return null;
+
+        serverName = info.Name;
+        return linked.EnsureObjects(connectionString, connKey, info.Name, NullIfEmpty(database))
+            ? linked.GetObjects(connKey, info.Name, NullIfEmpty(database))
+            : null;
+    }
+
     private IReadOnlyList<(CachedColumn Column, bool IsPrimaryKey, bool IsForeignKey)> GetColumnsWithFlags(
         ISchemaCache cache, string connectionString, string connKey, string database, string schema, string tableName,
         IReadOnlyList<LocalTableScanner.LocalTable> localTables = null)
@@ -2053,6 +2263,19 @@ internal sealed class SqlCompletionSource : IAsyncCompletionSource
             EnsureDatabaseLoaded(cache, connectionString, connKey, database);
 
         var columns = cache.GetColumns(connKey, database, schema, tableName);
+
+        // A synonym into another database on this server: GetColumns follows it, but only into a database already
+        // cached, so start that load the same way; the next completion has the columns.
+        if ((columns == null || columns.Count == 0) && connectionString != null &&
+            cache.ResolveSynonym(connKey, database, schema, tableName) is { } synonymTarget &&
+            !string.Equals(synonymTarget.Database, database, StringComparison.OrdinalIgnoreCase))
+            EnsureDatabaseLoaded(cache, connectionString, connKey, synonymTarget.Database);
+
+        // A synonym through a linked server: ResolveSynonym stops at the server, so its columns come from there.
+        if ((columns == null || columns.Count == 0) &&
+            cache.FindObject(connKey, database, schema, tableName) is { } synonym && synonym.ObjectType?.Trim() == "SN" &&
+            SynonymTarget.Parse(synonym.BaseObjectName) is { Server: not null } remote)
+            return GetLinkedColumns(connectionString, connKey, remote.Server, remote.Database, remote.Schema, remote.Name);
 
         // "FROM sys.dm_exec_requests r WHERE r." — a system object resolves to nothing in the schema
         // cache, so fall back to the server's catalog. Checked after the miss rather than before it,

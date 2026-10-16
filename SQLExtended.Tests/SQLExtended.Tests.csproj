@@ -54,6 +54,8 @@
     <Compile Include="..\SQLExtended\IntelliSense\JoinClauseBuilder.cs" Link="IntelliSense\JoinClauseBuilder.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\UpdateTemplateBuilder.cs" Link="IntelliSense\UpdateTemplateBuilder.cs" />
     <Compile Include="..\SQLExtended\Cache\SystemCatalogSql.cs" Link="Cache\SystemCatalogSql.cs" />
+    <Compile Include="..\SQLExtended\Cache\SynonymTarget.cs" Link="Cache\SynonymTarget.cs" />
+    <Compile Include="..\SQLExtended\Cache\LinkedServerSql.cs" Link="Cache\LinkedServerSql.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlContextAnalyzer.cs" Link="IntelliSense\SqlContextAnalyzer.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlCompletionContext.cs" Link="IntelliSense\SqlCompletionContext.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SignatureHelpParser.cs" Link="IntelliSense\SignatureHelpParser.cs" />

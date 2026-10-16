@@ -285,6 +285,9 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
         // so nothing above touches it — and it memoises servers whose catalog could not be read,
         // which makes this the only way to retry one in the same session.
         SystemCatalogCache.Instance.Clear();
+
+        // And for linked servers, which memoise failures per remote server the same way.
+        LinkedServerCache.Instance.Clear();
     }
 
     // --- Lookups (all from in-memory cache) ---
@@ -331,7 +334,29 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
                 string.Equals(o.ObjectName, name, StringComparison.OrdinalIgnoreCase));
     }
 
+    public (string Database, string Schema, string Name)? ResolveSynonym(string connectionKey, string database, string schema, string name)
+    {
+        var obj = FindObject(connectionKey, database, schema, name);
+        if (obj?.ObjectType?.Trim() != "SN")
+            return null;
+        var target = SynonymTarget.Parse(obj.BaseObjectName);
+        if (target == null || target.Server != null)
+            return null;
+        return (target.Database ?? database, target.Schema ?? "dbo", target.Name);
+    }
+
+    // Columns, indexes and parameters follow a synonym to its target when the name has none of its own: "FROM dbo.Syn s
+    // WHERE s." should list the base table's columns, and "EXEC dbo.SynProc" its parameters. A synonym cannot point at
+    // another synonym, so one hop is all there is. A target in a database not yet cached just yields nothing.
     public IReadOnlyList<CachedColumn> GetColumns(string connectionKey, string database, string schema, string tableName)
+    {
+        var columns = GetOwnColumns(connectionKey, database, schema, tableName);
+        return columns.Count == 0 && ResolveSynonym(connectionKey, database, schema, tableName) is { } t
+            ? GetOwnColumns(connectionKey, t.Database, t.Schema, t.Name)
+            : columns;
+    }
+
+    private IReadOnlyList<CachedColumn> GetOwnColumns(string connectionKey, string database, string schema, string tableName)
     {
         var data = GetDatabaseData(connectionKey, database);
         if (data == null) return Array.Empty<CachedColumn>();
@@ -344,6 +369,14 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
     }
 
     public IReadOnlyList<CachedIndex> GetIndexes(string connectionKey, string database, string schema, string tableName)
+    {
+        var indexes = GetOwnIndexes(connectionKey, database, schema, tableName);
+        return indexes.Count == 0 && ResolveSynonym(connectionKey, database, schema, tableName) is { } t
+            ? GetOwnIndexes(connectionKey, t.Database, t.Schema, t.Name)
+            : indexes;
+    }
+
+    private IReadOnlyList<CachedIndex> GetOwnIndexes(string connectionKey, string database, string schema, string tableName)
     {
         var data = GetDatabaseData(connectionKey, database);
         if (data == null) return Array.Empty<CachedIndex>();
@@ -381,6 +414,14 @@ internal sealed class SchemaCache : ISchemaCache, IDisposable
     }
 
     public IReadOnlyList<CachedParameter> GetParameters(string connectionKey, string database, string schema, string objectName)
+    {
+        var parameters = GetOwnParameters(connectionKey, database, schema, objectName);
+        return parameters.Count == 0 && ResolveSynonym(connectionKey, database, schema, objectName) is { } t
+            ? GetOwnParameters(connectionKey, t.Database, t.Schema, t.Name)
+            : parameters;
+    }
+
+    private IReadOnlyList<CachedParameter> GetOwnParameters(string connectionKey, string database, string schema, string objectName)
     {
         var data = GetDatabaseData(connectionKey, database);
         if (data == null) return Array.Empty<CachedParameter>();

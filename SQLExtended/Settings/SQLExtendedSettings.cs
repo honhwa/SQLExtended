@@ -49,6 +49,14 @@ public sealed class SQLExtendedSettings
     /// </summary>
     public bool AutoAliasTables { get; set; } = true;
 
+    /// <summary>
+    /// How much IntelliSense reads about the server's linked servers. Names come from the local sys.servers and cost
+    /// nothing; databases, and tables with their columns, are read from the linked server itself through its
+    /// provider, so they wait on that server and can be slow. Off by default past Names for that reason.
+    /// </summary>
+    [JsonConverter(typeof(StringEnumConverter))]
+    public LinkedServerCompletionLevel LinkedServerCompletion { get; set; } = LinkedServerCompletionLevel.Names;
+
     // --- Completion commit keys ---
     // Which keys accept (commit) the highlighted completion item.
 
@@ -561,6 +569,15 @@ public sealed class SQLExtendedSettings
     }
 
     public static SQLExtendedSettings Defaults => new SQLExtendedSettings();
+}
+
+/// <summary>How far IntelliSense reaches into linked servers. Each level includes the ones before it.</summary>
+public enum LinkedServerCompletionLevel
+{
+    Off,
+    Names,
+    Databases,
+    Objects
 }
 
 public enum SearchScope

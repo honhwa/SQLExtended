@@ -69,6 +69,7 @@ public partial class SQLExtendedSettingsDialog : Window
             ChkAutoTrigger.IsChecked = _settings.AutoTriggerAfterKeyword;
             ChkExpandProcParams.IsChecked = _settings.ExpandProcedureParameters;
             ChkAutoAliasTables.IsChecked = _settings.AutoAliasTables;
+            CboLinkedServers.SelectedIndex = (int)_settings.LinkedServerCompletion;
             ChkCommitOnTab.IsChecked = _settings.CommitOnTab;
             ChkCommitOnEnter.IsChecked = _settings.CommitOnEnter;
             ChkCommitOnSpace.IsChecked = _settings.CommitOnSpace;
@@ -180,6 +181,7 @@ public partial class SQLExtendedSettingsDialog : Window
         _settings.AutoTriggerAfterKeyword = ChkAutoTrigger.IsChecked == true;
         _settings.ExpandProcedureParameters = ChkExpandProcParams.IsChecked == true;
         _settings.AutoAliasTables = ChkAutoAliasTables.IsChecked == true;
+        _settings.LinkedServerCompletion = (LinkedServerCompletionLevel)Math.Max(0, CboLinkedServers.SelectedIndex);
         _settings.CommitOnTab = ChkCommitOnTab.IsChecked == true;
         _settings.CommitOnEnter = ChkCommitOnEnter.IsChecked == true;
         _settings.CommitOnSpace = ChkCommitOnSpace.IsChecked == true;

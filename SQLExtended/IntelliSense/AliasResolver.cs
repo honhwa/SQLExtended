@@ -2,6 +2,7 @@ using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace SQLExtended.IntelliSense;
 
@@ -16,6 +17,9 @@ internal sealed class AliasResolver
     /// </summary>
     internal sealed class TableReference
     {
+        /// <summary>Linked server qualifier of a four-part name (null = the local server).</summary>
+        public string Server { get; set; }
+
         /// <summary>Database qualifier for cross-database references (null = current database).</summary>
         public string Database { get; set; }
         public string Schema { get; set; }
@@ -101,6 +105,7 @@ internal sealed class AliasResolver
 
             var table = new TableReference
             {
+                Server = node.SchemaObject.ServerIdentifier?.Value,
                 Database = node.SchemaObject.DatabaseIdentifier?.Value,
                 Schema = node.SchemaObject.SchemaIdentifier?.Value,
                 Table = node.SchemaObject.BaseIdentifier?.Value,
@@ -140,25 +145,27 @@ internal sealed class AliasResolver
 
         // Order matters: multi-word forms (DELETE FROM, INSERT INTO, MERGE INTO) must
         // come before single-word forms so the longer alternative wins. References may be
-        // up to three-part (database.schema.table); bracketed segments may contain dots
-        // (e.g. [databasename].dbo.Projects), so brackets consume everything to ']'.
+        // up to four-part (server.database.schema.table), with a part left empty ("db..table");
+        // bracketed segments may contain dots (e.g. [databasename].dbo.Projects), so brackets
+        // consume everything to ']'.
         var pattern = new System.Text.RegularExpressions.Regex(
             @"\b(?:DELETE\s+FROM|INSERT\s+INTO|MERGE\s+INTO|FROM|JOIN|UPDATE|MERGE|DELETE)\s+" +
-            @"(?:(?:\[(?<q1>[^\]]+)\]|(?<q1>\w+))\s*\.\s*(?:(?:\[(?<q2>[^\]]+)\]|(?<q2>\w+))\s*\.\s*)?)?" +
+            @"(?:(?<q>\[[^\]]+\]|\w+|)\s*\.\s*){0,3}" +
             @"(?:\[(?<tbl>[^\]]+)\]|(?<tbl>\w+))(?:\s+(?:AS\s+)?(?<alias>\w+))?",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase |
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
         foreach (System.Text.RegularExpressions.Match match in pattern.Matches(sqlText))
         {
-            // Two qualifiers → database.schema.table; one → schema.table.
-            string q1 = match.Groups["q1"].Success ? match.Groups["q1"].Value : null;
-            string q2 = match.Groups["q2"].Success ? match.Groups["q2"].Value : null;
+            // Three qualifiers → server.database.schema.table; two → database.schema.table; one → schema.table.
+            var q = match.Groups["q"].Captures.Cast<System.Text.RegularExpressions.Capture>()
+                .Select(c => c.Value.Trim('[', ']')).Select(v => v.Length == 0 ? null : v).ToList();
 
             var table = new TableReference
             {
-                Database = q2 != null ? q1 : null,
-                Schema = q2 ?? q1,
+                Server = q.Count == 3 ? q[0] : null,
+                Database = q.Count >= 2 ? q[q.Count - 2] : null,
+                Schema = q.Count >= 1 ? q[q.Count - 1] : null,
                 Table = match.Groups["tbl"].Value,
                 Alias = match.Groups["alias"].Success ? match.Groups["alias"].Value : null
             };

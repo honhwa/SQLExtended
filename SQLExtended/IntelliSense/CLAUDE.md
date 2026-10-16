@@ -323,3 +323,72 @@ inserted, and removes an empty pair it inserted on Backspace (`AutoCloseQuotes`,
 - **A USE HINT name commits over the pair** (`SqlCompletionCommitManager.TryCommitQuotedLiteral`): its item
   inserts its own quotes and the span already holds the opening one, so the closer just past the span is
   replaced too, or the commit leaves `'DISABLE_…''`.
+
+## IntelliSense: synonyms
+
+The schema cache always loaded synonyms (`SN`), but every completion list filtered on object type and dropped
+them, so `FROM`, `EXEC` and `dbo.` never offered one. A synonym is only useful if it shows up **where its
+target would**, so the cache records what each one points at: `CachedObject.BaseObjectName`
+(`sys.synonyms.base_object_name`) and `BaseObjectType`, both persisted as SQLite columns. An older cache file
+gets the columns from `AddMissingObjectColumns`, with NULLs until the next full load.
+
+- **Same-database targets resolve in the object query itself. Cross-database ones need a second query per
+  target database** (`ResolveCrossDatabaseSynonyms`), because a join on `sys.objects` only reads the current
+  database. A linked-server target, or a database that is offline or closed to this login, stays unresolved
+  (null), and nothing reports it.
+- **An unresolved synonym is offered in both the table list and the EXEC list.** Leaving it out is the gap
+  this closes, and cross-server synonyms are the commonest kind. It is *not* offered as a function after `dbo.`,
+  which would be a third copy of it. Only a synonym known to point at a function goes there.
+- **Columns, indexes and parameters follow the synonym** (`SchemaCache.GetColumns` / `GetIndexes` /
+  `GetParameters`) when the name has none of its own, so `FROM dbo.Syn s WHERE s.` and the EXEC parameter
+  expansion work. That is one hop: a synonym cannot point at another synonym. A target in a database not yet
+  cached gives nothing on the first try. `GetColumnsWithFlags` starts that database's load, so the next
+  completion has the columns.
+- `SynonymTarget.Parse` splits the name the way PARSENAME does. `SynonymTargetTests` pins it, because a wrong
+  split looks columns up in the wrong place, and that just shows up as an empty list.
+
+## IntelliSense: linked servers
+
+`Cache/LinkedServerCache.cs` holds three levels, and the `LinkedServerCompletion` setting (Off / Names / Databases /
+Objects, default **Names**) decides how far completion reaches:
+
+1. **Names**: from the local `sys.servers WHERE is_linked = 1`. They appear in the bare `FROM` / `JOIN` / `EXEC`
+   list, after `OPENQUERY(` and after `EXEC (…) AT`. The list is read when completion first runs, like the system
+   catalog.
+2. **Databases**: `sp_catalogs`, after `LinkedSrv.` in a table or EXEC position.
+3. **Tables, views and columns**: `sp_tables_ex` after `LinkedSrv.db.` (schemas) and `LinkedSrv.db.schema.`
+   (objects). `sp_columns_ex` is read **one table at a time**, when `alias.` or a column list first needs it, so
+   the first try comes back empty.
+
+- **The catalog procedures, not `OPENQUERY` on the remote `sys.` views.** They go through the linked server's
+  own driver, so Oracle and ODBC targets work too, and they need neither RPC Out nor SQL Server at the far end.
+  The cost is that **procedures are never listed**: there is no `sp_procedures_ex`. So `EXEC LinkedSrv.db.`
+  stops at the database. The settings dialog says so.
+- **The name arguments of `sp_tables_ex` / `sp_columns_ex` are LIKE patterns.** `Order_Lines` also matches
+  `OrderXLines`, so `LoadColumns` keeps exact matches only. Drop that filter and a table quietly gets another
+  table's columns mixed in.
+- **`COLUMN_SIZE` counts characters, not bytes**, so `LinkedServerSql.FormatType` exists rather than reusing
+  `SchemaCacheLoader.FormatDataType`, which halves an nvarchar's byte length.
+- **Every load is remembered while it runs and after it fails, per local server.** A linked server that is down
+  costs its driver's full login timeout, and completion asks on every keystroke. A failure stays until the
+  Schema Cache window's right-click refresh, or Clear All Cache. **Nothing is saved to disk.** Without data
+  access (`sp_serveroption 'data access'`), level 2 fails straight away with that reason instead of a round trip.
+- **The server part survives into column lookups.** `AliasResolver.TableReference.Server` comes from ScriptDom's
+  `ServerIdentifier`, and the regex fallback now takes up to three qualifiers, with empty parts (`LS..dbo.T`).
+  `GetColumnsForReference` sends a four-part reference to the linked cache and leaves its missing parts null. It
+  does **not** fill in the current database or `dbo`, because the remote default schema need not be `dbo`.
+  Losing the server part would look the remote table up locally and find nothing.
+- **A synonym through a linked server** gets its columns from here too (`GetColumnsWithFlags`).
+- **`EXEC (…) AT` must have the `EXEC (…)` in front of it.** `GETDATE() AT TIME ZONE` also has a `) AT `.
+  Literals are skipped, because a pass-through query's own parentheses sit inside one. The 500-character window
+  means a longer pass-through query is not recognised.
+- `StripTrailingPartialIdentifier` now removes an unclosed `[name` whole. `[LNK\INS` and `[My Ta` used to stop
+  at the backslash or space and spoil the context check.
+- **The Schema Cache window** shows a "Linked servers" branch under each server: state dot, counts, and the
+  error as a tooltip. Right-click refreshes the list, a server's databases, or a database's tables. The branch
+  is hidden when the setting is Off and nothing has been read.
+
+`LinkedServerContextTests` pins the contexts, four-part names in `AliasResolver` (both the ScriptDom path and the
+regex path), the type formatting, and the catalog filtering. **None of the remote calls have been run against a
+real linked server**, and the result column names (`CATALOG_NAME`, `TABLE_SCHEM`, `COLUMN_SIZE`, …) are taken from
+the documentation.

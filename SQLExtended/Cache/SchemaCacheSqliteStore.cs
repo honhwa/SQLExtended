@@ -36,6 +36,30 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
         PurgeStaleEntries(maxAgeDays);
     }
 
+    /// <summary>
+    /// CREATE TABLE IF NOT EXISTS leaves a cache file from an older build at its old shape, so columns added since are
+    /// added here. Rows already in it keep NULLs until the next full load — for the synonym columns that reads as
+    /// "target unknown", which completion already handles.
+    /// </summary>
+    private void AddMissingObjectColumns()
+    {
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var info = new SQLiteCommand("PRAGMA table_info(cache_objects)", _conn))
+        using (var reader = info.ExecuteReader())
+        {
+            while (reader.Read())
+                existing.Add(reader.GetString(1));
+        }
+
+        foreach (string column in new[] { "base_object_name", "base_type" })
+        {
+            if (existing.Contains(column))
+                continue;
+            using var alter = new SQLiteCommand($"ALTER TABLE cache_objects ADD COLUMN {column} TEXT", _conn);
+            alter.ExecuteNonQuery();
+        }
+    }
+
     private void CreateSchema()
     {
         const string ddl = @"
@@ -57,6 +81,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                 create_date TEXT,
                 modify_date TEXT,
                 definition TEXT,
+                base_object_name TEXT,
+                base_type TEXT,
                 PRIMARY KEY (connection_key, database_name, schema_name, object_name)
             );
 
@@ -126,6 +152,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
 
         using var cmd = new SQLiteCommand(ddl, _conn);
         cmd.ExecuteNonQuery();
+
+        AddMissingObjectColumns();
 
         // Create FTS5 table if not exists — requires checking first since CREATE VIRTUAL TABLE IF NOT EXISTS isn't supported in older SQLite
         try
@@ -217,8 +245,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
 
             // Bulk insert objects
             using (var cmd = new SQLiteCommand(
-                @"INSERT INTO cache_objects (connection_key, database_name, schema_name, object_name, object_type, row_count, create_date, modify_date, definition)
-                  VALUES (@ck, @db, @sn, @on, @ot, @rc, @cd, @md, @def)", _conn, tx))
+                @"INSERT INTO cache_objects (connection_key, database_name, schema_name, object_name, object_type, row_count, create_date, modify_date, definition, base_object_name, base_type)
+                  VALUES (@ck, @db, @sn, @on, @ot, @rc, @cd, @md, @def, @bon, @bt)", _conn, tx))
             {
                 cmd.Parameters.Add("@ck", System.Data.DbType.String).Value = connectionKey;
                 cmd.Parameters.Add("@db", System.Data.DbType.String).Value = database;
@@ -229,6 +257,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                 var pCd = cmd.Parameters.Add("@cd", System.Data.DbType.String);
                 var pMd = cmd.Parameters.Add("@md", System.Data.DbType.String);
                 var pDef = cmd.Parameters.Add("@def", System.Data.DbType.String);
+                var pBon = cmd.Parameters.Add("@bon", System.Data.DbType.String);
+                var pBt = cmd.Parameters.Add("@bt", System.Data.DbType.String);
 
                 foreach (var obj in data.Objects)
                 {
@@ -239,6 +269,8 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                     pCd.Value = obj.CreateDate?.ToString("o") ?? (object)DBNull.Value;
                     pMd.Value = obj.ModifyDate?.ToString("o") ?? (object)DBNull.Value;
                     pDef.Value = (object)obj.Definition ?? DBNull.Value;
+                    pBon.Value = (object)obj.BaseObjectName ?? DBNull.Value;
+                    pBt.Value = (object)obj.BaseObjectType ?? DBNull.Value;
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -407,7 +439,7 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
 
         // Load objects
         using (var cmd = new SQLiteCommand(
-            "SELECT schema_name, object_name, object_type, row_count, create_date, modify_date, definition FROM cache_objects WHERE connection_key = @ck AND database_name = @db", _conn))
+            "SELECT schema_name, object_name, object_type, row_count, create_date, modify_date, definition, base_object_name, base_type FROM cache_objects WHERE connection_key = @ck AND database_name = @db", _conn))
         {
             cmd.Parameters.AddWithValue("@ck", connectionKey);
             cmd.Parameters.AddWithValue("@db", database);
@@ -424,7 +456,9 @@ internal sealed class SchemaCacheSqliteStore : IDisposable
                     RowCount = reader.IsDBNull(3) ? 0 : reader.GetInt64(3),
                     CreateDate = reader.IsDBNull(4) ? null : (DateTime?)DateTime.Parse(reader.GetString(4)),
                     ModifyDate = reader.IsDBNull(5) ? null : (DateTime?)DateTime.Parse(reader.GetString(5)),
-                    Definition = reader.IsDBNull(6) ? null : reader.GetString(6)
+                    Definition = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    BaseObjectName = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    BaseObjectType = reader.IsDBNull(8) ? null : reader.GetString(8)
                 });
             }
         }

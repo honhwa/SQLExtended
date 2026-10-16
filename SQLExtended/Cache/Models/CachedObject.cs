@@ -15,6 +15,15 @@ internal sealed class CachedObject
     /// </summary>
     public string ObjectType { get; set; }
 
+    /// <summary>A synonym's <c>sys.synonyms.base_object_name</c>, as stored (fully bracketed); null for anything else.</summary>
+    public string BaseObjectName { get; set; }
+
+    /// <summary>
+    /// The type code of the object a synonym points at, or null when it could not be resolved — a linked server,
+    /// a database this login cannot read, or a target that no longer exists. Null for anything but a synonym.
+    /// </summary>
+    public string BaseObjectType { get; set; }
+
     public long RowCount { get; set; }
     public DateTime? CreateDate { get; set; }
     public DateTime? ModifyDate { get; set; }

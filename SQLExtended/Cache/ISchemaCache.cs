@@ -37,6 +37,12 @@ internal interface ISchemaCache
     IReadOnlyList<CachedDatabase> GetDatabases(string connectionKey);
     IReadOnlyList<CachedObject> GetObjects(string connectionKey, string database, string schema = null, string typeFilter = null);
     CachedObject FindObject(string connectionKey, string database, string schema, string name);
+    /// <summary>
+    /// The database, schema and name a synonym points at, or null when the object is not a synonym or points through a
+    /// linked server. <see cref="GetColumns"/>, <see cref="GetIndexes"/> and <see cref="GetParameters"/> already follow it;
+    /// this is for a caller that has to load the target database first.
+    /// </summary>
+    (string Database, string Schema, string Name)? ResolveSynonym(string connectionKey, string database, string schema, string name);
     IReadOnlyList<CachedColumn> GetColumns(string connectionKey, string database, string schema, string tableName);
     IReadOnlyList<CachedIndex> GetIndexes(string connectionKey, string database, string schema, string tableName);
     IReadOnlyList<CachedForeignKey> GetForeignKeys(string connectionKey, string database, string schema, string tableName);
