@@ -372,6 +372,15 @@
         </Strings>
       </Button>
 
+      <!-- Go to Column — in the results grid right-click menu, beside Find in Results -->
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="GoToColumnCommandId" priority="0x0125" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="ResultsGridContextGroup" />
+        <Strings>
+          <ButtonText>Go to Column...</ButtonText>
+          <ToolTipText>Type part of a column name and jump to that column in this results grid (Ctrl+Alt+K)</ToolTipText>
+        </Strings>
+      </Button>
+
       <!-- Toolbar: Cache status indicator (read-only display text) -->
       <Button guid="guidSsmsSchemaViewerCmdSet" id="ToolbarCacheStatusId" priority="0x0100" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="ToolbarCacheGroup" />
@@ -390,6 +399,9 @@
   <CommandPlacements>
     <!-- Results grid commands also appear in the SQLExtended menu -->
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="GridFindCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="GoToColumnCommandId" priority="0x0105">
       <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
     </CommandPlacement>
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="GridAggregatesCommandId" priority="0x0110">
@@ -539,6 +551,12 @@
                 editor="guidVSStd97"
                 key1="S"
                 mod1="Control Alt"/>
+    <!-- Ctrl+Alt+K for Go to Column. Ctrl+Alt+O is SSMS's Output window, and E, I, M and Q are the debugger's. -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="GoToColumnCommandId"
+                editor="guidVSStd97"
+                key1="K"
+                mod1="Control Alt"/>
   </KeyBindings>
 
   <Symbols>
@@ -592,6 +610,7 @@
       <IDSymbol name="ScriptResultsInsertCommandId" value="0x0c00" />
       <IDSymbol name="GridAggregatesCommandId" value="0x0c10" />
       <IDSymbol name="GridFindCommandId" value="0x0c20" />
+      <IDSymbol name="GoToColumnCommandId" value="0x0c30" />
       <IDSymbol name="StatisticsCommandId" value="0x0d00" />
       <IDSymbol name="AgMonitorCommandId" value="0x0e00" />
       <IDSymbol name="PerfMonitorCommandId" value="0x0f00" />

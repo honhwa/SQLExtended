@@ -122,7 +122,7 @@ control (`ilspycmd -t …UI.Grid.GridControl Microsoft.SqlServer.GridControl.dll
   other four selection types.** `AdjustColumnIndexesInSelectedCells(…, bFromUIToStorage: false)` converts
   only those two and passes the rest through — exactly mirroring the getter asymmetry `GridSelectionReader`
   documents. Getting it backwards selects a neighbouring column as soon as anyone drags a column header.
-  `GridFindController.SelectionColumn` is the one place that decides this.
+  `ResultsGridReader.SelectionColumn` is the one place that decides this; Find and Go to Column both call it.
 - **`EnsureCellIsVisible` is different again: it takes a *storage* index and converts internally.** So the
   same call site passes a converted column to the selection and a raw one to the scroll.
 - **`CustomizeCellGDIObjects` reports the storage column index** (the grid passes `m_Columns[n].ColumnIndex`,
@@ -137,7 +137,7 @@ Two consequences of where the focus is:
 - **`AlwaysHighlightSelection` has to be forced on.** The search box holds the keyboard focus, and the grid
   paints no selection at all while unfocused — the current match would be selected and invisible. The prior
   value is restored on dispose; it is a visible change to a control we do not own.
-- **Grids are found through `DTE.ActiveDocument`, not `DTE.ActiveWindow`.** `ActiveWindow` is *this tool
+- **Grids are found through `DTE.ActiveDocument`, not `DTE.ActiveWindow`** (`ResultsGridReader.FindActiveDocumentGrids`). `ActiveWindow` is *this tool
   window* the moment the user clicks into the search box, so reading it would look for grids inside the
   search window and find none — the feature would work only while the grid had focus, which is never,
   because typing is how a search starts. (The aggregates watcher gets away with `ActiveWindow` because it
@@ -155,3 +155,38 @@ the "next" match behind you, and a wrapped scan that stops one cell early or lat
 match or reports the starting cell twice. `\A…\z` anchors "whole cell" regexes rather than `^…$`, which in
 .NET also match at line boundaries — a multi-line cell would otherwise satisfy "whole cell" on the strength
 of one of its lines.
+
+## Go to Column
+
+`ResultsGrid/Columns/` is a picker over the results grid's column names (Ctrl+Alt+K, the grid's right-click menu,
+or the SQLExtended menu). Type part of a name and the list narrows; Enter moves the grid's selection to that
+column **in the row the selection is already on**, scrolls it into view and hands the grid the focus, so the arrow
+keys carry on from there. It exists for the wide result set, where the column wanted is forty headers off to the right.
+
+- **A transient popup, not a tool window.** Opened, used once and gone, the way Visual Studio's Go To All is. It
+  closes on Enter, on Escape and on losing activation. Because of that last one it **must be owned by the shell**
+  (`GetDialogOwnerHwnd`): an unowned window can open behind SSMS, lose activation at once and close before it is seen.
+- **`ShowDialog`, never `Show`.** The first version was shown modelessly, and it was never activated: the shell hands
+  the focus back to the editor as a command returns. So the popup sat on screen while every key typed went into the
+  query window behind it, and the list could not be used. Modal, it owns the keyboard until it closes, and the
+  choice comes back through `Selected` for the command to act on.
+- **The keyboard never leaves the box.** Up/Down/PageUp/PageDown move the list's selection from the text box, so
+  typing, narrowing and picking all happen without a Tab.
+- **The grid is chosen before the popup takes the focus.** `GetFocusedGrid` at `Execute` is the grid the shortcut or
+  the right-click came from. That grid's columns are listed first; the other result sets follow, labelled "Result N".
+- **Ranking is grouped by grid first** (`GridColumnMatcher`): exact, then prefix, then word start
+  (`Ongoing_Qty`, `OngoingQty`, `Ongoing Qty`), then substring, then initials (`oqd` → `OngoingQtyDate`), then
+  on-screen position. An exact match in another result set does not jump ahead of a weaker one in the grid the user
+  was in, because Enter would then put the cursor in a grid they were not looking at.
+- **Position is the on-screen position** (`GetUIColumnIndexByStorageIndex`), not storage order, because that is the
+  number the user can see once a header has been dragged. Duplicate names from a join are both listed, and the
+  position tells them apart.
+- **Navigation happens after the close, at Input priority.** Focusing the grid any earlier loses the focus to the main
+  window as it reactivates, and the grid paints no selection while unfocused.
+- The selection goes through `ResultsGridReader.SelectionColumn`, and the scroll through `EnsureCellIsVisible` with
+  the raw storage index. That is the same asymmetry Find documents above.
+- **The popup is placed over the top of the grid, centred.** `GetDpiForWindow` converts the grid's device pixels to
+  WPF's device-independent ones. A grid with no size (a hidden Results tab) gets the popup centred on screen.
+
+`GridColumnMatcher` is free of the grid assembly; `SQLExtended.Tests/ResultsGrid/GridColumnMatcherTests.cs` pins the
+ranking, because a wrong order is never an error: the top item is just a column the user did not mean, and Enter goes there.

@@ -249,33 +249,7 @@ internal sealed class GridFindController : IDisposable
 
     // ---- grids -------------------------------------------------------------------------------------
 
-    private List<GridControl> FindGrids()
-    {
-        ThreadHelper.ThrowIfNotOnUIThread();
-        try
-        {
-            if (Package.GetGlobalService(typeof(SDTE)) is not DTE dte)
-                return new List<GridControl>();
-
-            // ActiveWindow is *this* tool window the moment the user clicks into the search box, so the query
-            // window has to be reached through ActiveDocument, which keeps naming the last active document
-            // whatever tool window holds the focus. Reading ActiveWindow alone would look for grids inside
-            // the search window and always find none — the feature would work only while the grid had focus,
-            // which is never, because typing is how a search starts.
-            IntPtr hwnd = IntPtr.Zero;
-            try { hwnd = dte.ActiveDocument?.ActiveWindow?.HWnd ?? IntPtr.Zero; } catch { }
-            if (hwnd == IntPtr.Zero)
-            {
-                try { hwnd = dte.ActiveWindow?.HWnd ?? IntPtr.Zero; } catch { }
-            }
-
-            return hwnd == IntPtr.Zero ? new List<GridControl>() : ResultsGridReader.FindGridsUnder(hwnd);
-        }
-        catch
-        {
-            return new List<GridControl>();
-        }
-    }
+    private static List<GridControl> FindGrids() => ResultsGridReader.FindActiveDocumentGrids();
 
     private bool BuildSources()
     {
@@ -451,7 +425,7 @@ internal sealed class GridFindController : IDisposable
             grid.AlwaysHighlightSelection = true;
 
             var blocks = new BlockOfCellsCollection();
-            blocks.Add(new BlockOfCells(hit.Position.Row, SelectionColumn(grid, storageColumn)));
+            blocks.Add(new BlockOfCells(hit.Position.Row, ResultsGridReader.SelectionColumn(grid, storageColumn)));
             grid.SelectedCells = blocks;
 
             // EnsureCellIsVisible takes a storage index and converts it itself — unlike the selection setter
@@ -463,28 +437,6 @@ internal sealed class GridFindController : IDisposable
             // The grid validates the block against its current size and throws if the result set has shrunk
             // underneath us. Not worth a banner: the next sync re-runs the search.
             System.Diagnostics.Debug.WriteLine($"[SQLExtended] Grid find select failed: {ex}");
-        }
-    }
-
-    /// <summary>
-    /// Which column space <see cref="GridControl.SelectedCells"/>' setter wants, which is not the same for
-    /// every grid: it converts storage indexes to UI ones for <c>SingleCell</c>/<c>SingleColumn</c> and passes
-    /// the other four selection types through untouched. That mirrors the getter exactly — the same asymmetry
-    /// the aggregates reader documents — and getting it backwards selects a neighbouring column as soon as
-    /// anyone drags a column header.
-    /// </summary>
-    private static int SelectionColumn(GridControl grid, int storageColumn)
-    {
-        try
-        {
-            GridSelectionType type = grid.SelectionType;
-            if (type == GridSelectionType.SingleCell || type == GridSelectionType.SingleColumn)
-                return storageColumn;
-            return grid.GetUIColumnIndexByStorageIndex(storageColumn);
-        }
-        catch
-        {
-            return storageColumn;
         }
     }
 

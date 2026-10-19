@@ -1,0 +1,102 @@
+<Window x:Class="SQLExtended.ResultsGrid.Columns.GoToColumnWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Go to Column"
+        Width="460"
+        SizeToContent="Height"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Background="{DynamicResource SqlxSurfaceRaised}"
+        BorderBrush="{DynamicResource SqlxBorderStrong}"
+        BorderThickness="1"
+        Deactivated="Window_Deactivated">
+
+    <Window.Resources>
+        <Style x:Key="QueryBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource SqlxSurfaceAlt}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SqlxText}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource SqlxText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SqlxAccent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Item chrome drawn here rather than left to the system theme, whose selection colours ignore SSMS's. -->
+        <Style x:Key="ColumnItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource SqlxText}"/>
+            <Setter Property="Padding" Value="6,3"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SqlxRowHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SqlxSelection}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource SqlxSelectionText}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="2,0,2,6">
+            <TextBlock DockPanel.Dock="Right" Text="Enter go · Esc close" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" VerticalAlignment="Center"/>
+            <TextBlock Text="Go to column" Foreground="{DynamicResource SqlxHeading}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <TextBox x:Name="QueryBox" Grid.Row="1" Style="{StaticResource QueryBoxStyle}"
+                 TextChanged="QueryBox_TextChanged" PreviewKeyDown="QueryBox_PreviewKeyDown"/>
+
+        <ListBox x:Name="ColumnList" Grid.Row="2" Margin="0,6,0,0" MaxHeight="380"
+                 Background="Transparent" BorderThickness="0"
+                 ItemContainerStyle="{StaticResource ColumnItemStyle}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 VirtualizingStackPanel.IsVirtualizing="True"
+                 MouseDoubleClick="ColumnList_MouseDoubleClick"
+                 PreviewKeyDown="ColumnList_PreviewKeyDown">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="38"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   ToolTip="{Binding Name}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding DataType}" Foreground="{DynamicResource SqlxSynComment}" FontSize="11"
+                                   Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" Text="{Binding GridLabel}" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"
+                                   Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="3" Text="{Binding Position, StringFormat='#{0}'}" Foreground="{DynamicResource SqlxSynNumber}" FontSize="11"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   ToolTip="Position of the column on screen"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" Margin="2,6,2,0" Foreground="{DynamicResource SqlxTextMuted}" FontSize="11"/>
+    </Grid>
+</Window>

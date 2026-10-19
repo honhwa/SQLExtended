@@ -56,6 +56,59 @@ internal static class ResultsGridReader
         return grids;
     }
 
+    /// <summary>
+    /// The results grids of the active query window, in result-set order. Must run on the UI thread.
+    ///
+    /// <para>Reached through <c>DTE.ActiveDocument</c>, not <c>ActiveWindow</c>: the moment the user clicks into
+    /// one of our own windows (the Find box, the Go to Column picker) <c>ActiveWindow</c> is that window, and grids
+    /// would be looked for inside it and never found. <c>ActiveDocument</c> keeps naming the last active document
+    /// whatever tool window holds the focus.</para>
+    /// </summary>
+    public static List<GridControl> FindActiveDocumentGrids()
+    {
+        Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
+        try
+        {
+            if (Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(Microsoft.VisualStudio.Shell.Interop.SDTE)) is not EnvDTE.DTE dte)
+                return new List<GridControl>();
+
+            IntPtr hwnd = IntPtr.Zero;
+            try { hwnd = dte.ActiveDocument?.ActiveWindow?.HWnd ?? IntPtr.Zero; } catch { }
+            if (hwnd == IntPtr.Zero)
+            {
+                try { hwnd = dte.ActiveWindow?.HWnd ?? IntPtr.Zero; } catch { }
+            }
+
+            return hwnd == IntPtr.Zero ? new List<GridControl>() : FindGridsUnder(hwnd);
+        }
+        catch
+        {
+            return new List<GridControl>();
+        }
+    }
+
+    /// <summary>
+    /// Which column space <see cref="GridControl.SelectedCells"/>' setter wants, which is not the same for
+    /// every grid: it converts storage indexes to UI ones for <c>SingleCell</c>/<c>SingleColumn</c> and passes
+    /// the other four selection types through untouched. That mirrors the getter exactly — the same asymmetry
+    /// the aggregates reader documents — and getting it backwards selects a neighbouring column as soon as
+    /// anyone drags a column header. Find and Go to Column both select through this.
+    /// </summary>
+    public static int SelectionColumn(GridControl grid, int storageColumn)
+    {
+        try
+        {
+            GridSelectionType type = grid.SelectionType;
+            if (type == GridSelectionType.SingleCell || type == GridSelectionType.SingleColumn)
+                return storageColumn;
+            return grid.GetUIColumnIndexByStorageIndex(storageColumn);
+        }
+        catch
+        {
+            return storageColumn;
+        }
+    }
+
     /// <summary>Reads column names, SQL types, and (up to <see cref="MaxRows"/>) row values from a grid.
     /// Must run on the UI thread. <paramref name="totalRows"/> reports the untruncated count.</summary>
     public static ResultGridData Read(GridControl grid, out long totalRows)

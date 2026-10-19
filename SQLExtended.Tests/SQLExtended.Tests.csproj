@@ -103,6 +103,7 @@
     <Compile Include="..\SQLExtended\ResultsGrid\Find\GridCellSource.cs" Link="ResultsGrid\Find\GridCellSource.cs" />
     <Compile Include="..\SQLExtended\ResultsGrid\Find\GridFindMatcher.cs" Link="ResultsGrid\Find\GridFindMatcher.cs" />
     <Compile Include="..\SQLExtended\ResultsGrid\Find\GridFindScan.cs" Link="ResultsGrid\Find\GridFindScan.cs" />
+    <Compile Include="..\SQLExtended\ResultsGrid\Columns\GridColumnMatcher.cs" Link="ResultsGrid\Columns\GridColumnMatcher.cs" />
   </ItemGroup>
 
   <!-- Include the Agent jobs value parser (no SqlClient/WPF dependency, unlike the rest of that folder) -->
