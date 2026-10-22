@@ -44,6 +44,11 @@
     <Compile Include="..\SQLExtended\Formatting\*.cs" Link="Formatting\%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Qualify Columns (issue #3): the rewriter itself, free of the editor so it is testable here -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\Qualify\ColumnQualifier.cs" Link="Qualify\ColumnQualifier.cs" />
+  </ItemGroup>
+
   <!-- Include IntelliSense source files for alias/context/signature tests -->
   <ItemGroup>
     <Compile Include="..\SQLExtended\IntelliSense\AliasResolver.cs" Link="IntelliSense\AliasResolver.cs" />

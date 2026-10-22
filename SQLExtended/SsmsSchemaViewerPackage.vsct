@@ -125,6 +125,15 @@
         </Strings>
       </Button>
 
+      <!-- Qualify Columns — aliases the tables and prefixes every column with its table's alias (issue #3) -->
+      <Button guid="guidSsmsSchemaViewerCmdSet" id="QualifyColumnsCommandId" priority="0x0115" type="Button">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
+        <Strings>
+          <ButtonText>Qualify Columns</ButtonText>
+          <ToolTipText>Alias every table and prefix each column with its table's alias, in the selection or entire document (Ctrl+K, Ctrl+Q)</ToolTipText>
+        </Strings>
+      </Button>
+
       <!-- Formatter command — opens the formatter settings dialog -->
       <Button guid="guidSsmsSchemaViewerCmdSet" id="FormatOptionsCommandId" priority="0x0110" type="Button">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsGroup" />
@@ -417,6 +426,9 @@
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="FormatSqlCommandId" priority="0x0200">
       <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
     </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="QualifyColumnsCommandId" priority="0x0210">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+    </CommandPlacement>
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0300">
       <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
     </CommandPlacement>
@@ -456,6 +468,14 @@
                 key1="K"
                 mod1="Control"
                 key2="F"
+                mod2="Control"/>
+    <!-- Chord shortcut: Ctrl+K, Ctrl+Q for Qualify Columns, beside Format's Ctrl+K, Ctrl+F -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="QualifyColumnsCommandId"
+                editor="guidVSStd97"
+                key1="K"
+                mod1="Control"
+                key2="Q"
                 mod2="Control"/>
 
     <!-- Ctrl+Shift+R for Refresh Schema Cache -->
@@ -587,6 +607,7 @@
       <IDSymbol name="FormatSqlCommandId" value="0x0200" />
       <IDSymbol name="FormatOptionsCommandId" value="0x0210" />
       <IDSymbol name="SnippetsCommandId" value="0x0220" />
+      <IDSymbol name="QualifyColumnsCommandId" value="0x0230" />
       <IDSymbol name="RefreshCacheCommandId" value="0x0300" />
       <IDSymbol name="RefreshAllCacheCommandId" value="0x0310" />
       <IDSymbol name="ClearCacheCommandId" value="0x0320" />
