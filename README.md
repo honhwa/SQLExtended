@@ -25,10 +25,10 @@ Every multi-tool suite for SSMS is commercial. This is the open-source one.
 |---|---|
 | **Schema** | View Schema (`Ctrl+Shift+D`) — CREATE script, indexes, foreign keys for the object under the cursor. Persistent schema cache, background refresh, Schema Cache window. |
 | **Search** | SQL Search — object names, columns, and module definitions via a SQLite full-text index; optionally SQL Agent job step commands, which live outside the cache. |
-| **Formatting** | Format SQL (`Ctrl+K, Ctrl+F`) — ScriptDom-based T-SQL formatter with a large option set: casing, comma position, list reflow, CASE/CTE/derived-table layout, alias style. |
-| **Qualify Columns** | Qualify Columns (`Ctrl+K, Ctrl+Q`) — aliases every table in a SELECT and prefixes each column with its table's alias, using the schema cache to know which table owns it. Columns it cannot pin to exactly one table are left as written. |
+| **Formatting** | Format SQL (`Ctrl+K, Ctrl+F`, or `Ctrl+K, Ctrl+Q` in a query window) — ScriptDom-based T-SQL formatter with a large option set: casing, comma position, list reflow, CASE/CTE/derived-table layout, alias style. |
+| **Qualify Columns** | Qualify Columns (`Ctrl+K, Ctrl+A`) — aliases every table in a SELECT and prefixes each column with its table's alias, using the schema cache to know which table owns it. Columns it cannot pin to exactly one table are left as written. **Tab after `SELECT *`** (or `alias.*`) expands the star to the column list the same way, aliasing the table if it has none. |
 | **IntelliSense** | Completion over the schema cache and the system catalog (`sys.`, `INFORMATION_SCHEMA`), signature help, snippets, automatic bracketing of names that need it. |
-| **Monitoring** | Four dockable dashboards, each pinned to the server it was opened from: Performance (`Ctrl+Alt+P`), Agent Jobs (`Ctrl+Alt+J`), Always On (`Ctrl+Alt+A`), Replication (`Ctrl+Alt+R`). Live only — nothing is persisted. |
+| **Monitoring** | Four dockable dashboards, each pinned to the server it was opened from: Performance (`Ctrl+Alt+P`), Agent Jobs (`Ctrl+Alt+J`), Always On (`Ctrl+Alt+A`), Replication (menu only). Live only — nothing is persisted. |
 | **Results grid** | Grid Aggregates (`Ctrl+Alt+G`) — sum/avg/min/max/distinct/null per selected column. Find in Results (`Ctrl+Alt+S`) — search and highlight grid text. Script Results as INSERT. |
 | **Export** | Script a database to one file, or to a folder tree of one file per object — deliberately free of timestamps and other volatile output, so two servers can be compared in WinMerge. |
 | **Statistics** | Parse Statistics (`Ctrl+K, Ctrl+G`) — reads `STATISTICS IO`/`TIME` output from the Messages pane. |

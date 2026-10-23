@@ -130,7 +130,7 @@
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenuGroup" />
         <Strings>
           <ButtonText>Qualify Columns</ButtonText>
-          <ToolTipText>Alias every table and prefix each column with its table's alias, in the selection or entire document (Ctrl+K, Ctrl+Q)</ToolTipText>
+          <ToolTipText>Alias every table and prefix each column with its table's alias, in the selection or entire document (Ctrl+K, Ctrl+A)</ToolTipText>
         </Strings>
       </Button>
 
@@ -453,15 +453,35 @@
     </CommandPlacement>
   </CommandPlacements>
 
-  <!-- Keyboard shortcut: Ctrl+Shift+D for schema viewer -->
+  <!-- Editor commands are bound twice: in the SQL Query Editor scope, and in Global.
+       A Global binding loses to a Text Editor one on the same chord once the caret is in a query window - Ctrl+K, Ctrl+F
+       is Edit.FormatSelection there and Ctrl+K, Ctrl+A is Edit.SwapAnchor - and the shortcut silently does something else.
+       SQL Query Editor is more specific than Text Editor, so the binding there wins. The Global copy covers focus in the
+       results / Messages pane (Parse Statistics reads Messages), which may sit outside that scope.
+       Tool-window shortcuts (Ctrl+Alt+...) stay Global only: they are wanted from Object Explorer too. -->
   <KeyBindings>
+    <!-- Ctrl+Shift+D: View Schema -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="SchemaViewerCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="D"
+                mod1="Control Shift"/>
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
                 id="SchemaViewerCommandId"
                 editor="guidVSStd97"
                 key1="D"
                 mod1="Control Shift"/>
 
-    <!-- Chord shortcut: Ctrl+K, Ctrl+F for Format SQL -->
+    <!-- Ctrl+K, Ctrl+F: Format SQL. Also Ctrl+K, Ctrl+Q in query windows only, the chord SSMS 22's own SqlFormatter
+         extension uses for Format Document - so people used to it get this formatter. Not bound Global, where it would
+         fight that extension for the chord everywhere else. -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="FormatSqlCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="K"
+                mod1="Control"
+                key2="F"
+                mod2="Control"/>
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
                 id="FormatSqlCommandId"
                 editor="guidVSStd97"
@@ -469,23 +489,44 @@
                 mod1="Control"
                 key2="F"
                 mod2="Control"/>
-    <!-- Chord shortcut: Ctrl+K, Ctrl+Q for Qualify Columns, beside Format's Ctrl+K, Ctrl+F -->
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
-                id="QualifyColumnsCommandId"
-                editor="guidVSStd97"
+                id="FormatSqlCommandId"
+                editor="guidSqlQueryEditorScope"
                 key1="K"
                 mod1="Control"
                 key2="Q"
                 mod2="Control"/>
 
-    <!-- Ctrl+Shift+R for Refresh Schema Cache -->
+    <!-- Ctrl+K, Ctrl+A: Qualify Columns ("alias"). Query windows only - the command does nothing anywhere else, and a
+         Global copy would only lose to Edit.SwapAnchor. -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="QualifyColumnsCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="K"
+                mod1="Control"
+                key2="A"
+                mod2="Control"/>
+
+    <!-- Ctrl+Shift+R: Refresh Schema Cache (takes the chord from SSMS's Refresh IntelliSense Local Cache, same job) -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="RefreshCacheCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="R"
+                mod1="Control Shift"/>
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
                 id="RefreshCacheCommandId"
                 editor="guidVSStd97"
                 key1="R"
                 mod1="Control Shift"/>
 
-    <!-- Ctrl+Alt+F for SQL Search -->
+    <!-- Ctrl+Alt+F for SQL Search. SSMS 22's Copilot extension (SSMSAgent) binds Ctrl+Alt+F Global to Copilot "Fix", and
+         the shell gives the Global chord to it. Bound in the SQL Query Editor scope as well, which wins in a query window;
+         elsewhere (Object Explorer) Copilot keeps it unless the user reassigns it. SSMSAgent also has Ctrl+Alt+D, E and R. -->
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="SqlSearchCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="F"
+                mod1="Control Alt"/>
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
                 id="SqlSearchCommandId"
                 editor="guidVSStd97"
@@ -523,6 +564,13 @@
     <!-- Chord shortcut: Ctrl+K, Ctrl+G for Parse Statistics (matches the upstream Statistics Parser extension) -->
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
                 id="StatisticsCommandId"
+                editor="guidSqlQueryEditorScope"
+                key1="K"
+                mod1="Control"
+                key2="G"
+                mod2="Control"/>
+    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
+                id="StatisticsCommandId"
                 editor="guidVSStd97"
                 key1="K"
                 mod1="Control"
@@ -550,12 +598,7 @@
                 key1="J"
                 mod1="Control Alt"/>
 
-    <!-- Ctrl+Alt+R for Replication Monitor -->
-    <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
-                id="ReplMonitorCommandId"
-                editor="guidVSStd97"
-                key1="R"
-                mod1="Control Alt"/>
+    <!-- No shortcut for Replication Monitor: Ctrl+Alt+R belongs to Copilot "Optimize" (SSMSAgent) and the menu item is enough. -->
 
     <!-- Ctrl+Alt+G for Grid Aggregates -->
     <KeyBinding guid="guidSsmsSchemaViewerCmdSet"
@@ -654,6 +697,10 @@
     <GuidSymbol name="guidSQLEditorGroup" value="{33F13AC3-80BB-4ecb-85BC-225435603A5E}">
       <IDSymbol name="IDM_SQLWB_SQLRESGRID_CONTEXT" value="0x0070" />
     </GuidSymbol>
+
+    <!-- The "SQL Query Editor" key binding scope, as Tools > Options > Keyboard lists it (CurrentSettings.vssettings
+         ScopeDefinitions). More specific than Text Editor, so a binding here beats a Text Editor one on the same chord. -->
+    <GuidSymbol name="guidSqlQueryEditorScope" value="{B5A506EB-11BE-4782-9A18-21265C2CA0B4}" />
   </Symbols>
 
 </CommandTable>

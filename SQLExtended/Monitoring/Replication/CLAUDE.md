@@ -3,7 +3,7 @@
 > Pinning, staged collection and the rules common to all four dashboards are in
 > `SQLExtended/Monitoring/CLAUDE.md` — read that first.
 
-`Monitoring/Replication/` (Ctrl+Alt+R, `ReplMonitorToolWindow`). Tabs: Overview, Diagnostics, Subscriptions,
+`Monitoring/Replication/` (menu only — Ctrl+Alt+R is Copilot "Optimize"; `ReplMonitorToolWindow`). Tabs: Overview, Diagnostics, Subscriptions,
 Publications, Agents, Publisher, Tracer tokens, Errors. Live-only like the others; `ReplHistory` keeps a
 120-sample window of end-to-end latency per subscription for the trend sparklines.
 

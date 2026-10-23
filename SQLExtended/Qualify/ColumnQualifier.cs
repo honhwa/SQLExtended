@@ -35,6 +35,58 @@ internal sealed class ColumnQualifierResult
     public int ColumnsLeft { get; set; }
 }
 
+internal sealed class StarExpansionResult
+{
+    public bool Success { get; set; }
+    public string ErrorMessage { get; set; }
+
+    /// <summary>The input itself did not parse — a smaller piece of the script around the caret may.</summary>
+    public bool DidNotParse { get; set; }
+
+    /// <summary>The input with the edits applied.</summary>
+    public string Sql { get; set; }
+
+    /// <summary>The edits, in offsets of the input, for applying to an editor buffer as one change.</summary>
+    public IReadOnlyList<(int Start, int Length, string Text)> Edits { get; set; }
+
+    /// <summary>Where the column list ends in <see cref="Sql"/> — the caret goes there.</summary>
+    public int ExpansionEnd { get; set; }
+
+    public int ColumnsExpanded { get; set; }
+    public int TablesAliased { get; set; }
+}
+
+/// <summary>How an expanded <c>*</c> lays out its column list: on one line, or one column per line under the first.</summary>
+internal sealed class StarListLayout
+{
+    public bool Stacked { get; set; }
+    public bool LeadingCommas { get; set; }
+
+    /// <summary>The leading comma sits at the column's own indent rather than being pulled back two characters.</summary>
+    public bool LeadingCommaKeepIndent { get; set; }
+
+    /// <summary>Whitespace reaching from the start of the line to the <c>*</c> — see <see cref="IndentFor"/>.</summary>
+    public string Indent { get; set; } = "";
+
+    public string NewLine { get; set; } = "\r\n";
+
+    /// <summary>The text in front of the <c>*</c> on its line, as whitespace: tabs kept, everything else a space, so the
+    /// stacked columns line up under the first whatever the tab width.</summary>
+    public static string IndentFor(string lineTextBeforeStar) =>
+        new((lineTextBeforeStar ?? "").Select(c => c == '\t' ? '\t' : ' ').ToArray());
+
+    public string Join(IReadOnlyList<string> items)
+    {
+        if (!Stacked)
+            return string.Join(", ", items);
+        if (!LeadingCommas)
+            return string.Join("," + NewLine + Indent, items);
+
+        string commaIndent = !LeadingCommaKeepIndent && Indent.EndsWith("  ", StringComparison.Ordinal) ? Indent.Substring(0, Indent.Length - 2) : Indent;
+        return string.Join(NewLine + commaIndent + ", ", items);
+    }
+}
+
 /// <summary>
 /// Gives every table in a SELECT's FROM an alias and prefixes every column reference with the alias of the table it
 /// belongs to (GitHub issue #3). The SQL is edited in place at ScriptDom's token offsets, never regenerated, so the
@@ -76,6 +128,95 @@ internal static class ColumnQualifier
 
     private static ColumnQualifierResult Fail(string message) => new() { Success = false, ErrorMessage = message };
 
+    /// <summary>
+    /// Replaces the SELECT-list <c>*</c> or <c>alias.*</c> ending at <paramref name="caretOffset"/> with the columns it
+    /// stands for, each prefixed with its table's alias (GitHub issue #4). A table it expands that has no alias gets one,
+    /// and a qualifier naming that table by its own name is rewritten to it, as Qualify Columns does — but the rest of
+    /// the statement's columns are left as written.
+    /// </summary>
+    public static StarExpansionResult ExpandStar(string sql, int caretOffset, Func<QualifierTableName, IReadOnlyCollection<string>> getColumns,
+        StarListLayout layout)
+    {
+        static StarExpansionResult Failed(string message) => new() { Success = false, ErrorMessage = message };
+
+        if (string.IsNullOrWhiteSpace(sql))
+            return Failed("there is no SQL here");
+
+        var fragment = Parse(sql, out var errors);
+        if (errors.Count > 0)
+        {
+            var unparsed = Failed($"the SQL does not parse (line {errors[0].Line}: {errors[0].Message})");
+            unparsed.DidNotParse = true;
+            return unparsed;
+        }
+
+        var target = StarFinder.Find(fragment, caretOffset);
+        if (target == null)
+            return Failed("the cursor is not after a * in a SELECT list");
+
+        var walker = new Walker(getColumns ?? (_ => null), new StarTarget(target.Value.Star, target.Value.Spec, layout ?? new StarListLayout()));
+        fragment.Accept(walker);
+        if (walker.Failure != null)
+            return Failed(walker.Failure);
+        if (walker.Expansion == null)
+            return Failed("the * could not be expanded");
+
+        string output = Apply(sql, walker.Edits);
+        if (output == null)
+            return Failed("two edits overlapped, so nothing was changed");
+
+        Parse(output, out var outputErrors);
+        if (outputErrors.Count > 0)
+            return Failed($"the result would not parse (line {outputErrors[0].Line}: {outputErrors[0].Message}), so nothing was changed");
+
+        var expansion = walker.Expansion;
+        int shift = walker.Edits.Where(e => e.Start < expansion.Start).Sum(e => e.Text.Length - e.Length);
+        return new StarExpansionResult
+        {
+            Success = true,
+            Sql = output,
+            Edits = walker.Edits.Select(e => (e.Start, e.Length, e.Text)).ToList(),
+            ExpansionEnd = expansion.Start + shift + expansion.Text.Length,
+            ColumnsExpanded = walker.ColumnsExpanded,
+            TablesAliased = walker.TablesAliased
+        };
+    }
+
+    private sealed class StarTarget(SelectStarExpression star, QuerySpecification spec, StarListLayout layout)
+    {
+        public SelectStarExpression Star { get; } = star;
+        public QuerySpecification Spec { get; } = spec;
+        public StarListLayout Layout { get; } = layout;
+    }
+
+    /// <summary>The SELECT-list star ending exactly at the caret, and the query it belongs to. <c>COUNT(*)</c> is not a
+    /// <see cref="SelectStarExpression"/>, so it is never found.</summary>
+    private sealed class StarFinder(int caret) : TSqlFragmentVisitor
+    {
+        private readonly Stack<QuerySpecification> _specs = new();
+        private (SelectStarExpression Star, QuerySpecification Spec)? _found;
+
+        public static (SelectStarExpression Star, QuerySpecification Spec)? Find(TSqlFragment fragment, int caret)
+        {
+            var finder = new StarFinder(caret);
+            fragment.Accept(finder);
+            return finder._found;
+        }
+
+        public override void ExplicitVisit(QuerySpecification node)
+        {
+            _specs.Push(node);
+            base.ExplicitVisit(node);
+            _specs.Pop();
+        }
+
+        public override void Visit(SelectStarExpression node)
+        {
+            if (node.StartOffset + node.FragmentLength == caret && _specs.Count > 0)
+                _found = (node, _specs.Peek());
+        }
+    }
+
     private static TSqlFragment Parse(string sql, out IList<ParseError> errors)
     {
         var parser = new TSql170Parser(initialQuotedIdentifiers: true);
@@ -113,10 +254,18 @@ internal static class ColumnQualifier
         public string ExistingAlias;
         public string ExposedName;            // what the source exposes: the alias, else the object's own name
         public string NewAlias;
-        public HashSet<string> Columns;       // null = unknown
+        public TSqlFragment AliasAfter;       // where a new alias goes; null when the source cannot take one
+        public ColumnSet Columns;             // null = unknown
 
         public string ReferenceText => NewAlias ?? (ExposedName == null ? null : SqlIdentifierQuoting.QuoteObjectIfNeeded(ExposedName));
         public string VisibleName => NewAlias ?? ExposedName;
+    }
+
+    /// <summary>Column names matched case-insensitively, remembering the order they were declared in for a <c>*</c>.</summary>
+    private sealed class ColumnSet : HashSet<string>
+    {
+        public ColumnSet() : base(StringComparer.OrdinalIgnoreCase) { }
+        public List<string> Ordered { get; } = new();
     }
 
     private sealed class Scope
@@ -128,7 +277,9 @@ internal static class ColumnQualifier
         public bool InOrderBy;
     }
 
-    private sealed class Walker(Func<QualifierTableName, IReadOnlyCollection<string>> getColumns) : TSqlFragmentVisitor
+    /// <param name="star">When set, only that star is expanded and only the tables it expands are aliased; bare columns
+    /// are left alone. When null, the whole of Qualify Columns.</param>
+    private sealed class Walker(Func<QualifierTableName, IReadOnlyCollection<string>> getColumns, StarTarget star = null) : TSqlFragmentVisitor
     {
         // The datepart argument of these is parsed as a column reference (DATEADD(day, …) reads "day" as a column), and
         // a table with a column called Day or Year would otherwise get DATEADD(o.Day, …).
@@ -141,6 +292,11 @@ internal static class ColumnQualifier
         public int TablesAliased { get; private set; }
         public int ColumnsQualified { get; private set; }
         public int ColumnsLeft { get; private set; }
+        public int ColumnsExpanded { get; private set; }
+        public Edit Expansion { get; private set; }
+
+        /// <summary>Why the star could not be expanded, in words for the status bar.</summary>
+        public string Failure { get; private set; }
 
         private readonly HashSet<TSqlFragment> _skip = new();
         private readonly HashSet<OrderByClause> _setOrderBys = new();
@@ -287,6 +443,14 @@ internal static class ColumnQualifier
 
         public override void ExplicitVisit(ColumnReferenceExpression node)
         {
+            // Expanding a star leaves bare columns as written, but a qualifier naming a table that just got an alias
+            // must still follow it, or the statement stops resolving.
+            if (star != null && node.MultiPartIdentifier?.Count == 1)
+            {
+                base.ExplicitVisit(node);
+                return;
+            }
+
             if (_current != null && node.ColumnType == ColumnType.Regular && node.MultiPartIdentifier?.Count > 0 && !_skip.Contains(node))
             {
                 var ids = node.MultiPartIdentifier.Identifiers;
@@ -301,9 +465,64 @@ internal static class ColumnQualifier
         // Person.* → p.*
         public override void ExplicitVisit(SelectStarExpression node)
         {
+            if (star != null && ReferenceEquals(node, star.Star))
+            {
+                Expand(node);
+                return;
+            }
+
             if (_current != null && node.Qualifier?.Count > 0)
                 RewriteQualifier(node.Qualifier.Identifiers, node.Qualifier.Count);
             base.ExplicitVisit(node);
+        }
+
+        /// <summary>
+        /// Replaces the star with the columns of the tables it covers, in FROM order and each table's declared column order
+        /// — what SQL Server itself returns for it. Every column is prefixed, so a name two tables share stays unambiguous.
+        /// </summary>
+        private void Expand(SelectStarExpression node)
+        {
+            var tables = StarTables(_current, node);
+            if (tables == null || tables.Count == 0)
+            {
+                Failure = node.Qualifier?.Count > 0 ? $"{string.Join(".", node.Qualifier.Identifiers.Select(i => i.Value))} is not a table in this FROM" : "this SELECT has no FROM";
+                return;
+            }
+
+            var items = new List<string>();
+            foreach (var table in tables)
+            {
+                string name = table.ExposedName ?? table.Object?.BaseIdentifier?.Value ?? "a source in the FROM";
+                if (table.Columns == null)
+                {
+                    Failure = $"the columns of {name} are not known";
+                    return;
+                }
+                if (table.ReferenceText == null)
+                {
+                    Failure = $"{name} has no alias to put in front of its columns";
+                    return;
+                }
+                items.AddRange(table.Columns.Ordered.Select(c => table.ReferenceText + "." + SqlIdentifierQuoting.QuoteIfNeeded(c)));
+            }
+
+            Expansion = new Edit(node.StartOffset, node.FragmentLength, star.Layout.Join(items));
+            Edits.Add(Expansion);
+            ColumnsExpanded = items.Count;
+        }
+
+        /// <summary>The tables a star covers: all of its FROM, or the one its qualifier names. Null when the qualifier
+        /// matches more than one.</summary>
+        private static List<ScopeTable> StarTables(Scope scope, SelectStarExpression node)
+        {
+            if (scope == null)
+                return null;
+            if (!(node.Qualifier?.Count > 0))
+                return scope.Tables;
+
+            var qualifier = node.Qualifier.Identifiers.Select(i => i.Value).ToList();
+            var matches = scope.Tables.Where(t => QualifierMatches(t, qualifier)).ToList();
+            return matches.Count > 1 ? null : matches;
         }
 
         /// <summary>
@@ -413,6 +632,12 @@ internal static class ColumnQualifier
             foreach (var reference in spec.FromClause?.TableReferences ?? Enumerable.Empty<TableReference>())
                 Collect(reference, scope.Tables);
 
+            // Qualify Columns aliases every table; expanding a star, only the ones the star covers.
+            var toAlias = star == null ? scope.Tables : ReferenceEquals(spec, star.Spec) ? StarTables(scope, star.Star) ?? new List<ScopeTable>() : new List<ScopeTable>();
+            foreach (var table in scope.Tables)
+                if (table.AliasAfter != null && table.ExistingAlias == null && toAlias.Contains(table))
+                    AddAlias(table, table.AliasAfter);
+
             return scope;
         }
 
@@ -446,8 +671,7 @@ internal static class ColumnQualifier
                         Columns = ColumnsOf(named.SchemaObject)
                     };
                     // The alias goes after FOR SYSTEM_TIME … but before TABLESAMPLE and WITH (hints).
-                    if (table.ExistingAlias == null)
-                        AddAlias(table, (TSqlFragment)named.TemporalClause ?? named.SchemaObject);
+                    table.AliasAfter = (TSqlFragment)named.TemporalClause ?? named.SchemaObject;
                     tables.Add(table);
                     break;
                 }
@@ -461,8 +685,7 @@ internal static class ColumnQualifier
                         ExposedName = tvf.Alias?.Value ?? tvf.SchemaObject.BaseIdentifier.Value,
                         Columns = tvf.Columns.Count > 0 ? NameSet(tvf.Columns.Select(c => c.Value)) : Lookup(tvf.SchemaObject)
                     };
-                    if (table.ExistingAlias == null)
-                        AddAlias(table, tvf);
+                    table.AliasAfter = tvf;
                     tables.Add(table);
                     break;
                 }
@@ -476,8 +699,7 @@ internal static class ColumnQualifier
                         ExposedName = variable.Alias?.Value ?? variable.Variable.Name,
                         Columns = NameSet(getColumns(new QualifierTableName(null, null, null, variable.Variable.Name)))
                     };
-                    if (table.ExistingAlias == null)
-                        AddAlias(table, variable.Variable);
+                    table.AliasAfter = variable.Variable;
                     tables.Add(table);
                     break;
                 }
@@ -519,7 +741,7 @@ internal static class ColumnQualifier
             TablesAliased++;
         }
 
-        private HashSet<string> ColumnsOf(SchemaObjectName obj)
+        private ColumnSet ColumnsOf(SchemaObjectName obj)
         {
             // A one-part name may be a CTE of this statement, which hides any table of the same name.
             if (obj.SchemaIdentifier == null && obj.DatabaseIdentifier == null && obj.ServerIdentifier == null &&
@@ -529,15 +751,24 @@ internal static class ColumnQualifier
             return Lookup(obj);
         }
 
-        private HashSet<string> Lookup(SchemaObjectName obj) =>
+        private ColumnSet Lookup(SchemaObjectName obj) =>
             NameSet(getColumns(new QualifierTableName(obj.ServerIdentifier?.Value, obj.DatabaseIdentifier?.Value, obj.SchemaIdentifier?.Value, obj.BaseIdentifier.Value)));
 
-        private static HashSet<string> NameSet(IEnumerable<string> names) =>
-            names == null ? null : new HashSet<string>(names.Where(n => !string.IsNullOrEmpty(n)), StringComparer.OrdinalIgnoreCase) is { Count: > 0 } set ? set : null;
+        private static ColumnSet NameSet(IEnumerable<string> names)
+        {
+            if (names == null)
+                return null;
+            var set = new ColumnSet();
+            foreach (string name in names)
+                if (!string.IsNullOrEmpty(name) && set.Add(name))
+                    set.Ordered.Add(name);
+            return set.Count > 0 ? set : null;
+        }
 
         /// <summary>The column names a query produces — what a derived table or CTE exposes. Null when a <c>*</c> makes
-        /// them unknowable from the text.</summary>
-        private static HashSet<string> OutputColumns(QueryExpression query)
+        /// them unknowable from the text, or a column has no name (which SQL Server rejects there anyway) — dropping it
+        /// would leave an expanded star one column short.</summary>
+        private static ColumnSet OutputColumns(QueryExpression query)
         {
             while (query is not QuerySpecification)
             {
@@ -559,7 +790,10 @@ internal static class ColumnQualifier
                     case SelectStarExpression:
                         return null;
                     case SelectScalarExpression scalar:
-                        names.Add(scalar.ColumnName?.Value ?? (scalar.Expression as ColumnReferenceExpression)?.MultiPartIdentifier?.Identifiers.LastOrDefault()?.Value);
+                        string name = scalar.ColumnName?.Value ?? (scalar.Expression as ColumnReferenceExpression)?.MultiPartIdentifier?.Identifiers.LastOrDefault()?.Value;
+                        if (string.IsNullOrEmpty(name))
+                            return null;
+                        names.Add(name);
                         break;
                 }
             }

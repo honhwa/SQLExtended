@@ -83,6 +83,12 @@ public sealed class SQLExtendedSettings
     /// </summary>
     public bool AutoCloseQuotes { get; set; } = true;
 
+    /// <summary>
+    /// Tab straight after a SELECT-list <c>*</c> or <c>alias.*</c> replaces it with the column list, each column
+    /// prefixed with its table's alias, giving a table without one an alias (GitHub issue #4).
+    /// </summary>
+    public bool TabExpandsSelectStar { get; set; } = true;
+
     // --- Editor: rainbow parentheses ---
 
     /// <summary>

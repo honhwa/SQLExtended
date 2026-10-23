@@ -261,6 +261,11 @@
                         <TextBlock Style="{StaticResource DimLabel}"
                                    Text="Typing ' inserts '' with the cursor between them; typing ' again steps over the closing quote, and Backspace on an empty pair removes both. Not inside strings, comments or bracketed names, nor straight after a word (O'Brien) except the N of N'…'."/>
 
+                        <CheckBox x:Name="ChkTabExpandsStar" Content="Tab after SELECT * expands it to the column list"
+                                  Style="{StaticResource DarkCheck}" Margin="0,8,0,4"/>
+                        <TextBlock Style="{StaticResource DimLabel}"
+                                   Text="With the cursor straight after a * or alias.* in a SELECT list, Tab replaces it with the columns, each prefixed with its table's alias, and gives a table without an alias one. Laid out by the formatter's column and comma settings. Needs the schema cache loaded; COUNT(*) is never touched."/>
+
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Matching"/>
 
                         <CheckBox x:Name="ChkCamelCase" Content="CamelCase matching (e.g., OD matches OrderDetails)"
@@ -936,7 +941,7 @@
 
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Replication Monitor" Margin="0,14,0,6"/>
                         <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,8"
-                                   Text="Press Ctrl+Alt+R (or SQLExtended → Replication Monitor). Most of what it reads lives in the distribution database, so connect to the distributor for the full picture; the Publisher tab works from a publisher."/>
+                                   Text="Open it from SQLExtended → Replication Monitor. Most of what it reads lives in the distribution database, so connect to the distributor for the full picture; the Publisher tab works from a publisher."/>
 
                         <StackPanel Orientation="Horizontal" Margin="0,4">
                             <TextBlock Style="{StaticResource SettingLabel}" Text="Auto-refresh interval (seconds):"/>

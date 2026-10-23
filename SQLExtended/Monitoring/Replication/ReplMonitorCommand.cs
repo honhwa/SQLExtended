@@ -7,7 +7,7 @@ using Task = System.Threading.Tasks.Task;
 namespace SQLExtended.Monitoring.Replication;
 
 /// <summary>
-/// Command handler for "Replication Monitor" (Ctrl+Alt+R).
+/// Command handler for "Replication Monitor" (menu only).
 ///
 /// The monitor is <b>pinned</b> to the instance it was opened from rather than following the active query window, so
 /// showing it is not simply "show the tool window": a server has to be resolved first and matched against the

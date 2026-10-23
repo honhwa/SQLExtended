@@ -121,6 +121,14 @@ is the long form.
 
 `SsmsSchemaViewerPackage.vsct` defines menu entries and keyboard shortcuts. Commands appear both in a top-level "SQLExtended" menu and the editor context menu (right-click).
 
+**A shortcut for an editor command must be bound in the SQL Query Editor scope (`guidSqlQueryEditorScope`), not only
+Global (`guidVSStd97`).** In a query window a Text Editor binding beats a Global one on the same chord, silently:
+Format SQL's Ctrl+K, Ctrl+F lost to Edit.FormatSelection and Qualify Columns' Ctrl+K, Ctrl+A to Edit.SwapAnchor, and
+both shipped broken. The comment above `<KeyBindings>` has the rule; check a new chord under Tools > Options >
+Keyboard ("Shortcut currently used by") with a reset keyboard scheme before shipping it. Microsoft's own SSMS 22
+extensions (`Extensions\Microsoft\*\.vsextension\extension.json`, `"shortcuts"`) win a Global clash with ours: Copilot
+has Ctrl+Alt+D/E/F/R, SqlFormatter Ctrl+K, Ctrl+Q, Presenter Mode Ctrl+Shift+F5.
+
 The `.vsct` and the three `*.vsixmanifest` files at the project root — which is committed, which is
 generated, and which one `StampVsixVersion` actually edits — are documented in
 `SQLExtended/MANIFESTS.md`. Read it before touching any of them.

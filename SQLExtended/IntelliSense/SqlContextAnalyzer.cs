@@ -997,9 +997,14 @@ internal static class SqlContextAnalyzer
     /// </summary>
     private static string ExtractCurrentStatement(string fullText, int cursorPosition)
     {
-        int pos = Math.Min(cursorPosition, fullText.Length);
+        var (start, length) = GetStatementSpan(fullText, cursorPosition);
+        return fullText.Substring(start, length);
+    }
 
-        // Find the start and end of the current batch (GO on its own line)
+    /// <summary>Where the GO batch containing the cursor starts in <paramref name="fullText"/>, and how long it is.</summary>
+    internal static (int Start, int Length) GetBatchSpan(string fullText, int cursorPosition)
+    {
+        int pos = Math.Min(cursorPosition, fullText.Length);
         int batchStart = 0;
         int batchEnd = fullText.Length;
         foreach (Match m in GoBatchPattern.Matches(fullText))
@@ -1012,8 +1017,18 @@ internal static class SqlContextAnalyzer
                 break;
             }
         }
+        return (batchStart, batchEnd - batchStart);
+    }
 
-        string batch = fullText.Substring(batchStart, batchEnd - batchStart);
+    /// <summary>Where the statement containing the cursor starts in <paramref name="fullText"/>, and how long it is —
+    /// the text <see cref="ExtractCurrentStatement"/> returns.</summary>
+    internal static (int Start, int Length) GetStatementSpan(string fullText, int cursorPosition)
+    {
+        int pos = Math.Min(cursorPosition, fullText.Length);
+
+        // The current batch (GO on its own line), then the statement within it
+        var (batchStart, batchLength) = GetBatchSpan(fullText, pos);
+        string batch = fullText.Substring(batchStart, batchLength);
         int cursorInBatch = pos - batchStart;
 
         var boundaries = FindStatementBoundaries(batch);
@@ -1026,7 +1041,7 @@ internal static class SqlContextAnalyzer
             else { stmtEnd = b; break; }
         }
 
-        return batch.Substring(stmtStart, stmtEnd - stmtStart);
+        return (batchStart + stmtStart, stmtEnd - stmtStart);
     }
 
     private static readonly HashSet<string> StatementStartKeywords = new(StringComparer.OrdinalIgnoreCase)
