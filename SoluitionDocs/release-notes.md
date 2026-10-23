@@ -1,4 +1,16 @@
-DataByte for SSMS 2026.10.22.1227
+DataByte for SSMS 2026.10.23.1755
 
 New
-- Qualify Columns. Press Ctrl+K, Ctrl+Q (or right-click in the query editor and choose Qualify Columns) to give every table in a SELECT an alias and put that alias in front of each of its columns: `SELECT FName, City FROM Person JOIN Address ON Person.AddressId = Address.AddressId` becomes `SELECT p.FName, a.City FROM Person p JOIN Address a ON p.AddressId = a.AddressId`. It works on the selection, or the whole script when nothing is selected, and one Ctrl+Z undoes it. Aliases you have already written are kept, the new ones are the same initials IntelliSense uses, and qualifiers that name a table by its own name (`Person.AddressId`, `dbo.Person.*`) switch to the alias. Which table a column belongs to comes from the schema cache, and a column is only prefixed when exactly one table has it: a column found in more than one table, one that is not found (such as a select-list alias in ORDER BY), or one in a query that also reads from something whose columns are not known (OPENJSON, PIVOT, a table not in the cache) is left as written, and the status bar says how many were. Subqueries, CTEs, derived tables, CROSS APPLY, temp tables and table variables are handled; the table an UPDATE, DELETE, MERGE or INSERT writes to is not aliased, but the SELECTs inside those statements are. Your layout and comments are left as they were. If the schema cache for the database has not loaded yet, it starts loading and asks you to try again. Thanks to @walterstypula for the suggestion (#3).
+- Tab after SELECT * expands it. With the cursor straight after a `*` or `alias.*` in a SELECT list, press Tab and the star is replaced with the column list, each column prefixed with its table's alias; a table without an alias is given one. The columns are laid out using the formatter's column and comma settings. It needs the schema cache loaded for the database, and `COUNT(*)` is never touched. Switch it off under Settings → IntelliSense. Thanks to @walterstypula for the suggestion (#4).
+- A SQLExtended submenu on the query editor's right-click menu, with View Schema, Format SQL, Qualify Columns, Parse Statistics, SQL Search, SQL History, Script Library, Validate Schema References, the schema cache commands and the settings. Parse Statistics is also on the Messages pane's right-click menu.
+- The SQLExtended menu now shows each command's keyboard shortcut beside it.
+
+Changed
+- Qualify Columns is now Ctrl+K, Ctrl+A (it was Ctrl+K, Ctrl+Q). Ctrl+K, Ctrl+Q now runs Format SQL in a query window, the same chord SSMS's own formatter uses, and Ctrl+K, Ctrl+F still works too.
+- Replication Monitor no longer has a shortcut: Ctrl+Alt+R belongs to Copilot. Open it from the SQLExtended menu or a server's right-click menu in Object Explorer.
+- Settings → Keyboard Shortcuts now lists every command and reads its shortcut from SSMS, so a shortcut you reassign under Tools → Options → Keyboard shows there. Commands without a shortcut show "—".
+
+Fixed
+- Qualify Columns and Go to Column were missing from the SQLExtended menu and could only be reached by their shortcuts.
+- In a query window, Ctrl+K, Ctrl+F ran SSMS's Format Selection instead of Format SQL, and Ctrl+Alt+F opened Copilot instead of SQL Search. Both now run SQLExtended's commands in a query window.
+- SQLExtended's items on the query editor's right-click menu never appeared.
