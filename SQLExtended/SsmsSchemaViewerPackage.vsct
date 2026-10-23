@@ -24,6 +24,14 @@
         </Strings>
       </Menu>
 
+      <!-- "SQLExtended" submenu on the query editor's right-click menu: the editor commands, the tool windows and the
+           settings, so what is otherwise reachable only by shortcut can be found by right-clicking. -->
+      <Menu guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSubMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+        <Strings>
+          <ButtonText>SQLExtended</ButtonText>
+        </Strings>
+      </Menu>
       <!-- "Highlight Tab" submenu on the document tab's right-click menu (EnvTabs/TabHighlightCommand.cs) -->
       <Menu guid="guidSsmsSchemaViewerCmdSet" id="TabHighlightMenu" priority="0x0100" type="Menu">
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="TabContextGroup"/>
@@ -71,9 +79,28 @@
         <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedMenu"/>
       </Group>
 
-      <!-- Group on the editor context (right-click) menu -->
+      <!-- Group on the query editor's right-click menu, holding the SQLExtended submenu. The parent is SQLEditors' own
+           IDM_SQLWB_SQLSCRIPT_CONTEXT, not the shell's IDM_VS_CTXT_CODEWIN: SSMS's query window shows its own menu, and a
+           placement on the code-window menu merges without error and never appears. -->
       <Group guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+        <Parent guid="guidSQLEditorGroup" id="IDM_SQLWB_SQLSCRIPT_CONTEXT"/>
+      </Group>
+      <!-- Groups inside that submenu, in display order -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="EditorContextEditGroup" priority="0x0100">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSubMenu"/>
+      </Group>
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="EditorContextToolsGroup" priority="0x0200">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSubMenu"/>
+      </Group>
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="EditorContextCacheGroup" priority="0x0300">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSubMenu"/>
+      </Group>
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSettingsGroup" priority="0x0400">
+        <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSubMenu"/>
+      </Group>
+      <!-- Group on the Messages pane's right-click menu: Parse Statistics reads that pane -->
+      <Group guid="guidSsmsSchemaViewerCmdSet" id="MessagesContextGroup" priority="0x0700">
+        <Parent guid="guidSQLEditorGroup" id="IDM_SQLWB_SQLRESMSG_CONTEXT"/>
       </Group>
 
       <!-- Group on the results grid context (right-click) menu. The parent is SQLEditors'
@@ -420,17 +447,50 @@
       <Parent guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedGridGroup"/>
     </CommandPlacement>
 
+    <!-- Query editor right-click > SQLExtended -->
     <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SchemaViewerCommandId" priority="0x0100">
-      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextEditGroup"/>
     </CommandPlacement>
-    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="FormatSqlCommandId" priority="0x0200">
-      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="FormatSqlCommandId" priority="0x0110">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextEditGroup"/>
     </CommandPlacement>
-    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="QualifyColumnsCommandId" priority="0x0210">
-      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="QualifyColumnsCommandId" priority="0x0120">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextEditGroup"/>
     </CommandPlacement>
-    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0300">
-      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextMenuGroup"/>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0130">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextEditGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SqlSearchCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextToolsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SqlHistoryCommandId" priority="0x0110">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextToolsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="ScriptLibraryCommandId" priority="0x0120">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextToolsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SchemaValidateCommandId" priority="0x0130">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextToolsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="RefreshCacheCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextCacheGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SchemaCacheCommandId" priority="0x0110">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextCacheGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SQLExtendedSettingsCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSettingsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="FormatOptionsCommandId" priority="0x0110">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSettingsGroup"/>
+    </CommandPlacement>
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="SnippetsCommandId" priority="0x0120">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="EditorContextSettingsGroup"/>
+    </CommandPlacement>
+
+    <!-- Messages pane right-click -->
+    <CommandPlacement guid="guidSsmsSchemaViewerCmdSet" id="StatisticsCommandId" priority="0x0100">
+      <Parent guid="guidSsmsSchemaViewerCmdSet" id="MessagesContextGroup"/>
     </CommandPlacement>
 
     <!-- Toolbar: Refresh Cache button -->
@@ -687,14 +747,22 @@
       <IDSymbol name="TabContextGroup" value="0x10A0" />
       <IDSymbol name="TabHighlightColorGroup" value="0x10A1" />
       <IDSymbol name="TabHighlightClearGroup" value="0x10A2" />
+      <IDSymbol name="EditorContextEditGroup" value="0x10B0" />
+      <IDSymbol name="EditorContextToolsGroup" value="0x10B1" />
+      <IDSymbol name="EditorContextCacheGroup" value="0x10B2" />
+      <IDSymbol name="EditorContextSettingsGroup" value="0x10B3" />
+      <IDSymbol name="MessagesContextGroup" value="0x10C0" />
 
       <!-- Submenus -->
       <IDSymbol name="TabHighlightMenu" value="0x1100" />
+      <IDSymbol name="EditorContextSubMenu" value="0x1110" />
     </GuidSymbol>
 
     <!-- SQLEditors' command set that owns the query editor / results pane context menus.
          GUID and menu ID verified against SSMS 22's SQLWorkbenchCommands type. -->
     <GuidSymbol name="guidSQLEditorGroup" value="{33F13AC3-80BB-4ecb-85BC-225435603A5E}">
+      <IDSymbol name="IDM_SQLWB_SQLSCRIPT_CONTEXT" value="0x0050" />
+      <IDSymbol name="IDM_SQLWB_SQLRESMSG_CONTEXT" value="0x0060" />
       <IDSymbol name="IDM_SQLWB_SQLRESGRID_CONTEXT" value="0x0070" />
     </GuidSymbol>
 

@@ -5,6 +5,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
+using System.Linq;
 using Task = System.Threading.Tasks.Task;
 
 namespace SQLExtended;
@@ -44,6 +45,7 @@ internal static class MainMenuService
         // Query editor
         ("View Schema", 0x0100),
         ("Format SQL", 0x0200),
+        ("Qualify Columns", 0x0230),
         ("Parse Statistics", 0x0d00),
         (null, 0),
         // Tool windows
@@ -54,6 +56,7 @@ internal static class MainMenuService
         (null, 0),
         // Results grid
         ("Find in Results", 0x0c20),
+        ("Go to Column...", 0x0c30),
         ("Grid Aggregates", 0x0c10),
         ("Script Results as INSERT", 0x0c00),
         (null, 0),
@@ -136,6 +139,11 @@ internal static class MainMenuService
                     MsoControlType.msoControlButton, Type.Missing, Type.Missing, Type.Missing, true);
                 button.Caption = item.Caption;
                 button.Style = MsoButtonStyle.msoButtonCaption;
+                // A runtime-built button shows no shortcut of its own, and the shortcut is how most of these are
+                // reached - without it the menu is where people never learn there is one.
+                string shortcut = ShortcutText(dte, item.CommandId);
+                if (shortcut != null)
+                    button.ShortcutText = shortcut;
                 if (_pendingSeparator)
                 {
                     button.BeginGroup = true;
@@ -162,6 +170,71 @@ internal static class MainMenuService
             System.Diagnostics.Debug.WriteLine($"[SQLExtended] MainMenuService.TryBuild failed: {ex}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Every command on the menu with its current shortcuts, in menu order — what the Settings dialog's Keyboard Shortcuts
+    /// tab lists, so the tab and the menu cannot disagree. A command with no binding has an empty list.
+    /// </summary>
+    internal static List<(string Caption, IReadOnlyList<string> Shortcuts)> CommandShortcuts()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var dte = Package.GetGlobalService(typeof(SDTE)) as DTE;
+        var rows = new List<(string, IReadOnlyList<string>)>();
+        foreach (var item in Items)
+        {
+            if (item.Caption != null)
+                rows.Add((item.Caption, dte == null ? Array.Empty<string>() : Shortcuts(dte, item.CommandId)));
+        }
+        return rows;
+    }
+
+    /// <summary>The first of <see cref="Shortcuts"/>, for the menu item; null when the command has none.</summary>
+    private static string ShortcutText(DTE dte, int commandId)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var shortcuts = Shortcuts(dte, commandId);
+        return shortcuts.Count > 0 ? shortcuts[0] : null;
+    }
+
+    /// <summary>
+    /// The command's shortcuts as SSMS currently binds them ("Ctrl+K, Ctrl+F"), read rather than hard-coded so a user's own
+    /// reassignment shows. Query-editor scope first, as it wins at the keyboard; a chord bound in several scopes appears once.
+    /// Within that scope a chord bound nowhere else leads, so Format SQL shows Ctrl+K, Ctrl+Q (the query-window chord SSMS's
+    /// own formatter taught people) ahead of Ctrl+K, Ctrl+F, rather than in whatever order SSMS returns the bindings.
+    /// </summary>
+    private static IReadOnlyList<string> Shortcuts(DTE dte, int commandId)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var editor = new List<string>();
+        var other = new List<string>();
+        try
+        {
+            if (dte.Commands.Item(CommandSet.ToString("B"), commandId)?.Bindings is not object[] bindings)
+                return editor;
+
+            foreach (var binding in bindings)
+            {
+                // "Scope::Keys", e.g. "SQL Query Editor::Ctrl+K, Ctrl+A" or "Global::Ctrl+Shift+D"
+                string text = binding as string;
+                int split = text?.IndexOf("::", StringComparison.Ordinal) ?? -1;
+                if (split < 0)
+                    continue;
+                string keys = text.Substring(split + 2);
+                (text.StartsWith("SQL Query Editor", StringComparison.OrdinalIgnoreCase) ? editor : other).Add(keys);
+            }
+        }
+        catch
+        {
+            // Fall through with whatever was read
+        }
+        var ordered = editor.Distinct().OrderBy(keys => other.Contains(keys)).ToList();
+        foreach (var keys in other)
+        {
+            if (!ordered.Contains(keys))
+                ordered.Add(keys);
+        }
+        return ordered;
     }
 
     [ThreadStatic]

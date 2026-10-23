@@ -40,10 +40,27 @@ public partial class SQLExtendedSettingsDialog : Window
         LoadSettingsToUI();
         LoadSnippetList();
         LoadInfoLabels();
+        LoadShortcuts();
         AttachDiagnosticLog();
 
         if (!string.IsNullOrEmpty(initialTabHeader))
             SelectTabByHeader(initialTabHeader);
+    }
+
+    /// <summary>The Keyboard Shortcuts tab: the menu's commands and their live bindings, so neither list can go stale.</summary>
+    private void LoadShortcuts()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        try
+        {
+            ShortcutsList.ItemsSource = MainMenuService.CommandShortcuts()
+                .Select(c => new ShortcutItem(c.Caption.TrimEnd('.'), c.Shortcuts.Count == 0 ? "—" : string.Join("   or   ", c.Shortcuts)))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            SQLExtendedLog.Warning("Settings", "Could not read keyboard shortcuts", ex);
+        }
     }
 
     private void SelectTabByHeader(string header)
@@ -978,6 +995,13 @@ internal sealed class PlaceholderDefaultItem : INotifyPropertyChanged
 /// list shows the scheme's display name — the combo has no DisplayMemberPath, and an enum would show as
 /// "MonochromeRamp".
 /// </summary>
+/// <summary>One row of the Keyboard Shortcuts tab.</summary>
+internal sealed class ShortcutItem(string command, string shortcut)
+{
+    public string Command { get; } = command;
+    public string Shortcut { get; } = shortcut;
+}
+
 internal sealed class SchemeItem(Comments.CommentScheme scheme)
 {
     public Comments.CommentScheme Scheme { get; } = scheme;

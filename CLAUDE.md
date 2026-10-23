@@ -121,6 +121,15 @@ is the long form.
 
 `SsmsSchemaViewerPackage.vsct` defines menu entries and keyboard shortcuts. Commands appear both in a top-level "SQLExtended" menu and the editor context menu (right-click).
 
+**Two menus are not what the VSCT suggests, and a new command must be added to both by hand:**
+- **The top-level SQLExtended menu SSMS 22 shows is built in code**, by `MainMenuService.Items` — the VSCT one never
+  renders. A command left out of `Items` is reachable only by its shortcut: Qualify Columns and Go to Column shipped
+  that way. The menu reads each command's live binding for its shortcut text.
+- **The query editor's right-click menu is SQLEditors' `IDM_SQLWB_SQLSCRIPT_CONTEXT`** (`guidSQLEditorGroup`, 0x50),
+  holding a SQLExtended submenu; the Messages pane's is `IDM_SQLWB_SQLRESMSG_CONTEXT` (0x60). The shell's
+  `IDM_VS_CTXT_CODEWIN` merges without error and never appears in a query window — the editor items sat there unseen.
+  The IDs come from `SQLWorkbenchCommands` in `SQLEditors.dll`, read by reflection.
+
 **A shortcut for an editor command must be bound in the SQL Query Editor scope (`guidSqlQueryEditorScope`), not only
 Global (`guidVSStd97`).** In a query window a Text Editor binding beats a Global one on the same chord, silently:
 Format SQL's Ctrl+K, Ctrl+F lost to Edit.FormatSelection and Qualify Columns' Ctrl+K, Ctrl+A to Edit.SwapAnchor, and

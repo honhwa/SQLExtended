@@ -1112,75 +1112,35 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,8">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionHeader}" Text="SQLExtended Keyboard Shortcuts" Margin="0,4,0,6"/>
-                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,12"
-                                   Text="These shortcuts are registered by the SQLExtended extension. To change them, use Tools > Options > Keyboard in SSMS and search for 'SQLExtended'."/>
+                        <TextBlock Style="{StaticResource DimLabel}" Margin="0,0,0,12" TextWrapping="Wrap"
+                                   Text="Read from SSMS each time this opens, so a shortcut you reassign shows here. To change one, use Tools > Options > Keyboard in SSMS and search for 'SQLExtended'."/>
 
-                        <!-- Shortcuts table -->
-                        <Grid>
+                        <!-- Shortcuts table, filled from MainMenuService in code-behind (LoadShortcuts) -->
+                        <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="200"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- Header -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Command"
-                                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="Shortcut"
-                                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"/>
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="View Schema"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Shift+D"/>
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Format SQL" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+K, Ctrl+F" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Refresh Schema Cache" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Shift+R" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="SQL Search" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="4" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+F" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="SQL History" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="5" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+H" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Parse Statistics" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="6" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+K, Ctrl+G" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Script Library" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="7" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+L" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Performance Monitor" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="8" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+P" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="9" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Always On Monitor" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="9" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+A" Margin="0,6,0,0"/>
-
-                            <TextBlock Grid.Row="10" Grid.Column="0" Style="{StaticResource SettingLabel}" Text="Agent Jobs" Margin="0,6,0,0"/>
-                            <TextBlock Grid.Row="10" Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
-                                       FontFamily="Cascadia Code, Consolas" Text="Ctrl+Alt+J" Margin="0,6,0,0"/>
+                            <TextBlock Grid.Column="0" Text="Command"
+                                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Column="1" Text="Shortcut"
+                                       Foreground="{DynamicResource SqlxTextMuted}" FontSize="11" FontWeight="SemiBold"/>
                         </Grid>
+                        <ItemsControl x:Name="ShortcutsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource SettingLabel}" Text="{Binding Command}"/>
+                                        <TextBlock Grid.Column="1" Foreground="{DynamicResource SqlxHeading}" FontSize="12"
+                                                   FontFamily="Cascadia Code, Consolas" Text="{Binding Shortcut}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
