@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace SQLExtended.Decryption;
 
@@ -52,6 +53,16 @@ internal static class ModuleDecryptionService
     /// viewer someone is waiting on.
     /// </summary>
     private static readonly TimeSpan GateTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How many times a DAC refused <i>because someone else has it</i> is asked again, and how long between
+    /// attempts. The slot is released the moment the other session's socket closes — usually well under a
+    /// second — so the first retry alone covers SSMS's own <c>ADMIN:</c> window closing or another SSMS
+    /// releasing it. Retrying is what separates "the decrypt works" from "the decrypt is broken until SSMS
+    /// restarts", and the wait is bounded because the caller is a schema cache load on a timer.
+    /// </summary>
+    private const int BusyAttempts = 3;
+    private static readonly TimeSpan BusyRetryDelay = TimeSpan.FromMilliseconds(750);
 
     /// <summary>
     /// Decrypted text by server|database|schema.name|modify_date. Keyed on the object's version so a
@@ -185,7 +196,7 @@ internal static class ModuleDecryptionService
 
         try
         {
-            using var dac = DacConnectionFactory.Open(connectionString, database);
+            using var dac = OpenDac(connectionString, database, ct);
 
             foreach (var module in outstanding)
             {
@@ -213,10 +224,17 @@ internal static class ModuleDecryptionService
         }
         catch (DacUnavailableException ex)
         {
-            // One failure for the whole batch, reported once, and remembered — a server that cannot give us
-            // a DAC will not start doing so, and retrying costs the connect timeout per object per refresh.
-            result.DacError = ex.Message;
-            UnavailableServers[server] = ex.Message;
+            // One failure for the whole batch, reported once. Whether it is remembered depends on why it
+            // failed: a server that will not give us a DAC — no sysadmin, remote admin connections off, Azure —
+            // will not start doing so, and retrying costs the connect timeout per object per refresh. A DAC
+            // that was merely busy is the opposite, and remembering it is how this feature used to stay broken
+            // for the rest of the session after a single collision with an ADMIN: query window.
+            result.DacError = ex.IsBusy
+                ? ex.Message + $" (Tried {BusyAttempts} times; nothing is wrong with this server — the slot is free as soon as that session closes.)"
+                : ex.Message;
+
+            if (!ex.IsBusy)
+                UnavailableServers[server] = ex.Message;
         }
         catch (OperationCanceledException)
         {
@@ -228,6 +246,29 @@ internal static class ModuleDecryptionService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Opens the DAC, asking again only when the refusal was "someone else has it right now". Every other
+    /// reason to fail is answered on the first attempt because repeating it cannot change anything — and the
+    /// two more likely ones, a login without sysadmin and remote admin connections being off, would otherwise
+    /// cost three connect timeouts before the same message came out.
+    /// </summary>
+    private static SqlConnection OpenDac(string connectionString, string database, CancellationToken ct)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return DacConnectionFactory.Open(connectionString, database);
+            }
+            catch (DacUnavailableException ex) when (ex.IsBusy && attempt < BusyAttempts)
+            {
+                // Linear backoff, not fixed: the wait for a slot is the other session's teardown, which is
+                // either immediate or not happening, so there is nothing to gain from a long third wait.
+                Task.Delay(TimeSpan.FromMilliseconds(BusyRetryDelay.TotalMilliseconds * attempt), ct).GetAwaiter().GetResult();
+            }
+        }
     }
 
     /// <summary>

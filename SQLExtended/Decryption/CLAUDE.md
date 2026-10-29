@@ -25,6 +25,17 @@ drives everything else:
   forever, and without the negative ones a login that is not sysadmin would pay the full connect timeout per
   object per refresh for an answer that cannot change. `SchemaCache.ClearAll` clears all three explicitly
   (they are not keyed by database), and is the only way to retry a server that failed earlier in the session.
+- **"In use" is not a fact about the server, and is neither retried-forever nor remembered.** The one DAC
+  refusal that clears itself is `17810` ("the maximum number of '1' dedicated administrator connections
+  already exists"), which `DacConnectionFactory.IsBusy` separates from the rest; `OpenDac` asks three times
+  over ~2.25 s before reporting it, and `DecryptCore` deliberately does **not** put it in
+  `UnavailableServers`. Recording it was how a single collision with an `ADMIN:` query window or another
+  SSMS instance turned into "decryption is broken" for the rest of the session, escapable only by Clear All
+  Cache — the exact symptom of the feature being off. The other refusals (no sysadmin, remote admin
+  connections off, Azure) really are permanent and are still recorded on the first attempt.
+  `IsBusy` is matched on the error number first and the text second, and **not** on "dedicated administrator
+  connection" alone: Azure's *"Dedicated administrator connections are not supported"* contains it and means
+  the opposite, which used to be retried three times and reported as somebody else's session.
 - **One DAC at a time, process-wide** (`ModuleDecryptionService.DacGate`). The instance permits exactly one,
   and a cache load and an export on separate threads would otherwise fail each other. `DacConnectionFactory`
   also forces `Pooling=false` — a pooled DAC stays open after `Dispose` and refuses the next attempt,

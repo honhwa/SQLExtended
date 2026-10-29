@@ -95,20 +95,44 @@ internal static class DacConnectionFactory
         catch (Exception ex)
         {
             connection.Dispose();
-            throw new DacUnavailableException(Explain(ex), ex);
+            throw new DacUnavailableException(Explain(ex), ex, IsBusy(ex));
         }
     }
 
     /// <summary>
-    /// Turns the three failures that actually happen into their cause. Everything else is passed through
-    /// with the DAC named, so at least the reader knows which connection failed.
+    /// Whether the refusal means "someone else is holding the DAC right now". This is the only DAC failure that
+    /// is a moment rather than a fact about the server, and therefore the only one worth retrying or forgetting:
+    /// a login without sysadmin stays that way, remote admin connections stay off until someone enables them,
+    /// and Azure SQL Database has no DAC to enable. Treating those as transient costs three connect timeouts on
+    /// every refresh; treating this one as permanent is what makes a single collision look like a broken feature
+    /// for the rest of the session.
     /// </summary>
-    private static string Explain(Exception ex)
+    internal static bool IsBusy(Exception ex)
+        => (ex is SqlException sql && sql.Number == 17810) || LooksBusy(ex?.Message);
+
+    /// <summary>
+    /// 17810 reads "the maximum number of '1' dedicated administrator connections already exists". The text
+    /// match is a backstop for the cases where the number is not on the exception handed to us. Deliberately
+    /// not matched on "dedicated administrator connection" alone: Azure refuses with "Dedicated administrator
+    /// connections are not supported", which is the opposite of busy and must not be retried.
+    /// </summary>
+    private static bool LooksBusy(string message)
+        => !string.IsNullOrEmpty(message)
+        && (message.IndexOf("maximum number of", StringComparison.OrdinalIgnoreCase) >= 0
+            || (message.IndexOf("dedicated administrator", StringComparison.OrdinalIgnoreCase) >= 0
+                && message.IndexOf("already exists", StringComparison.OrdinalIgnoreCase) >= 0));
+
+    /// <summary>
+    /// Turns the three failures that actually happen into their cause. Everything else is passed through
+    /// with the DAC named, so at least the reader knows which connection failed. <c>internal</c> rather than
+    /// private so the misrouting guarded here — a refusal that is not "busy" reported as "in use" — can be
+    /// checked without a server.
+    /// </summary>
+    internal static string Explain(Exception ex)
     {
         string message = ex.Message ?? "";
 
-        if (message.IndexOf("maximum number of", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            message.IndexOf("dedicated administrator connection", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (IsBusy(ex))
         {
             return "The server's single dedicated administrator connection is already in use. Close any other DAC session and "
                  + "try again — note that a pooled connection holds the slot with nothing visible in Object Explorer to show "
@@ -135,5 +159,12 @@ internal static class DacConnectionFactory
 /// </summary>
 internal sealed class DacUnavailableException : Exception
 {
-    public DacUnavailableException(string message, Exception inner = null) : base(message, inner) { }
+    public DacUnavailableException(string message, Exception inner = null, bool isBusy = false) : base(message, inner)
+        => IsBusy = isBusy;
+
+    /// <summary>
+    /// Somebody else held the DAC at the moment we asked. Nothing about the server or the login is wrong, so
+    /// the caller retries instead of remembering it — unlike every other reason a DAC cannot be opened.
+    /// </summary>
+    public bool IsBusy { get; }
 }
