@@ -152,8 +152,28 @@
   <!-- DependsOnTargets="EnsurePkgDef": both run AfterTargets="Build", in declaration order, so without it this copied
        bin's pkgdef before the build regenerated it and SSMS always ran the previous build's registration — including the
        ProvideMenuResource version that decides whether the shell re-merges the command table. -->
+  <!-- Probe only. The xcopy deploy into SSMS's Extensions folder needs elevation, and an unelevated dev box used to
+       fail the whole build here with MSB3191 ("Unable to create directory ... Access is denied") on a build that was
+       otherwise fine. The deploy is a convenience for F5, so it degrades to a warning the way the configurationchanged
+       touch below always has: write a file, and skip the copies if the write did not stick.
+       A property set in a target persists for the rest of the build, which is what the payload target keys off. -->
   <Target Name="CopyToSsms" AfterTargets="Build" DependsOnTargets="EnsurePkgDef">
-    <MakeDir Directories="$(SsmsExtDir)" />
+    <!-- One Exec, exit code ignored, output suppressed: create the folder if it is missing and leave a file in it.
+         A task that fails here (MakeDir, WriteLinesToFile) logs MSB3191 "Unable to create directory ... Access is
+         denied" as a warning *before* the explanation below, and that sentence is the confusing half of what this
+         is meant to fix. The probe file is what proves the write actually landed. -->
+    <Exec Command="cmd /c if not exist &quot;$(SsmsExtDir)&quot; mkdir &quot;$(SsmsExtDir)&quot; &amp; copy /y NUL &quot;$(SsmsExtDir)\.deploy-probe&quot; &gt;nul 2&gt;nul"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <PropertyGroup>
+      <_SsmsExtDirWritable>false</_SsmsExtDirWritable>
+      <_SsmsExtDirWritable Condition="Exists('$(SsmsExtDir)\.deploy-probe')">true</_SsmsExtDirWritable>
+    </PropertyGroup>
+    <Delete Files="$(SsmsExtDir)\.deploy-probe" Condition="'$(_SsmsExtDirWritable)' == 'true'" />
+    <Warning Condition="'$(_SsmsExtDirWritable)' != 'true'"
+             Text="The build output was NOT deployed into SSMS: '$(SsmsExtDir)' is not writable by this user (it lives under Program Files). Run Visual Studio as administrator to deploy on build, or copy '$(TargetDir)' into that folder yourself before F5." />
+  </Target>
+
+  <Target Name="CopyToSsmsPayload" AfterTargets="CopyToSsms" Condition="'$(_SsmsExtDirWritable)' == 'true'">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pkgdef" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)$(TargetName).pkgdef')" />
     <Copy SourceFiles="$(ProjectDir)extension.vsixmanifest" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(ProjectDir)extension.vsixmanifest')" />
@@ -363,7 +383,12 @@
 
   <!-- Import VSSDK targets for GeneratePkgDef, VSCTCompile, VSIX container -->
   <!--<Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />-->
-  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\18.5.40034\tools\vssdk\Microsoft.VsSDK.targets" />
+  <!-- EnsureTrailingSlash, not "$(NuGetPackageRoot)tools\...": NuGet writes NuGetPackageRoot into
+	     obj\*.nuget.g.props WITHOUT a trailing separator on some machines (this one: "G:\nuget\packages"),
+	     and every import it generates there spells the separator out ("$(NuGetPackageRoot)\..."). Concatenating
+	     directly evaluated to "G:\nuget\packagesmicrosoft.vssdk.buildtools\..." and the project failed to load at
+	     all in VS. The commented import above has the same bug; don't copy it. -->
+  <Import Project="$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))microsoft.vssdk.buildtools\18.5.40034\tools\vssdk\Microsoft.VsSDK.targets" />
 
   <!-- Wire GeneratePkgDef into the build since SDK-style projects clobber PrepareForRunDependsOn.
 	     NOTE: do NOT post-process the pkgdef to strip the leading comma from the Menus value
