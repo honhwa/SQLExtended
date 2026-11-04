@@ -66,7 +66,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="181.37.1" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034" PrivateAssets="all" />
+    <!-- GeneratePathProperty guarantees nuget.g.props emits $(PkgMicrosoft_VSSDK_BuildTools), which the
+         VsSDK targets import at the bottom of this file depends on. It is emitted implicitly today, but
+         that is a NuGet implementation detail, not a contract. -->
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.140.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
@@ -361,9 +364,20 @@
 
   <!-- SchemaDialog.xaml is auto-discovered by UseWPF=true -->
 
-  <!-- Import VSSDK targets for GeneratePkgDef, VSCTCompile, VSIX container -->
-  <!--<Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\17.14.2120\tools\vssdk\Microsoft.VsSDK.targets" />-->
-  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\18.5.40034\tools\vssdk\Microsoft.VsSDK.targets" />
+  <!-- Import VSSDK targets for GeneratePkgDef, VSCTCompile, VSIX container.
+
+       Do NOT build this path as $(NuGetPackageRoot) + folder. NuGet copies that property verbatim out
+       of globalPackagesFolder in NuGet.Config, and a config value written without a trailing separator
+       ("G:\nuget\packages") makes the concatenation produce "G:\nuget\packagesmicrosoft.vssdk.buildtools\
+       ...\Microsoft.VsSDK.targets" — a path that cannot exist, so the import fails while the package is
+       sitting right there on disk. NuGet's own generated imports dodge this by hardcoding a separator
+       ($(NuGetPackageRoot)\microsoft...), which is why every other package restores fine and only this
+       hand-written line broke.
+
+       $(PkgMicrosoft_VSSDK_BuildTools) is emitted by nuget.g.props already resolved to the restored
+       version, so this also drops the second copy of the version number that had to be hand-edited in
+       step with the PackageReference above (see the retired 17.14.2120 line in git history). -->
+  <Import Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets" />
 
   <!-- Wire GeneratePkgDef into the build since SDK-style projects clobber PrepareForRunDependsOn.
 	     NOTE: do NOT post-process the pkgdef to strip the leading comma from the Menus value
