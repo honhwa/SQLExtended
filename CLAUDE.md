@@ -156,9 +156,14 @@ and its shortcut does nothing — which looks exactly like a chord conflict. It 
 by which time six commands' shortcuts were missing. (The deploy also used to copy the *previous* build's pkgdef —
 `CopyToSsms` ran before `EnsurePkgDef` regenerated it — so a bump only reached SSMS on the build after; it now depends on it.)
 The shell only *looks* for changed extensions when `Extensions\extensions.configurationchanged` has a new timestamp —
-what an installer does — so `CopyToSsms` touches it; without that, even a bumped version goes unnoticed. The
-`Extensions` folder needs elevation to write, so on a dev box the touch usually fails and the build warns: after a
-`.vsct` change, close SSMS and run `Ssms.exe /updateconfiguration` (or `/setup`) once.
+what an installer does — so `CopyToSsms` touches it; without that, even a bumped version goes unnoticed. A stock SSMS
+install leaves `…\IDE\Extensions` read-only for `BUILTIN\Users`, so on a dev box that has never been opened up the
+deploy cannot even create its own subfolder; `CopyToSsms` then warns and skips instead of failing the build (the `.vsix`
+is still correct), and F5 runs the previous build. `SoluitionDocs\Tools\grant-deploy-access.ps1`, run once from an
+elevated prompt, creates the folder, grants the current user Modify on it and on `extensions.configurationchanged`, and
+is the fix — re-run it after an SSMS reinstall or major upgrade. `-p:SsmsDeploy=false` skips the deploy entirely on a
+machine that never runs SSMS. Where the touch still fails, close SSMS and run `Ssms.exe /updateconfiguration` (or
+`/setup`) once.
 
 The `.vsct` and the three `*.vsixmanifest` files at the project root — which is committed, which is
 generated, and which one `StampVsixVersion` actually edits — are documented in

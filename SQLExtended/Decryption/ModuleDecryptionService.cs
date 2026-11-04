@@ -68,12 +68,51 @@ internal static class ModuleDecryptionService
     private static readonly ConcurrentDictionary<string, string> Failures = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Servers whose DAC could not be opened, by data source. A login without sysadmin, an instance with
-    /// remote admin connections off, or Azure SQL Database will never succeed, and retrying costs the
-    /// connect timeout every time — for every object, on every refresh. Recorded once, reported instantly
-    /// thereafter, and cleared by <see cref="ClearCache"/>.
+    /// Servers whose DAC could not be opened for a reason that will not change, by data source. A login
+    /// without sysadmin, an instance with remote admin connections off, or Azure SQL Database will never
+    /// succeed, and retrying costs the connect timeout every time — for every object, on every refresh.
+    /// Recorded once, reported instantly thereafter, and cleared by <see cref="ClearCache"/>.
     /// </summary>
     private static readonly ConcurrentDictionary<string, string> UnavailableServers = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Servers whose DAC was merely <i>unavailable a moment ago</i> — a slot someone else held, a port the
+    /// client could not resolve, SQL Browser not running — and until when that is still worth believing.
+    ///
+    /// Deliberately not <see cref="UnavailableServers"/>, because the two mean opposite things. "Someone
+    /// else holds the connection right now" is true for seconds; "SQL Browser is not running" is true until
+    /// the user starts it, which they can do at any moment. Caching either for the session made one busy
+    /// moment — or one stopped service — disable decryption until "Clear All Cache", the exact shape of "the
+    /// decrypt feature does not work", with an error that said so and no way to act on it. So these entries
+    /// expire, and quickly enough that a user who fixes the cause and clicks again gets a real attempt.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, TransientSlot> Transient = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>How long a "the slot is taken" answer is reused before the next caller tries for real.</summary>
+    private static readonly TimeSpan BusyMemo = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// How long a "the DAC could not be reached at all" answer is reused. Longer than <see cref="BusyMemo"/>
+    /// because it costs a connect attempt plus a probe on the ordinary connection — ten seconds and three on
+    /// an instance that has no DAC listener, measured — and because the fix takes a person a minute or two:
+    /// start SQL Server Browser, sp_configure 'remote admin connections', add trace flag 7806 and restart.
+    /// Short enough that having done it, the next attempt is a real one rather than a remembered refusal.
+    /// </summary>
+    private static readonly TimeSpan UnreachableMemo = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How many times the DAC is asked for before a busy slot is reported as a failure, and how long to
+    /// wait between those attempts. A slot held by our own previous batch, by a DAC window someone just
+    /// closed, or by a tool polling it clears within a second or two, so the first retry is what turns
+    /// most of these into a success.
+    /// </summary>
+    private static readonly int[] BusyRetryDelaysMs = { 400, 1200 };
+
+    private sealed class TransientSlot
+    {
+        public DateTime UntilUtc;
+        public string Message;
+    }
 
     /// <summary>Whether the user has turned decryption on. Every automatic caller checks this first.</summary>
     public static bool Enabled => SQLExtendedSettings.Current.DecryptEncryptedModules;
@@ -88,6 +127,7 @@ internal static class ModuleDecryptionService
         Memo.Clear();
         Failures.Clear();
         UnavailableServers.Clear();
+        Transient.Clear();
     }
 
     /// <summary>
@@ -177,6 +217,15 @@ internal static class ModuleDecryptionService
             return result;
         }
 
+        // A slot that was busy — or a port that could not be resolved — seconds ago is answered from memory
+        // rather than retried, so a cache load touching several databases does not open a fresh connect per
+        // database to be told the same thing. The entry expires on its own — see BusyMemo and UnreachableMemo.
+        if (Transient.TryGetValue(server, out TransientSlot unavailable) && unavailable.UntilUtc > DateTime.UtcNow)
+        {
+            result.DacError = unavailable.Message;
+            return result;
+        }
+
         // Never an unbounded wait: queueing behind another run for an arbitrary time is indistinguishable
         // from a hang to whoever is waiting on the answer.
         if (!DacGate.Wait(GateTimeout, ct))
@@ -188,7 +237,7 @@ internal static class ModuleDecryptionService
 
         try
         {
-            using var dac = DacConnectionFactory.Open(connectionString, database);
+            using var dac = OpenDac(connectionString, database, ct);
 
             foreach (var module in outstanding)
             {
@@ -216,10 +265,22 @@ internal static class ModuleDecryptionService
         }
         catch (DacUnavailableException ex)
         {
-            // One failure for the whole batch, reported once, and remembered — a server that cannot give us
-            // a DAC will not start doing so, and retrying costs the connect timeout per object per refresh.
+            // Three outcomes, remembered three different ways, because they become true again at three very
+            // different rates. A login that is not sysadmin stays that way for the session and is answered
+            // from memory forever. A busy slot frees itself in seconds. Everything else — SQL Browser not
+            // running, remote admin connections off, an instance that never bound the DAC port — is fixed by
+            // a person in a minute or two, so remembering it for the session would leave the user staring at
+            // a correct diagnosis with no way to make the code try again short of "Clear All Cache".
             result.DacError = ex.Message;
-            UnavailableServers[server] = ex.Message;
+
+            if (ex.Permanent)
+                UnavailableServers[server] = ex.Message;
+            else
+                Transient[server] = new TransientSlot
+                {
+                    UntilUtc = DateTime.UtcNow.Add(DacConnectionFactory.IsBusy(ex) ? BusyMemo : UnreachableMemo),
+                    Message = ex.Message,
+                };
         }
         catch (OperationCanceledException)
         {
@@ -231,6 +292,37 @@ internal static class ModuleDecryptionService
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Opens the DAC, retrying while the slot is merely occupied. Three attempts at most, ~1.6s of
+    /// waiting in total: enough to outlast a slot released by a DAC window someone just closed, by our own
+    /// previous batch, or by a tool that polls it — short enough that a genuinely held slot is still
+    /// reported while the user is looking at the answer.
+    ///
+    /// The retry is deliberately not applied to the other failures. A login without sysadmin will be
+    /// refused identically three times and pay three connect timeouts for it.
+    /// </summary>
+    private static SqlConnection OpenDac(string connectionString, string database, CancellationToken ct)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                // Only the last attempt asks who is holding the slot: the answer costs a connection on the
+                // normal endpoint, and while a retry is still coming it is not the answer anyone reads.
+                return DacConnectionFactory.Open(
+                    connectionString, database, probeHolder: attempt == BusyRetryDelaysMs.Length);
+            }
+            catch (DacUnavailableException ex) when (attempt < BusyRetryDelaysMs.Length && DacConnectionFactory.IsBusy(ex))
+            {
+                // A bounded sleep, then the token is checked: at most 1.2s of extra latency for a cancelled
+                // run, on a thread that is already a background one, is a cheaper trade than holding a wait
+                // handle open for it.
+                Thread.Sleep(BusyRetryDelaysMs[attempt]);
+                ct.ThrowIfCancellationRequested();
+            }
+        }
     }
 
     /// <summary>

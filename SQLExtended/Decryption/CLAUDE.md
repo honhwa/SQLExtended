@@ -23,13 +23,59 @@ drives everything else:
   — per object, and per server for a DAC that could not be opened at all. The cache reloads on a timer;
   without the positive memo a five-minute refresh would take a Sch-M lock on every encrypted procedure
   forever, and without the negative ones a login that is not sysadmin would pay the full connect timeout per
-  object per refresh for an answer that cannot change. `SchemaCache.ClearAll` clears all three explicitly
-  (they are not keyed by database), and is the only way to retry a server that failed earlier in the session.
+  object per refresh for an answer that cannot change. Only the failures that genuinely cannot change are
+  kept that long; see the two bullets on busy slots and unreachable DACs below. `SchemaCache.ClearAll` clears
+  every one of these caches explicitly (they are not keyed by database).
+- **A busy DAC slot is not one of those failures, and must not be memoised like one.** "Someone else holds
+  the connection right now" is true for seconds; a login without sysadmin is true until someone grants it.
+  Caching both for the session made one busy moment — an ADMIN: query window, a tool polling the DAC, our own
+  previous batch still finishing — disable decryption until "Clear All Cache", reported as an error that says
+  the server is busy and gives the user nothing to do about it. So `IsBusy` separates them (by SQL error
+  number *and* text: the text is localized, the number is not), the busy answer is remembered for 5 seconds
+  only (`BusyMemo`), and `OpenDac` retries it twice with a short delay before giving up — a slot released by a
+  window someone just closed is the common case, and the first retry is what turns it into a success.
+  `IsBusy` inspects `SqlException` only, never the wrapper's message, because `DacUnavailableException`'s own
+  text contains the phrase it looks for; walking the chain would classify "not sysadmin" as busy forever.
+  On the final attempt `DacConnectionFactory.DescribeDacHolder` names the holder from `sys.dm_exec_sessions`
+  over an ordinary connection, so the message says "holding it now: sa via …" instead of asking the user to
+  run the query themselves. Best effort, and skipped while a retry is still coming — it costs a round trip.
 - **One DAC at a time, process-wide** (`ModuleDecryptionService.DacGate`). The instance permits exactly one,
   and a cache load and an export on separate threads would otherwise fail each other. `DacConnectionFactory`
   also forces `Pooling=false` — a pooled DAC stays open after `Dispose` and refuses the next attempt,
   including SSMS's own `ADMIN:` query windows — and strips any explicit `,port`, because the DAC listens on
   its own port resolved by SQL Browser from the instance name.
+- **"The DAC port could not be obtained" is a client failure, and it is diagnosable.** Error 43
+  ("An error occurred while obtaining the dedicated administrator connection (DAC) port. Make sure that SQL
+  Browser is running…") is raised by SNI *before* SQL Server is ever contacted, so the raw text names the
+  one component that is often neither installed nor needed. Two causes are far more common:
+  **SQL Server Express does not start a DAC listener at all without trace flag 7806** (its ERRORLOG says so
+  in as many words: "Dedicated administrator connection support was not started because it is disabled on
+  this edition of SQL Server"), and **a client cannot resolve the port of a named instance when SQL Server
+  Browser is not running** — Express does not install it. `DacConnectionFactory.Open` therefore answers a
+  non-busy, non-login failure with `ProbeDacEndpoint` and then, if that fails too, a diagnosis. Three
+  facts here were measured against a live instance and each one contradicts the obvious assumption:
+
+  1. **`sys.tcp_endpoints.port` is not the answer.** It reports `0` for a dynamically assigned DAC port
+     *even while the listener is up* (DAC bound to 11618, view said 0), and reports the normal endpoint the
+     same way. Candidates therefore come from `sys.dm_tcp_listener_states`, which lists every TDS listener
+     — including the DAC, and with nothing to say which is which, since a DAC endpoint's `type_desc` is
+     `'TSQL'` exactly like the normal one.
+  2. **`ADMIN:host,port` is not a valid connection string.** SqlClient rejects it with provider error 25,
+     "Connection string is not valid" — the prefix only accepts an instance name. What *does* work is a
+     plain `tcp:host,port` pointed at the DAC's port: it lands on the DAC endpoint anyway (verified: the
+     session's `sys.endpoints` row was 'Dedicated Admin Connection' and it could read `sys.sysobjvalues`).
+     The `ADMIN:` prefix is how a client *finds* the port through SQL Browser, not a flag the server needs.
+  3. **A successful connection proves nothing.** Every port the instance listens on accepts a connection,
+     so each candidate is confirmed with `IsDacSession` — asking the session which endpoint it landed on —
+     and disposed otherwise.
+
+  `SoluitionDocs/Queries/dac-availability-check.sql` prints the same facts and a verdict for a human,
+  reading the port from the ERRORLOG line, which is the only place it is actually published.
+- **An unreachable DAC is not memoised like a permanent one either.** Only `DacUnavailableException.Permanent`
+  (a refused login, Azure SQL Database) is kept for the session; everything else expires — 5 s for a busy
+  slot, 2 minutes for "could not reach it at all" (`UnreachableMemo`). Without that split, enabling trace
+  flag 7806 and restarting the instance left the user reading the old diagnosis until they found
+  "Clear All Cache", which is the same shape as the busy-slot bug below.
 - **Nothing that fails validation is returned.** If any assumption is wrong the XOR still yields a string,
   and noise reaching the cache or a comparison export is the one failure nobody would catch by reading it.
   `LooksLikeModuleDefinition` requires the text to open with CREATE/ALTER (past any leading comment) and to

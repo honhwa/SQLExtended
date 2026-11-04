@@ -154,9 +154,47 @@
 
   <!-- DependsOnTargets="EnsurePkgDef": both run AfterTargets="Build", in declaration order, so without it this copied
        bin's pkgdef before the build regenerated it and SSMS always ran the previous build's registration — including the
-       ProvideMenuResource version that decides whether the shell re-merges the command table. -->
-  <Target Name="CopyToSsms" AfterTargets="Build" DependsOnTargets="EnsurePkgDef">
-    <MakeDir Directories="$(SsmsExtDir)" />
+       ProvideMenuResource version that decides whether the shell re-merges the command table.
+
+       A build must not fail because this account cannot write into Program Files. The .vsix is the artifact; the
+       xcopy deploy into SSMS is a developer convenience, and it is exactly the convenience that dies when the
+       Extensions folder has never been opened up for the current user — a fresh machine, a different account, an
+       SSMS reinstall. Failing there takes down `dotnet build` (which publish-release.ps1 runs) on every box without
+       that ACL, and the error names a directory rather than the permission. So the deploy is probed, not assumed:
+       the folder is created and a probe file written into it, and if either is denied the copies are skipped with
+       one warning that names both fixes. The build stays green, the .vsix stays correct, and only the F5 loop is
+       degraded — which is what the warning says. -p:SsmsDeploy=false skips the deploy outright, for a build server. -->
+  <PropertyGroup>
+    <SsmsDeploy Condition="'$(SsmsDeploy)' == ''">true</SsmsDeploy>
+  </PropertyGroup>
+
+  <Target Name="CopyToSsms" AfterTargets="Build" DependsOnTargets="EnsurePkgDef" Condition="'$(SsmsDeploy)' == 'true'">
+    <!-- Probe by creating a uniquely named subdirectory, not by Exists() on the folder: the Extensions
+         folder itself exists on every install and is read-only for Users, which is precisely the state that
+         produced MSB3191. Only a successful create proves the copies below will land.
+
+         A directory rather than a probe file because MakeDir reports "access denied" as one clean MSB3191
+         line, while WriteLinesToFile surfaces the same denial as an MSB4018 task crash with a stack trace
+         — the kind of output that reads as a bug in this project. The GUID in the name is what keeps a
+         leftover from a killed build from looking like a successful probe. -->
+    <PropertyGroup>
+      <_SsmsProbeDir>$(SsmsExtDir)\.write-probe-$([System.Guid]::NewGuid().ToString('N'))</_SsmsProbeDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(_SsmsProbeDir)" ContinueOnError="true" />
+    <PropertyGroup>
+      <SsmsExtWritable Condition="Exists('$(_SsmsProbeDir)')">true</SsmsExtWritable>
+    </PropertyGroup>
+    <RemoveDir Directories="$(_SsmsProbeDir)" Condition="'$(SsmsExtWritable)' == 'true'" ContinueOnError="true" />
+
+    <Warning Condition="'$(SsmsExtWritable)' != 'true'" Text="SQLExtended was NOT deployed into SSMS: '$(SsmsExtDir)' cannot be written by $(USERNAME). The .vsix in $(TargetDir) is complete and current, but F5 will start SSMS on the previous build. To restore the xcopy deploy, run SoluitionDocs\Tools\grant-deploy-access.ps1 once from an elevated prompt and rebuild — or pass -p:SsmsDeploy=false on machines that never run SSMS." />
+
+    <CallTarget Targets="_DeployToSsms" Condition="'$(SsmsExtWritable)' == 'true'" />
+  </Target>
+
+  <!-- Called by CopyToSsms only once the folder is known to be writable. Kept as its own target so the whole body
+       stays conditional without an "AND writable" on each of a dozen Copy elements, and so the touch warning below
+       cannot fire a second time on top of the one above. -->
+  <Target Name="_DeployToSsms">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SsmsExtDir)" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pkgdef" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(TargetDir)$(TargetName).pkgdef')" />
     <Copy SourceFiles="$(ProjectDir)extension.vsixmanifest" DestinationFolder="$(SsmsExtDir)" Condition="Exists('$(ProjectDir)extension.vsixmanifest')" />
@@ -178,7 +216,8 @@
          only when this file's timestamp changes, which is what an installer does. Without the touch an xcopy deploy runs
          the new DLL against the old command table: new commands missing from Tools > Options > Keyboard, their shortcuts
          dead, their right-click items absent. The Extensions folder itself is usually not writable without elevation (only
-         our subfolder has been opened up), so a failed touch says what to run instead. -->
+         our subfolder has been opened up — SoluitionDocs\Tools\grant-deploy-access.ps1 opens up this file as well), so a
+         failed touch says what to run instead. -->
     <Touch Files="$(SsmsExtDir)\..\extensions.configurationchanged" Condition="Exists('$(SsmsExtDir)\..\extensions.configurationchanged')" ContinueOnError="true">
       <Output TaskParameter="TouchedFiles" ItemName="_SsmsConfigTouched" />
     </Touch>

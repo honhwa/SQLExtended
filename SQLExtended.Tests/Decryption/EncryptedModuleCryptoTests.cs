@@ -283,4 +283,32 @@ public class EncryptedModuleCryptoTests
         Assert.False(builder.MultipleActiveResultSets);
         Assert.True(builder.TrustServerCertificate);
     }
+
+    [Theory]
+    [InlineData("HOST\\SQL2022", "HOST")]
+    [InlineData("tcp:HOST,1433", "HOST")]
+    [InlineData("ADMIN:HOST\\SQL2022,1433", "HOST")]
+    [InlineData("  HOST  ", "HOST")]
+    public void StripToHost_DropsTheInstanceNameAlongWithThePort(string source, string expected)
+    {
+        // Only used when an explicit DAC port is being supplied. The port already identifies the instance,
+        // and leaving the name in would ask the client to resolve it — which is what just failed.
+        Assert.Equal(expected, DacConnectionFactory.StripToHost(source));
+    }
+
+    [Fact]
+    public void BuildDirectConnectionString_AddressesThePortAndDropsTheName()
+    {
+        string dac = DacConnectionFactory.BuildDirectConnectionString(
+            "Data Source=HOST\\SQL2022,1433;Initial Catalog=master;Integrated Security=True", "AdventureWorks", 51234);
+
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(dac);
+
+        // tcp:host,port — NOT host\instance,port, and emphatically not ADMIN:host,port: SqlClient rejects
+        // the prefix with a port (provider error 25, "Connection string is not valid"), while a plain TCP
+        // address pointed at the DAC's port lands on the DAC endpoint anyway. Both halves measured against
+        // a SQL Server 2019 Express instance.
+        Assert.Equal("tcp:HOST,51234", builder.DataSource);
+        Assert.False(builder.Pooling);
+    }
 }

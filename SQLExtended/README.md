@@ -95,6 +95,12 @@ DLL, the pkgdef and `extension.vsixmanifest` into
 `…\Common7\IDE\Extensions\SQLExtended\` after every build. Set the debug startup program to `Ssms.exe`
 in that folder and F5.
 
+That folder is read-only on a stock SSMS install. If the build warns that it could not be written, run
+`../SoluitionDocs/Tools/grant-deploy-access.ps1` once from an elevated prompt — it creates the folder and
+grants your account Modify on it (and on `extensions.configurationchanged`, so a `.vsct` change is picked
+up without `/updateconfiguration`). Until then the build still succeeds and the `.vsix` is still correct;
+only the F5 deploy is skipped. `-p:SsmsDeploy=false` turns the deploy off deliberately.
+
 That first build needs `extension.vsixmanifest` to exist in this folder — it is gitignored and created by
 hand once; see `MANIFESTS.md` and `../SoluitionDocs/ManualInstall.md`.
 

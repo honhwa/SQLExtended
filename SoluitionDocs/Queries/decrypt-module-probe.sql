@@ -176,10 +176,18 @@ BEGIN CATCH
     RETURN;
 END CATCH;
 
--- Belt and braces: prove the rollback took.
-IF NOT EXISTS (SELECT 1 FROM sys.sysobjvalues WHERE valclass = 1 AND objid = @objid AND subobjid = 1
-               AND CONVERT(varbinary(max), imageval) = SUBSTRING(@origCipher, 1, 8000))
-   AND @rows = 1
+-- Belt and braces: prove the rollback took. The comparison has to match the shape of the ciphertext:
+-- imageval is varbinary(max) on every build that matters, so a 56 KB module is a single row and the whole
+-- value can be compared. Comparing it against SUBSTRING(@origCipher, 1, 8000) instead — which is what this
+-- did — warns on every module longer than 8 KB even when the rollback worked perfectly.
+IF @rows = 1
+   AND NOT EXISTS (SELECT 1 FROM sys.sysobjvalues WHERE valclass = 1 AND objid = @objid AND subobjid = 1
+                   AND CONVERT(varbinary(max), imageval) = @origCipher)
+    PRINT '  WARNING: the stored ciphertext does not match what was read first. Check the object.';
+ELSE IF @rows > 1
+   AND NOT EXISTS (SELECT 1 FROM sys.sysobjvalues WHERE valclass = 1 AND objid = @objid AND subobjid = 1
+                   AND valnum = 1
+                   AND CONVERT(varbinary(max), imageval) = SUBSTRING(@origCipher, 1, 8000))
     PRINT '  WARNING: the stored ciphertext does not match what was read first. Check the object.';
 
 PRINT '';
