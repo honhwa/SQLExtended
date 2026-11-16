@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
@@ -32,6 +32,15 @@
   <!-- The WPF palette is pure data; ThemePaletteTests checks it against every key the XAML asks for. -->
   <ItemGroup>
     <Compile Include="..\SQLExtended\Theme\ThemePalette.cs" Link="Theme\ThemePalette.cs" />
+    <Compile Include="..\SQLExtended\Theme\ThemeSnapshot.cs" Link="Theme\ThemeSnapshot.cs" />
+  </ItemGroup>
+
+  <!-- ScriptCast's pure half: GO splitting, Cast List JSON, the may-change check and the result merge. The runner and pane are not linked. -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\ScriptCast\BatchSplitter.cs" Link="ScriptCast\BatchSplitter.cs" />
+    <Compile Include="..\SQLExtended\ScriptCast\CastList.cs" Link="ScriptCast\CastList.cs" />
+    <Compile Include="..\SQLExtended\ScriptCast\ScriptCastAnalyzer.cs" Link="ScriptCast\ScriptCastAnalyzer.cs" />
+    <Compile Include="..\SQLExtended\ScriptCast\ResultMerger.cs" Link="ScriptCast\ResultMerger.cs" />
   </ItemGroup>
 
   <!-- The UPDATE/DELETE-without-WHERE check; the DTE hook beside it is not linked. -->
@@ -71,6 +80,7 @@
     <Compile Include="..\SQLExtended\IntelliSense\SqlAlterCommands.cs" Link="IntelliSense\SqlAlterCommands.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlQueryHints.cs" Link="IntelliSense\SqlQueryHints.cs" />
     <Compile Include="..\SQLExtended\IntelliSense\SqlQuotePairing.cs" Link="IntelliSense\SqlQuotePairing.cs" />
+    <Compile Include="..\SQLExtended\IntelliSense\CompletionCommitRules.cs" Link="IntelliSense\CompletionCommitRules.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetManager.cs" Link="Snippets\SnippetManager.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetPlaceholderResolver.cs" Link="Snippets\SnippetPlaceholderResolver.cs" />
     <Compile Include="..\SQLExtended\Snippets\SnippetXmlBuilder.cs" Link="Snippets\SnippetXmlBuilder.cs" />
@@ -254,6 +264,15 @@
   <ItemGroup>
     <Compile Include="..\SchemaExporter\SchemaMirror.cs" Link="SchemaExporter\SchemaMirror.cs" />
     <Compile Include="..\SchemaExporter\ChangeDetection.cs" Link="SchemaExporter\ChangeDetection.cs" />
+    <Compile Include="..\SchemaExporter\ReportMirror.cs" Link="SchemaExporter\ReportMirror.cs" />
+  </ItemGroup>
+
+  <!--
+    SchemaCompare's engine: reading scripts into objects, normalising them, and the line diff. Pure ScriptDom and file
+    I/O, so the whole folder is linked. It lives in the extension (SQLExtended\SchemaCompare\Engine).
+  -->
+  <ItemGroup>
+    <Compile Include="..\SQLExtended\SchemaCompare\Engine\*.cs" Link="SchemaCompare\Engine\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!--

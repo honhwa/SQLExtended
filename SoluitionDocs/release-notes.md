@@ -1,8 +1,7 @@
-DataByte for SSMS 2026.10.27.1019
+DataByte for SSMS 2026.11.9.936
 
 New
-- Match whole word in SQL Search. Tick the box beside the search box (Ctrl+Alt+F) to find the term only as a whole name or word: `person` finds `person`, `dbo.person`, `[person]` and `WHERE person = 1`, but not `personal`, `PersonAddress`, `person_id`, `@person` or `#person`. It applies to names, columns, definitions and Agent jobs, and the preview highlights only those matches. The box remembers its setting between sessions. Thanks to @RalphNehme for the suggestion (#9).
+- Replication monitor: click a subscription, agent or error to open a detail pane under the tabs. It shows the full error (every message SQL Server logged for the failure, not just the first line), the agent's recent history, and the command the distribution agent stopped on, with the row's values and the source and destination tables. That is usually enough to see which value broke it. Copy details copies it all as text, and Open as query opens the T-SQL behind it. Nothing loads until you click, and nothing is written to the server.
 
 Fixed
-- In SQL Search, a search containing `_` (as most column names do) treated it as "any character" when searching definitions, so it could return objects that didn't contain the term. A `%` did the same.
-- Find References missed objects whose own name contained the term. For example, asking what uses `Person` left out a view called `vPerson` even though its definition used `Person`.
+- Replication monitor: Load recent errors failed with "Input string was not in a correct format" when an error code contained letters (such as MSSQL_REPL20011), so the Errors tab never loaded.
